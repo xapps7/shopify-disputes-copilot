@@ -1,0 +1,170 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MerchantPlan {
+  STARTER
+  GROWTH
+  PLUS
+}
+
+enum DisputeStatus {
+  NEEDS_RESPONSE
+  UNDER_REVIEW
+  WON
+  LOST
+  ACCEPTED
+  CHARGE_REFUNDED
+  WARNING_NEEDS_RESPONSE
+  UNKNOWN
+}
+
+enum EvidenceCategory {
+  DELIVERY_CONFIRMATION
+  SHIPPING_DOCUMENTATION
+  REFUND_PROOF
+  CUSTOMER_COMMUNICATION
+  SERVICE_DOCUMENTATION
+  PRODUCT_PROOF
+  POLICY_DISCLOSURE
+  ACCOUNT_ACTIVITY
+  OTHER
+}
+
+enum PacketStatus {
+  DRAFT
+  READY
+  SUBMITTED
+  ARCHIVED
+}
+
+model Merchant {
+  id                    String                 @id @default(cuid())
+  shopDomain            String                 @unique
+  shopifyShopId         String?                @unique
+  accessTokenEncrypted  String?
+  plan                  MerchantPlan           @default(STARTER)
+  installedAt           DateTime               @default(now())
+  uninstalledAt         DateTime?
+  timezone              String?
+  settingsJson          String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  disputes              Dispute[]
+  orderSnapshots        OrderSnapshot[]
+  recommendations       PreventionRecommendation[]
+}
+
+model Dispute {
+  id                    String                 @id @default(cuid())
+  merchantId            String
+  shopifyDisputeId      String                 @unique
+  shopifyOrderId        String?
+  status                DisputeStatus          @default(UNKNOWN)
+  disputeType           String?
+  reason                String?
+  reasonDetails         String?
+  amount                Decimal?               @db.Decimal(10, 2)
+  currencyCode          String?
+  evidenceDueBy         DateTime?
+  evidenceSentOn        DateTime?
+  initiatedAt           DateTime?
+  finalizedOn           DateTime?
+  sourceSnapshotJson    String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  merchant              Merchant               @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  timelineEvents        DisputeTimelineEvent[]
+  evidenceItems         EvidenceItem[]
+  packets               EvidencePacket[]
+
+  @@index([merchantId, status])
+  @@index([merchantId, evidenceDueBy])
+}
+
+model DisputeTimelineEvent {
+  id                    String                 @id @default(cuid())
+  disputeId             String
+  eventType             String
+  eventTimestamp        DateTime
+  source                String
+  payloadSummaryJson    String?
+  createdAt             DateTime               @default(now())
+  dispute               Dispute                @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+
+  @@index([disputeId, eventTimestamp])
+}
+
+model OrderSnapshot {
+  id                    String                 @id @default(cuid())
+  merchantId            String
+  shopifyOrderId        String                 @unique
+  orderName             String?
+  customerEmail         String?
+  customerName          String?
+  orderTotal            Decimal?               @db.Decimal(10, 2)
+  currencyCode          String?
+  fulfillmentStatus     String?
+  riskLevel             String?
+  orderJson             String
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  merchant              Merchant               @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId])
+}
+
+model EvidenceItem {
+  id                    String                 @id @default(cuid())
+  disputeId             String
+  category              EvidenceCategory
+  sourceType            String
+  title                 String
+  description           String?
+  fileUrl               String?
+  fileMimeType          String?
+  structuredValueJson   String?
+  readinessState        String?
+  createdBy             String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  dispute               Dispute                @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+
+  @@index([disputeId, category])
+}
+
+model EvidencePacket {
+  id                    String                 @id @default(cuid())
+  disputeId             String
+  version               Int                    @default(1)
+  status                PacketStatus           @default(DRAFT)
+  summaryText           String?
+  pdfUrl                String?
+  generatedAt           DateTime?
+  submittedAt           DateTime?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  dispute               Dispute                @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+
+  @@index([disputeId, status])
+}
+
+model PreventionRecommendation {
+  id                    String                 @id @default(cuid())
+  merchantId            String
+  disputeId             String?
+  category              String
+  recommendationText    String
+  priority              Int                    @default(2)
+  state                 String                 @default("OPEN")
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  merchant              Merchant               @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, state])
+}

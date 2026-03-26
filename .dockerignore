@@ -1,0 +1,11 @@
+.git
+.next
+node_modules
+npm-debug.log
+.env
+.env.local
+public/uploads
+public/packets
+PRODUCT_REQUIREMENTS_DOCUMENT.pdf
+PRODUCT_REQUIREMENTS_DOCUMENT.txt
+tsconfig.tsbuildinfo

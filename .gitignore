@@ -1,0 +1,10 @@
+.next
+node_modules
+.env
+.env.local
+public/uploads
+public/packets
+coverage
+dist
+*.log
+tsconfig.tsbuildinfo

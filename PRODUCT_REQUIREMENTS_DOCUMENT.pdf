@@ -1,0 +1,2040 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+2 0 obj
+<< /Length 1846 >>
+stream
+BT
+/F1 11 Tf
+54 738 Td
+14 TL
+(PRODUCT REQUIREMENTS DOCUMENT) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(SHOPIFY DISPUTES AND CHARGEBACK OPS CO-PILOT) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Version: 1.0  ) Tj
+T*
+(Date: March 25, 2026  ) Tj
+T*
+(Product Stage: V1 Definition  ) Tj
+T*
+(Target Merchants: Shopify and Shopify Plus merchants using Shopify Payments) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(1. PURPOSE) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(This PRD defines the product, technical, operational, compliance, and delivery requirements for a Shopify app ) Tj
+T*
+() Tj
+T*
+(The product is intended to:) Tj
+T*
+() Tj
+T*
+(- reduce the time spent preparing dispute responses) Tj
+T*
+(- improve evidence completeness and organization) Tj
+T*
+(- give merchants a clear operational workflow for dispute handling) Tj
+T*
+(- provide prevention recommendations based on dispute outcomes and order patterns) Tj
+T*
+() Tj
+T*
+(This document is written for founders, product, engineering, design, QA, compliance, and implementation partne) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(2. PRODUCT SUMMARY) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Shopify merchants frequently struggle with chargebacks and disputes because evidence is fragmented across orde) Tj
+T*
+() Tj
+T*
+(The proposed app is a Shopify Payments dispute operations co-pilot that:) Tj
+T*
+() Tj
+T*
+(- ingests disputes and dispute updates via webhooks) Tj
+T*
+(- syncs dispute and order context from Shopify Admin APIs) Tj
+T*
+(- assembles evidence from Shopify-native and merchant-supplied sources) Tj
+T*
+(- generates a bank-ready evidence packet) Tj
+T*
+(- guides the merchant through review and submission) Tj
+T*
+(- tracks outcomes and recommends prevention improvements) Tj
+T*
+() Tj
+T*
+(The app does not guarantee outcomes. Banks and card networks still decide the result.) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(3. PROBLEM STATEMENT) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Merchants face four recurring problems:) Tj
+ET
+endstream
+endobj
+3 0 obj
+<< /Length 1524 >>
+stream
+BT
+/F1 11 Tf
+54 738 Td
+14 TL
+() Tj
+T*
+(1. Dispute handling is fragmented.) Tj
+T*
+(2. Evidence is often incomplete or poorly structured.) Tj
+T*
+(3. Submission deadlines are easy to miss.) Tj
+T*
+(4. Merchants do not know what changes will reduce future disputes.) Tj
+T*
+() Tj
+T*
+(Current merchant pain includes:) Tj
+T*
+() Tj
+T*
+(- disputes arriving without a repeatable internal process) Tj
+T*
+(- confusion about what evidence is most persuasive) Tj
+T*
+(- difficulty collecting tracking, refund, policy, and communication records quickly) Tj
+T*
+(- frustration when good evidence still does not guarantee a favorable ruling) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(4. PRODUCT VISION) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Create the default operating system for Shopify Payments disputes: a merchant-facing workspace that turns a st) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(5. V1 POSITIONING) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Core Value Proposition) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+("Respond to Shopify Payments disputes faster with better evidence and less manual work.") Tj
+T*
+() Tj
+T*
+(What V1 Promises) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- faster dispute preparation) Tj
+T*
+(- better evidence organization) Tj
+T*
+(- clearer action steps) Tj
+T*
+(- improved operational discipline) Tj
+T*
+() Tj
+T*
+(What V1 Does Not Promise) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- guaranteed chargeback wins) Tj
+T*
+(- issuer or bank outcome control) Tj
+T*
+(- complete automation for every processor) Tj
+T*
+(- complete evidence collection from every external system) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(6. SCOPE) Tj
+T*
+() Tj
+T*
+() Tj
+ET
+endstream
+endobj
+4 0 obj
+<< /Length 1635 >>
+stream
+BT
+/F1 11 Tf
+54 738 Td
+14 TL
+(In Scope for V1) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- Shopify Payments disputes only) Tj
+T*
+(- Shopify App Store-compatible public app direction) Tj
+T*
+(- embedded app experience inside Shopify Admin) Tj
+T*
+(- dispute webhook ingestion) Tj
+T*
+(- dispute and order sync from Shopify Admin API) Tj
+T*
+(- evidence vault for Shopify-native and merchant-uploaded evidence) Tj
+T*
+(- dispute timeline view) Tj
+T*
+(- evidence checklist and completeness scoring) Tj
+T*
+(- packet generation in PDF format) Tj
+T*
+(- guided submission workflow) Tj
+T*
+(- manual submission fallback) Tj
+T*
+(- dispute analytics dashboard) Tj
+T*
+(- prevention recommendation engine) Tj
+T*
+(- non-sponsored partner recommendations section) Tj
+T*
+() Tj
+T*
+(Out of Scope for V1) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- non-Shopify Payments dispute API automation) Tj
+T*
+(- deep integrations with all helpdesk and email tools) Tj
+T*
+(- automatic recovery pricing model) Tj
+T*
+(- guaranteed success-rate claims) Tj
+T*
+(- legal advisory workflows) Tj
+T*
+(- full multi-processor representment platform) Tj
+T*
+() Tj
+T*
+(Future Scope) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- multi-processor evidence organizer) Tj
+T*
+(- support platform connectors) Tj
+T*
+(- shipping carrier connectors) Tj
+T*
+(- team review and approval workflow) Tj
+T*
+(- partner-sponsored placements) Tj
+T*
+(- advanced automation rules) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(7. FEASIBILITY ASSESSMENT) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Overall Feasibility) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(V1 is feasible if the product is kept Shopify Payments-first and if evidence submission is treated as a capabi) Tj
+T*
+() Tj
+T*
+(Why It Is Feasible) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Length 1697 >>
+stream
+BT
+/F1 11 Tf
+54 738 Td
+14 TL
+() Tj
+T*
+() Tj
+T*
+(Shopify currently exposes the main primitives needed for a dispute operations product:) Tj
+T*
+() Tj
+T*
+(- disputes/create and disputes/update webhook topics) Tj
+T*
+(- dispute data in Admin GraphQL) Tj
+T*
+(- Shopify Payments dispute evidence resources) Tj
+T*
+(- order, fulfillment, refund, and transaction context) Tj
+T*
+(- app embed architecture in Shopify Admin) Tj
+T*
+(- compliance mechanisms for customer data and privacy requests) Tj
+T*
+() Tj
+T*
+(Main Feasibility Constraints) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- dispute APIs are centered on Shopify Payments) Tj
+T*
+(- strong evidence often lives outside Shopify) Tj
+T*
+(- app handles protected customer data) Tj
+T*
+(- evidence submission and file workflows must be validated early) Tj
+T*
+() Tj
+T*
+(Product Decision) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(V1 will be launched as a Shopify Payments dispute operations product, not as a universal chargeback automation) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(8. GOALS AND SUCCESS METRICS) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Primary Goals) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- reduce time to prepare a dispute response by at least 50 percent) Tj
+T*
+(- increase percentage of disputes with complete evidence before deadline) Tj
+T*
+(- centralize dispute operations into one merchant workflow) Tj
+T*
+() Tj
+T*
+(Secondary Goals) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- identify preventable root causes) Tj
+T*
+(- create a foundation for partner referrals) Tj
+T*
+(- build merchant trust in a high-friction process) Tj
+T*
+() Tj
+T*
+(KPIs) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- average time from dispute creation to evidence-ready state) Tj
+T*
+(- percentage of disputes submitted before due date) Tj
+T*
+(- evidence completeness rate) Tj
+ET
+endstream
+endobj
+6 0 obj
+<< /Length 1551 >>
+stream
+BT
+/F1 11 Tf
+54 738 Td
+14 TL
+(- disputes managed per merchant per month) Tj
+T*
+(- merchant weekly active usage) Tj
+T*
+(- packet generation rate) Tj
+T*
+(- outcome tracking coverage) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(9. USER PERSONAS) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Persona 1: Founder-Operator) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Runs a growing Shopify store, handles disputes personally, wants speed and clarity, has limited time.) Tj
+T*
+() Tj
+T*
+(Persona 2: Operations Manager) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Manages support and fulfillment coordination, needs a reliable process and due-date visibility.) Tj
+T*
+() Tj
+T*
+(Persona 3: Finance or Risk Lead) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Needs reporting on disputed revenue, outcomes, and preventable causes.) Tj
+T*
+() Tj
+T*
+(Persona 4: Shopify Plus Team) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Needs workflow consistency, team visibility, and evidence quality across larger order volume.) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(10. USER JOBS TO BE DONE) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- Tell me when a dispute appears.) Tj
+T*
+(- Show me the full context for the order and payment.) Tj
+T*
+(- Tell me which evidence matters most.) Tj
+T*
+(- Help me gather missing evidence quickly.) Tj
+T*
+(- Give me a packet I can trust.) Tj
+T*
+(- Make sure I do not miss deadlines.) Tj
+T*
+(- Show me what to change to reduce future disputes.) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(11. PRODUCT PRINCIPLES) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- narrow scope beats broad but unreliable automation) Tj
+T*
+(- evidence quality matters more than flashy AI claims) Tj
+T*
+(- merchant trust requires clear expectations) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Length 1798 >>
+stream
+BT
+/F1 11 Tf
+54 738 Td
+14 TL
+(- privacy and minimization are product requirements, not backend afterthoughts) Tj
+T*
+(- manual fallback is better than broken automation) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(12. ASSUMPTIONS) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- the initial merchant base primarily uses Shopify Payments) Tj
+T*
+(- merchants will accept a guided workflow if it clearly reduces work) Tj
+T*
+(- merchants will upload or connect missing evidence if prompted well) Tj
+T*
+(- Shopify App Store review is more likely to succeed with limited, justified scopes) Tj
+T*
+(- evidence submission through APIs must be validated in development before product promises are made) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(13. END-TO-END USER FLOW) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Flow 1: New Dispute Intake) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(1. Shopify sends disputes/create.) Tj
+T*
+(2. App verifies webhook authenticity.) Tj
+T*
+(3. App stores and syncs dispute details.) Tj
+T*
+(4. App fetches order and payment context.) Tj
+T*
+(5. Merchant sees a new dispute in dashboard with urgency and next actions.) Tj
+T*
+() Tj
+T*
+(Flow 2: Evidence Assembly) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(1. App classifies dispute reason.) Tj
+T*
+(2. App gathers Shopify-native records.) Tj
+T*
+(3. App creates an evidence checklist.) Tj
+T*
+(4. Merchant uploads or confirms missing documents.) Tj
+T*
+(5. App marks evidence readiness state.) Tj
+T*
+() Tj
+T*
+(Flow 3: Packet Review) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(1. Merchant opens dispute workspace.) Tj
+T*
+(2. App shows timeline, checklist, and evidence categories.) Tj
+T*
+(3. App generates a structured summary and PDF packet.) Tj
+T*
+(4. Merchant reviews and approves edits.) Tj
+T*
+() Tj
+T*
+(Flow 4: Submission) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(1. Merchant chooses submit path.) Tj
+T*
+(2. If validated API submission is enabled, app submits evidence.) Tj
+ET
+endstream
+endobj
+8 0 obj
+<< /Length 1350 >>
+stream
+BT
+/F1 11 Tf
+54 738 Td
+14 TL
+(3. Otherwise merchant uses manual-submit instructions with packet download.) Tj
+T*
+(4. App logs the final action.) Tj
+T*
+() Tj
+T*
+(Flow 5: Outcome and Prevention) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(1. Shopify sends disputes/update.) Tj
+T*
+(2. App records win, loss, acceptance, or closure state.) Tj
+T*
+(3. App tags likely root cause.) Tj
+T*
+(4. Merchant receives prevention recommendations.) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(14. FUNCTIONAL REQUIREMENTS) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(14.1 Merchant Installation and Auth) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(The app must:) Tj
+T*
+() Tj
+T*
+(- support Shopify OAuth installation) Tj
+T*
+(- store tokens securely) Tj
+T*
+(- support embedded app usage) Tj
+T*
+(- detect uninstall and clean up state appropriately) Tj
+T*
+() Tj
+T*
+(14.2 Webhook Ingestion) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(The app must:) Tj
+T*
+() Tj
+T*
+(- subscribe to disputes/create) Tj
+T*
+(- subscribe to disputes/update) Tj
+T*
+(- verify HMAC signatures) Tj
+T*
+(- process events idempotently) Tj
+T*
+(- persist webhook processing logs) Tj
+T*
+() Tj
+T*
+(The app should also implement:) Tj
+T*
+() Tj
+T*
+(- app/uninstalled) Tj
+T*
+(- shop/update) Tj
+T*
+(- required privacy webhooks) Tj
+T*
+(- orders/risk_assessment_changed if used in prevention features) Tj
+T*
+() Tj
+T*
+(14.3 Dispute Sync) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(The app must fetch and store:) Tj
+T*
+() Tj
+ET
+endstream
+endobj
+9 0 obj
+<< /Length 1289 >>
+stream
+BT
+/F1 11 Tf
+54 738 Td
+14 TL
+(- dispute identifiers) Tj
+T*
+(- status) Tj
+T*
+(- reason and reason details) Tj
+T*
+(- amount and currency) Tj
+T*
+(- evidence due date) Tj
+T*
+(- associated order reference) Tj
+T*
+(- dispute evidence status where available) Tj
+T*
+() Tj
+T*
+(14.4 Order Context Sync) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(The app must fetch and store required dispute-related order context:) Tj
+T*
+() Tj
+T*
+(- order number) Tj
+T*
+(- order date) Tj
+T*
+(- line items) Tj
+T*
+(- customer contact data required for operations) Tj
+T*
+(- fulfillment events) Tj
+T*
+(- tracking numbers) Tj
+T*
+(- refunds and adjustments) Tj
+T*
+(- transaction references) Tj
+T*
+() Tj
+T*
+(14.5 Dispute Timeline) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Each dispute record must support a timeline containing:) Tj
+T*
+() Tj
+T*
+(- dispute created) Tj
+T*
+(- dispute updated) Tj
+T*
+(- evidence item added) Tj
+T*
+(- packet generated) Tj
+T*
+(- submission action) Tj
+T*
+(- outcome recorded) Tj
+T*
+() Tj
+T*
+(14.6 Evidence Vault) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(The app must support:) Tj
+T*
+() Tj
+T*
+(- evidence item creation) Tj
+T*
+(- evidence category assignment) Tj
+T*
+(- merchant file uploads) Tj
+T*
+(- evidence descriptions) Tj
+T*
+(- evidence metadata storage) Tj
+T*
+(- auditability of changes) Tj
+T*
+() Tj
+T*
+(14.7 Evidence Checklist) Tj
+T*
+() Tj
+ET
+endstream
+endobj
+10 0 obj
+<< /Length 1211 >>
+stream
+BT
+/F1 11 Tf
+54 738 Td
+14 TL
+() Tj
+T*
+(The app must generate a reason-based checklist of:) Tj
+T*
+() Tj
+T*
+(- required evidence) Tj
+T*
+(- recommended evidence) Tj
+T*
+(- missing evidence) Tj
+T*
+(- evidence already attached) Tj
+T*
+() Tj
+T*
+(14.8 Packet Generation) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(The app must generate:) Tj
+T*
+() Tj
+T*
+(- a structured PDF packet) Tj
+T*
+(- a merchant reviewable summary) Tj
+T*
+(- categorized evidence sections) Tj
+T*
+(- exportable file list) Tj
+T*
+() Tj
+T*
+(14.9 Submission Workflow) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(The app must support:) Tj
+T*
+() Tj
+T*
+(- clear submit status) Tj
+T*
+(- API submission path if validated) Tj
+T*
+(- manual submission fallback) Tj
+T*
+(- submission timestamp recording) Tj
+T*
+() Tj
+T*
+(14.10 Analytics) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(The app must display:) Tj
+T*
+() Tj
+T*
+(- open disputes) Tj
+T*
+(- due soon disputes) Tj
+T*
+(- total disputed amount) Tj
+T*
+(- won and lost counts) Tj
+T*
+(- dispute reasons) Tj
+T*
+(- evidence readiness states) Tj
+T*
+() Tj
+T*
+(14.11 Prevention Recommendations) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(The app must provide rules-based recommendations tied to:) Tj
+T*
+() Tj
+T*
+(- dispute reason trends) Tj
+T*
+(- delivery issues) Tj
+T*
+(- refund timing) Tj
+ET
+endstream
+endobj
+11 0 obj
+<< /Length 1269 >>
+stream
+BT
+/F1 11 Tf
+54 738 Td
+14 TL
+(- order risk signals) Tj
+T*
+(- policy visibility gaps) Tj
+T*
+() Tj
+T*
+(14.12 Partner Recommendations) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(The app may show:) Tj
+T*
+() Tj
+T*
+(- recommended tools by category) Tj
+T*
+(- transparent labeling of sponsorship if introduced later) Tj
+T*
+(- merchant-consented lead capture) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(15. EVIDENCE CATEGORIES FOR V1) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- delivery confirmation) Tj
+T*
+(- shipping documentation) Tj
+T*
+(- refund proof) Tj
+T*
+(- customer communication) Tj
+T*
+(- service documentation) Tj
+T*
+(- product description or listing proof) Tj
+T*
+(- policy disclosure or policy acceptance proof) Tj
+T*
+(- account access or usage records where applicable) Tj
+T*
+(- additional supporting documents) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(16. UX REQUIREMENTS) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Main Screens) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- onboarding) Tj
+T*
+(- disputes dashboard) Tj
+T*
+(- dispute detail workspace) Tj
+T*
+(- evidence library) Tj
+T*
+(- packet preview) Tj
+T*
+(- analytics dashboard) Tj
+T*
+(- recommendations page) Tj
+T*
+(- settings) Tj
+T*
+(- partner recommendations page) Tj
+T*
+() Tj
+T*
+(UX Requirements) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- due dates must be visually obvious) Tj
+T*
+(- dispute status must be unambiguous) Tj
+ET
+endstream
+endobj
+12 0 obj
+<< /Length 1540 >>
+stream
+BT
+/F1 11 Tf
+54 738 Td
+14 TL
+(- evidence gaps must be easy to identify) Tj
+T*
+(- packet preview must be editable before finalization) Tj
+T*
+(- the app must clearly state that banks determine the final outcome) Tj
+T*
+(- the app must present a manual fallback when automation is unavailable) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(17. TECHNICAL REQUIREMENTS) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Recommended Architecture) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- frontend: Shopify embedded app using Remix or Next.js) Tj
+T*
+(- UI framework: Polaris) Tj
+T*
+(- backend: Node.js with TypeScript) Tj
+T*
+(- database: PostgreSQL) Tj
+T*
+(- background jobs: queue-based worker system) Tj
+T*
+(- caching: Redis or equivalent) Tj
+T*
+(- file storage: S3-compatible object storage) Tj
+T*
+(- PDF generation: server-side renderer) Tj
+T*
+() Tj
+T*
+(Architectural Requirements) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- webhook receiver must be lightweight) Tj
+T*
+(- all heavy work must run asynchronously) Tj
+T*
+(- data writes must be idempotent) Tj
+T*
+(- file handling must be secure and access-controlled) Tj
+T*
+(- observability must cover webhook failures and job failures) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(18. SHOPIFY PLATFORM REQUIREMENTS) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(APIs) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Primary data layer:) Tj
+T*
+() Tj
+T*
+(- GraphQL Admin API) Tj
+T*
+() Tj
+T*
+(Platform primitives required:) Tj
+T*
+() Tj
+T*
+(- disputes query and dispute objects) Tj
+T*
+(- Shopify Payments dispute evidence resources) Tj
+T*
+(- order, fulfillment, refund, and transaction context) Tj
+T*
+(- webhook subscriptions) Tj
+T*
+() Tj
+ET
+endstream
+endobj
+13 0 obj
+<< /Length 1525 >>
+stream
+BT
+/F1 11 Tf
+54 738 Td
+14 TL
+(Required Capability Validation) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(The implementation team must validate early:) Tj
+T*
+() Tj
+T*
+(- the exact access scopes needed) Tj
+T*
+(- evidence file upload path) Tj
+T*
+(- supported file types and size limits) Tj
+T*
+(- whether submission works consistently for supported dispute states) Tj
+T*
+() Tj
+T*
+(Until that validation is complete, the product must not market one-click evidence submission as guaranteed fun) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(19. SECURITY AND COMPLIANCE REQUIREMENTS) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Protected Customer Data) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(The app should assume it processes protected customer data and design accordingly.) Tj
+T*
+() Tj
+T*
+(Requirements:) Tj
+T*
+() Tj
+T*
+(- collect the minimum customer data necessary) Tj
+T*
+(- encrypt sensitive data at rest) Tj
+T*
+(- protect file access with signed URLs or equivalent) Tj
+T*
+(- maintain internal access controls) Tj
+T*
+(- log administrative access to sensitive workflows) Tj
+T*
+() Tj
+T*
+(Mandatory Privacy Compliance) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(The app must implement and test:) Tj
+T*
+() Tj
+T*
+(- customer data request webhook handling) Tj
+T*
+(- customer redact webhook handling) Tj
+T*
+(- shop redact webhook handling) Tj
+T*
+() Tj
+T*
+(Retention and Deletion) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(The app must define and enforce:) Tj
+T*
+() Tj
+T*
+(- document retention windows) Tj
+T*
+(- merchant deletion workflow) Tj
+T*
+(- purge behavior after uninstall or account termination where required) Tj
+T*
+() Tj
+T*
+() Tj
+ET
+endstream
+endobj
+14 0 obj
+<< /Length 1382 >>
+stream
+BT
+/F1 11 Tf
+54 738 Td
+14 TL
+(20. NON-FUNCTIONAL REQUIREMENTS) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Performance) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- webhook acknowledgments under 5 seconds) Tj
+T*
+(- dispute sync jobs should begin near-real-time) Tj
+T*
+(- typical dashboard loads should be under 2 seconds) Tj
+T*
+(- packet generation should complete within 30 seconds for standard cases) Tj
+T*
+() Tj
+T*
+(Reliability) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- webhook ingestion must be retry-safe) Tj
+T*
+(- queue jobs must support retries and dead-letter handling) Tj
+T*
+(- file processing failures must be recoverable) Tj
+T*
+() Tj
+T*
+(Scalability) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- support early multi-merchant growth without architectural redesign) Tj
+T*
+(- support object storage for evidence artifacts) Tj
+T*
+() Tj
+T*
+(Observability) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- structured logs) Tj
+T*
+(- background job monitoring) Tj
+T*
+(- API error tracking) Tj
+T*
+(- business event instrumentation) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(21. RISKS AND MITIGATIONS) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Risk 1: Shopify Payments Limitation) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Risk:) Tj
+T*
+() Tj
+T*
+(The app does not cover non-Shopify Payments disputes natively.) Tj
+T*
+() Tj
+T*
+(Mitigation:) Tj
+T*
+() Tj
+T*
+(Launch with explicit Shopify Payments-first positioning and add a manual evidence organizer later for other pr) Tj
+T*
+() Tj
+T*
+(Risk 2: Missing External Evidence) Tj
+ET
+endstream
+endobj
+15 0 obj
+<< /Length 1274 >>
+stream
+BT
+/F1 11 Tf
+54 738 Td
+14 TL
+() Tj
+T*
+() Tj
+T*
+(Risk:) Tj
+T*
+() Tj
+T*
+(Key evidence may exist outside Shopify.) Tj
+T*
+() Tj
+T*
+(Mitigation:) Tj
+T*
+() Tj
+T*
+(Support merchant uploads in v1 and design connectors as a later expansion path.) Tj
+T*
+() Tj
+T*
+(Risk 3: Compliance Complexity) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Risk:) Tj
+T*
+() Tj
+T*
+(Sensitive customer and dispute data increases security and review burden.) Tj
+T*
+() Tj
+T*
+(Mitigation:) Tj
+T*
+() Tj
+T*
+(Adopt data minimization, encryption, retention controls, and mandatory privacy webhooks from the start.) Tj
+T*
+() Tj
+T*
+(Risk 4: Submission Automation Gaps) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Risk:) Tj
+T*
+() Tj
+T*
+(Evidence submission or file workflows may have constraints that affect the intended experience.) Tj
+T*
+() Tj
+T*
+(Mitigation:) Tj
+T*
+() Tj
+T*
+(Prototype and validate this path in the first implementation phase and keep a manual fallback in the product.) Tj
+T*
+() Tj
+T*
+(Risk 5: Merchant Expectations) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Risk:) Tj
+T*
+() Tj
+T*
+(Merchants may assume the app guarantees wins.) Tj
+T*
+() Tj
+T*
+(Mitigation:) Tj
+T*
+() Tj
+T*
+(Use careful positioning in onboarding, UI copy, pricing, and marketing.) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(22. ROADMAP) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Phase 0: Discovery and Validation) Tj
+ET
+endstream
+endobj
+16 0 obj
+<< /Length 1026 >>
+stream
+BT
+/F1 11 Tf
+54 738 Td
+14 TL
+() Tj
+T*
+() Tj
+T*
+(Duration:) Tj
+T*
+() Tj
+T*
+(- 2 weeks) Tj
+T*
+() Tj
+T*
+(Objectives:) Tj
+T*
+() Tj
+T*
+(- validate disputes webhooks and dispute sync) Tj
+T*
+(- verify API scopes and app review implications) Tj
+T*
+(- validate evidence update, file handling, and submission path) Tj
+T*
+(- finalize v1 capability boundaries) Tj
+T*
+() Tj
+T*
+(Outputs:) Tj
+T*
+() Tj
+T*
+(- technical spike results) Tj
+T*
+(- updated scope decision) Tj
+T*
+(- app review risk log) Tj
+T*
+() Tj
+T*
+(Phase 1: Core Platform Build) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Duration:) Tj
+T*
+() Tj
+T*
+(- 3 weeks) Tj
+T*
+() Tj
+T*
+(Objectives:) Tj
+T*
+() Tj
+T*
+(- install flow) Tj
+T*
+(- auth) Tj
+T*
+(- webhook receiver) Tj
+T*
+(- dispute and order sync) Tj
+T*
+(- persistence layer) Tj
+T*
+() Tj
+T*
+(Outputs:) Tj
+T*
+() Tj
+T*
+(- functioning backend foundation) Tj
+T*
+(- raw dispute intake in product) Tj
+T*
+() Tj
+T*
+(Phase 2: Merchant Workflow Build) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Duration:) Tj
+T*
+() Tj
+T*
+(- 4 weeks) Tj
+T*
+() Tj
+T*
+(Objectives:) Tj
+T*
+() Tj
+ET
+endstream
+endobj
+17 0 obj
+<< /Length 1054 >>
+stream
+BT
+/F1 11 Tf
+54 738 Td
+14 TL
+(- disputes dashboard) Tj
+T*
+(- dispute workspace) Tj
+T*
+(- evidence vault) Tj
+T*
+(- evidence checklist) Tj
+T*
+(- packet generation) Tj
+T*
+() Tj
+T*
+(Outputs:) Tj
+T*
+() Tj
+T*
+(- merchant-ready core workflow) Tj
+T*
+() Tj
+T*
+(Phase 3: Submission and Analytics) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Duration:) Tj
+T*
+() Tj
+T*
+(- 3 weeks) Tj
+T*
+() Tj
+T*
+(Objectives:) Tj
+T*
+() Tj
+T*
+(- submission flow or manual fallback flow) Tj
+T*
+(- dispute analytics) Tj
+T*
+(- due-date alerts) Tj
+T*
+(- prevention recommendations) Tj
+T*
+() Tj
+T*
+(Outputs:) Tj
+T*
+() Tj
+T*
+(- end-to-end dispute operations experience) Tj
+T*
+() Tj
+T*
+(Phase 4: Compliance and Hardening) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Duration:) Tj
+T*
+() Tj
+T*
+(- 2 weeks) Tj
+T*
+() Tj
+T*
+(Objectives:) Tj
+T*
+() Tj
+T*
+(- privacy webhooks) Tj
+T*
+(- retention and deletion controls) Tj
+T*
+(- security review) Tj
+T*
+(- instrumentation hardening) Tj
+T*
+(- app review preparation) Tj
+T*
+() Tj
+T*
+(Outputs:) Tj
+T*
+() Tj
+T*
+(- submission-ready release candidate) Tj
+T*
+() Tj
+T*
+(Phase 5: Beta Launch) Tj
+ET
+endstream
+endobj
+18 0 obj
+<< /Length 1005 >>
+stream
+BT
+/F1 11 Tf
+54 738 Td
+14 TL
+() Tj
+T*
+() Tj
+T*
+(Duration:) Tj
+T*
+() Tj
+T*
+(- 2 to 4 weeks) Tj
+T*
+() Tj
+T*
+(Objectives:) Tj
+T*
+() Tj
+T*
+(- onboard pilot merchants) Tj
+T*
+(- monitor usage and issue patterns) Tj
+T*
+(- collect feedback) Tj
+T*
+(- prioritize post-beta roadmap) Tj
+T*
+() Tj
+T*
+(Outputs:) Tj
+T*
+() Tj
+T*
+(- validated beta learnings) Tj
+T*
+(- roadmap adjustments for general launch) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(23. MILESTONES) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Milestone 1) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- app installs) Tj
+T*
+(- webhooks register) Tj
+T*
+(- disputes sync into dashboard) Tj
+T*
+() Tj
+T*
+(Milestone 2) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- order and fulfillment context displayed) Tj
+T*
+(- evidence checklist generated) Tj
+T*
+() Tj
+T*
+(Milestone 3) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- merchant uploads files) Tj
+T*
+(- packet PDF generated) Tj
+T*
+() Tj
+T*
+(Milestone 4) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- submission path validated or manual fallback released) Tj
+T*
+(- analytics dashboard live) Tj
+T*
+() Tj
+T*
+(Milestone 5) Tj
+ET
+endstream
+endobj
+19 0 obj
+<< /Length 1393 >>
+stream
+BT
+/F1 11 Tf
+54 738 Td
+14 TL
+() Tj
+T*
+() Tj
+T*
+(- compliance readiness complete) Tj
+T*
+(- beta merchants onboarded) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(24. LAUNCH REQUIREMENTS) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(The product is not ready for public launch until all of the following are true:) Tj
+T*
+() Tj
+T*
+(- dispute webhooks are stable in production) Tj
+T*
+(- dispute sync is reliable and idempotent) Tj
+T*
+(- merchant evidence upload works consistently) Tj
+T*
+(- packet generation is stable) Tj
+T*
+(- privacy webhooks are implemented and tested) Tj
+T*
+(- retention and deletion policy is documented) Tj
+T*
+(- error monitoring is active) Tj
+T*
+(- app review documentation is complete) Tj
+T*
+(- product copy does not overstate outcome guarantees) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(25. PRICING DIRECTION) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Suggested Packaging) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Starter:) Tj
+T*
+() Tj
+T*
+(- dispute dashboard) Tj
+T*
+(- evidence checklist) Tj
+T*
+(- manual packet builder) Tj
+T*
+() Tj
+T*
+(Growth:) Tj
+T*
+() Tj
+T*
+(- automated evidence assembly) Tj
+T*
+(- alerts) Tj
+T*
+(- analytics) Tj
+T*
+(- richer team workflows over time) Tj
+T*
+() Tj
+T*
+(Performance-based pricing should only be explored after outcome attribution is measurable and contract terms a) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(26. OPEN QUESTIONS) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(- What exact access scopes are required for all dispute evidence write operations?) Tj
+ET
+endstream
+endobj
+20 0 obj
+<< /Length 637 >>
+stream
+BT
+/F1 11 Tf
+54 738 Td
+14 TL
+(- Which dispute states support the cleanest submission automation flow?) Tj
+T*
+(- What file-size and file-type constraints materially affect merchants?) Tj
+T*
+(- Should one helpdesk integration be included in beta, or deferred entirely?) Tj
+T*
+(- How much customer data can be avoided while still delivering operational value?) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(27. FINAL RECOMMENDATION) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Proceed with a Shopify Payments-first v1. Build the product around dispute intake, evidence assembly, packet g) Tj
+T*
+() Tj
+T*
+(This is the most credible and execution-safe version of the product.) Tj
+ET
+endstream
+endobj
+21 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 2 0 R >>
+endobj
+22 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 3 0 R >>
+endobj
+23 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 4 0 R >>
+endobj
+24 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 5 0 R >>
+endobj
+25 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 6 0 R >>
+endobj
+26 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 7 0 R >>
+endobj
+27 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 8 0 R >>
+endobj
+28 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 9 0 R >>
+endobj
+29 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 10 0 R >>
+endobj
+30 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 11 0 R >>
+endobj
+31 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 12 0 R >>
+endobj
+32 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 13 0 R >>
+endobj
+33 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 14 0 R >>
+endobj
+34 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 15 0 R >>
+endobj
+35 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 16 0 R >>
+endobj
+36 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 17 0 R >>
+endobj
+37 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 18 0 R >>
+endobj
+38 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 19 0 R >>
+endobj
+39 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 20 0 R >>
+endobj
+40 0 obj
+<< /Type /Pages /Kids [21 0 R 22 0 R 23 0 R 24 0 R 25 0 R 26 0 R 27 0 R 28 0 R 29 0 R 30 0 R 31 0 R 32 0 R 33 0 R 34 0 R 35 0 R 36 0 R 37 0 R 38 0 R 39 0 R] /Count 19 >>
+endobj
+41 0 obj
+<< /Type /Catalog /Pages 40 0 R >>
+endobj
+xref
+0 42
+0000000000 65535 f 
+0000000015 00000 n 
+0000000085 00000 n 
+0000001983 00000 n 
+0000003559 00000 n 
+0000005246 00000 n 
+0000006995 00000 n 
+0000008598 00000 n 
+0000010448 00000 n 
+0000011850 00000 n 
+0000013191 00000 n 
+0000014455 00000 n 
+0000015777 00000 n 
+0000017370 00000 n 
+0000018948 00000 n 
+0000020383 00000 n 
+0000021710 00000 n 
+0000022789 00000 n 
+0000023896 00000 n 
+0000024954 00000 n 
+0000026400 00000 n 
+0000027089 00000 n 
+0000027217 00000 n 
+0000027345 00000 n 
+0000027473 00000 n 
+0000027601 00000 n 
+0000027729 00000 n 
+0000027857 00000 n 
+0000027985 00000 n 
+0000028113 00000 n 
+0000028242 00000 n 
+0000028371 00000 n 
+0000028500 00000 n 
+0000028629 00000 n 
+0000028758 00000 n 
+0000028887 00000 n 
+0000029016 00000 n 
+0000029145 00000 n 
+0000029274 00000 n 
+0000029403 00000 n 
+0000029532 00000 n 
+0000029718 00000 n 
+trailer
+<< /Size 42 /Root 41 0 R >>
+startxref
+29769
+%%EOF
