@@ -49,16 +49,16 @@ export async function setCurrentHost(host: string) {
 
 export function buildEmbeddedAppUrl(shopDomain: string, pathname = "/dashboard", host?: string | null) {
   const apiKey = process.env.SHOPIFY_API_KEY ?? "";
-  const path = pathname === "/" ? "" : pathname;
   const params = new URLSearchParams({
-    shop: shopDomain
+    shop: shopDomain,
+    redirectTo: pathname
   });
 
   if (host) {
     params.set("host", host);
   }
 
-  return `https://${shopDomain}/admin/apps/${apiKey}${path}?${params.toString()}`;
+  return `https://${shopDomain}/admin/apps/${apiKey}?${params.toString()}`;
 }
 
 export async function setOauthState(state: string) {
