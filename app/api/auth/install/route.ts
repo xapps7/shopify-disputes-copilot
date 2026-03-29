@@ -9,17 +9,25 @@ import {
 } from "@/lib/shopify/auth";
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const shop = searchParams.get("shop");
+  try {
+    const { searchParams } = new URL(request.url);
+    const shop = searchParams.get("shop");
 
-  if (!shop) {
-    return new NextResponse("Missing shop parameter", { status: 400 });
+    if (!shop) {
+      return new NextResponse("Missing shop parameter", { status: 400 });
+    }
+
+    const normalizedShop = normalizeShopDomain(shop);
+    const state = createOauthState();
+
+    await Promise.all([setCurrentShopDomain(normalizedShop), setOauthState(state)]);
+
+    return NextResponse.redirect(buildInstallUrl(normalizedShop, state));
+  } catch (error) {
+    console.error("Install route failed", error);
+    return new NextResponse(
+      error instanceof Error ? `Install route failed: ${error.message}` : "Install route failed.",
+      { status: 500 }
+    );
   }
-
-  const normalizedShop = normalizeShopDomain(shop);
-  const state = createOauthState();
-
-  await Promise.all([setCurrentShopDomain(normalizedShop), setOauthState(state)]);
-
-  return NextResponse.redirect(buildInstallUrl(normalizedShop, state));
 }
