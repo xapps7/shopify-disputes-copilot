@@ -14,42 +14,6 @@ import {
   registerWebhooks
 } from "@/lib/shopify/install";
 
-function redirectDocument(targetUrl: string) {
-  const escapedUrl = targetUrl.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
-
-  return new NextResponse(
-    `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta http-equiv="refresh" content="0;url=${escapedUrl}" />
-    <title>Opening app…</title>
-  </head>
-  <body>
-    <script>
-      (function() {
-        var target = ${JSON.stringify(targetUrl)};
-        if (window.top) {
-          window.top.location.href = target;
-        } else {
-          window.location.href = target;
-        }
-      })();
-    </script>
-    <p>Opening the app inside Shopify Admin…</p>
-    <p><a href="${escapedUrl}">Continue</a></p>
-  </body>
-</html>`,
-    {
-      status: 200,
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        "Cache-Control": "no-store"
-      }
-    }
-  );
-}
-
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
@@ -98,7 +62,7 @@ export async function GET(request: Request) {
       console.warn("OAuth callback completed with skipped webhooks", webhookResult);
     }
 
-    return redirectDocument(buildEmbeddedAppUrl(shop, "/dashboard", host));
+    return NextResponse.redirect(buildEmbeddedAppUrl(shop, "/dashboard", host));
   } catch (error) {
     console.error("OAuth callback failed", error);
     return new NextResponse(
