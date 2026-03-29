@@ -14,6 +14,7 @@ export async function GET(request: Request) {
     const shop = searchParams.get("shop");
 
     if (!shop) {
+      console.error("Install route failed: missing shop parameter");
       return new NextResponse("Missing shop parameter", { status: 400 });
     }
 

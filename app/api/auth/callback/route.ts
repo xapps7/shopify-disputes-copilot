@@ -20,15 +20,28 @@ export async function GET(request: Request) {
     const state = url.searchParams.get("state");
 
     if (!shopParam || !code || !state) {
+      console.error("OAuth callback failed: missing parameters", {
+        shopPresent: Boolean(shopParam),
+        codePresent: Boolean(code),
+        statePresent: Boolean(state)
+      });
       return new NextResponse("Missing OAuth callback parameters.", { status: 400 });
     }
 
     if (!verifyOAuthCallback(url.searchParams)) {
+      console.error("OAuth callback failed: invalid callback signature", {
+        shop: shopParam
+      });
       return new NextResponse("Invalid OAuth callback signature.", { status: 401 });
     }
 
     const storedState = await consumeOauthState();
     if (!storedState || storedState !== state) {
+      console.error("OAuth callback failed: invalid oauth state", {
+        shop: shopParam,
+        storedStatePresent: Boolean(storedState),
+        stateMatches: storedState === state
+      });
       return new NextResponse("Invalid OAuth state.", { status: 401 });
     }
 
