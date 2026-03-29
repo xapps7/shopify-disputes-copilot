@@ -29,6 +29,7 @@ This project is safe to place in Git once you exclude:
 Required environment variables for App Runner:
 
 - `DATABASE_URL`
+- `DIRECT_URL`
 - `SHOPIFY_API_KEY`
 - `SHOPIFY_API_SECRET`
 - `SHOPIFY_APP_URL`
@@ -47,8 +48,8 @@ Recommended deployment flow:
 
 ## Neon Notes
 
-- Use the pooled connection string for app traffic if desired.
-- Use the direct connection string for schema changes if Neon provides both.
+- Use the pooled connection string for `DATABASE_URL` at runtime.
+- Use the direct connection string for `DIRECT_URL`.
 - Run `npm run db:push` or migrations against Neon before first app start.
 
 ## Important Limitation

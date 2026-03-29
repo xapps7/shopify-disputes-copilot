@@ -13,6 +13,7 @@
 Create `.env.local` from `.env.example` and provide:
 
 - `DATABASE_URL`
+- `DIRECT_URL`
 - `SHOPIFY_API_KEY`
 - `SHOPIFY_API_SECRET`
 - `SHOPIFY_APP_URL`
@@ -28,6 +29,11 @@ npm run prisma:generate
 npm run db:push
 npm run dev
 ```
+
+For Neon:
+
+- `DATABASE_URL` should be the pooled connection string for runtime
+- `DIRECT_URL` should be the non-pooled connection string for Prisma schema operations
 
 ## Next Build Steps
 
