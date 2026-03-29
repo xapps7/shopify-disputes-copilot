@@ -6,11 +6,15 @@ import { usePathname, useSearchParams } from "next/navigation";
 type EmbeddedAppRedirectProps = {
   apiKey: string;
   shopDomain: string | null;
+  host: string | null;
 };
 
-function buildAdminAppUrl(apiKey: string, shopDomain: string, pathname: string, search: string) {
+function buildAdminAppUrl(apiKey: string, shopDomain: string, host: string | null, pathname: string, search: string) {
   const query = new URLSearchParams(search);
   query.set("shop", shopDomain);
+  if (host) {
+    query.set("host", host);
+  }
 
   const normalizedPath = pathname === "/" ? "" : pathname;
   const suffix = query.toString() ? `?${query.toString()}` : "";
@@ -18,12 +22,15 @@ function buildAdminAppUrl(apiKey: string, shopDomain: string, pathname: string, 
   return `https://${shopDomain}/admin/apps/${apiKey}${normalizedPath}${suffix}`;
 }
 
-export function EmbeddedAppRedirect({ apiKey, shopDomain }: EmbeddedAppRedirectProps) {
+export function EmbeddedAppRedirect({ apiKey, shopDomain, host }: EmbeddedAppRedirectProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    if (!apiKey || !shopDomain) {
+    const runtimeShop = searchParams.get("shop") ?? shopDomain;
+    const runtimeHost = searchParams.get("host") ?? host;
+
+    if (!apiKey || !runtimeShop) {
       return;
     }
 
@@ -32,9 +39,9 @@ export function EmbeddedAppRedirect({ apiKey, shopDomain }: EmbeddedAppRedirectP
     }
 
     const queryString = searchParams.toString();
-    const targetUrl = buildAdminAppUrl(apiKey, shopDomain, pathname, queryString);
+    const targetUrl = buildAdminAppUrl(apiKey, runtimeShop, runtimeHost, pathname, queryString);
     window.location.replace(targetUrl);
-  }, [apiKey, pathname, searchParams, shopDomain]);
+  }, [apiKey, host, pathname, searchParams, shopDomain]);
 
   return null;
 }

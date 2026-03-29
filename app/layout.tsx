@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { EmbeddedAppRedirect } from "@/components/embedded-app-redirect";
-import { getCurrentShopDomain } from "@/lib/shopify/auth";
+import { getCurrentHost, getCurrentShopDomain } from "@/lib/shopify/auth";
 
 export const metadata: Metadata = {
   title: "Disputes Co-Pilot",
@@ -13,12 +13,13 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const shopDomain = await getCurrentShopDomain();
+  const host = await getCurrentHost();
   const apiKey = process.env.SHOPIFY_API_KEY ?? "";
 
   return (
     <html lang="en">
       <body>
-        <EmbeddedAppRedirect apiKey={apiKey} shopDomain={shopDomain} />
+        <EmbeddedAppRedirect apiKey={apiKey} host={host} shopDomain={shopDomain} />
         <div className="shell">
           <div className="container">
             <header className="hero">

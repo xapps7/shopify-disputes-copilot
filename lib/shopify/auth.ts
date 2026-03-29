@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { cookies } from "next/headers";
 
 const SHOP_COOKIE = "shopify_disputes_shop";
+const HOST_COOKIE = "shopify_disputes_host";
 const STATE_COOKIE = "shopify_disputes_state";
 
 export function normalizeShopDomain(shop: string) {
@@ -21,6 +22,11 @@ export async function getCurrentShopDomain() {
   return store.get(SHOP_COOKIE)?.value ?? null;
 }
 
+export async function getCurrentHost() {
+  const store = await cookies();
+  return store.get(HOST_COOKIE)?.value ?? null;
+}
+
 export async function setCurrentShopDomain(shopDomain: string) {
   const store = await cookies();
   store.set(SHOP_COOKIE, shopDomain, {
@@ -31,11 +37,28 @@ export async function setCurrentShopDomain(shopDomain: string) {
   });
 }
 
-export function buildEmbeddedAppUrl(shopDomain: string, pathname = "/dashboard") {
+export async function setCurrentHost(host: string) {
+  const store = await cookies();
+  store.set(HOST_COOKIE, host, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/"
+  });
+}
+
+export function buildEmbeddedAppUrl(shopDomain: string, pathname = "/dashboard", host?: string | null) {
   const apiKey = process.env.SHOPIFY_API_KEY ?? "";
   const path = pathname === "/" ? "" : pathname;
+  const params = new URLSearchParams({
+    shop: shopDomain
+  });
 
-  return `https://${shopDomain}/admin/apps/${apiKey}${path}?shop=${encodeURIComponent(shopDomain)}`;
+  if (host) {
+    params.set("host", host);
+  }
+
+  return `https://${shopDomain}/admin/apps/${apiKey}${path}?${params.toString()}`;
 }
 
 export async function setOauthState(state: string) {

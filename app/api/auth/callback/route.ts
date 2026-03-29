@@ -4,6 +4,7 @@ import {
   buildEmbeddedAppUrl,
   consumeOauthState,
   normalizeShopDomain,
+  setCurrentHost,
   setCurrentShopDomain,
   verifyOAuthCallback
 } from "@/lib/shopify/auth";
@@ -19,6 +20,7 @@ export async function GET(request: Request) {
     const shopParam = url.searchParams.get("shop");
     const code = url.searchParams.get("code");
     const state = url.searchParams.get("state");
+    const host = url.searchParams.get("host");
 
     if (!shopParam || !code || !state) {
       console.error("OAuth callback failed: missing parameters", {
@@ -51,13 +53,16 @@ export async function GET(request: Request) {
 
     await persistMerchantInstall(shop, tokenPayload.access_token);
     const webhookResult = await registerWebhooks(shop, tokenPayload.access_token);
-    await setCurrentShopDomain(shop);
+    await Promise.all([
+      setCurrentShopDomain(shop),
+      host ? setCurrentHost(host) : Promise.resolve()
+    ]);
 
     if (webhookResult.skipped.length > 0) {
       console.warn("OAuth callback completed with skipped webhooks", webhookResult);
     }
 
-    return NextResponse.redirect(buildEmbeddedAppUrl(shop, "/dashboard"));
+    return NextResponse.redirect(buildEmbeddedAppUrl(shop, "/dashboard", host));
   } catch (error) {
     console.error("OAuth callback failed", error);
     return new NextResponse(

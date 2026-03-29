@@ -4,6 +4,7 @@ import {
   buildInstallUrl,
   createOauthState,
   normalizeShopDomain,
+  setCurrentHost,
   setCurrentShopDomain,
   setOauthState
 } from "@/lib/shopify/auth";
@@ -12,6 +13,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const shop = searchParams.get("shop");
+    const host = searchParams.get("host");
 
     if (!shop) {
       console.error("Install route failed: missing shop parameter");
@@ -21,7 +23,11 @@ export async function GET(request: Request) {
     const normalizedShop = normalizeShopDomain(shop);
     const state = createOauthState();
 
-    await Promise.all([setCurrentShopDomain(normalizedShop), setOauthState(state)]);
+    await Promise.all([
+      setCurrentShopDomain(normalizedShop),
+      setOauthState(state),
+      host ? setCurrentHost(host) : Promise.resolve()
+    ]);
 
     return NextResponse.redirect(buildInstallUrl(normalizedShop, state));
   } catch (error) {
