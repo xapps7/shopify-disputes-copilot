@@ -42,10 +42,7 @@ const SHOP_INFO_QUERY = `#graphql
 
 const installWebhookDefinitions = [
   { topic: "DISPUTES_CREATE", path: "/api/webhooks/disputes/create" },
-  { topic: "DISPUTES_UPDATE", path: "/api/webhooks/disputes/update" },
-  { topic: "CUSTOMERS_DATA_REQUEST", path: "/api/webhooks/customers/data_request" },
-  { topic: "CUSTOMERS_REDACT", path: "/api/webhooks/customers/redact" },
-  { topic: "SHOP_REDACT", path: "/api/webhooks/shop/redact" }
+  { topic: "DISPUTES_UPDATE", path: "/api/webhooks/disputes/update" }
 ] as const;
 
 type InstallResult = {
