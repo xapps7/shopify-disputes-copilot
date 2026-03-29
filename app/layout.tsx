@@ -6,6 +6,7 @@ import Link from "next/link";
 import { EmbeddedAppRedirect } from "@/components/embedded-app-redirect";
 import { RootRouteRedirect } from "@/components/root-route-redirect";
 import { getCurrentHost, getCurrentShopDomain } from "@/lib/shopify/auth";
+import { APP_COMMIT, APP_RELEASE } from "@/lib/version";
 
 export const metadata: Metadata = {
   title: "Disputes Co-Pilot",
@@ -30,6 +31,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               <p>
                 Embedded operations software for triage, evidence assembly, packet generation, and
                 prevention guidance inside Shopify Admin.
+              </p>
+              <p className="release-badge">
+                Release {APP_RELEASE} · {APP_COMMIT}
               </p>
             </header>
 

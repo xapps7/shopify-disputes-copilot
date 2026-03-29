@@ -59,6 +59,19 @@ a {
   line-height: 1.6;
 }
 
+.release-badge {
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+}
+
 .nav {
   margin-bottom: 28px;
   display: flex;
