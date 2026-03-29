@@ -11,46 +11,72 @@ export default async function DisputeDetailPage({ params }: DisputePageProps) {
   const dispute = await getDisputeDetail(id);
 
   return (
-    <div className="two-col">
+    <div className="two-col dispute-layout">
       <section className="panel">
-        <h2>Dispute {dispute.shopifyDisputeId.split("/").pop()}</h2>
-        <p>
-          {dispute.currencyCode ?? "USD"} {dispute.amount} · {dispute.status} · {dispute.reason ?? "Unknown"}
-        </p>
+        <div className="case-header">
+          <div>
+            <p className="hero-kicker">Case workspace</p>
+            <h2>Dispute {dispute.shopifyDisputeId.split("/").pop()}</h2>
+          </div>
+          <div className="case-header-meta">
+            <span className="pill">{dispute.status}</span>
+            <strong>
+              {dispute.currencyCode ?? "USD"} {dispute.amount}
+            </strong>
+          </div>
+        </div>
         <p>{dispute.reasonDetails ?? "No reason details available yet."}</p>
 
         {dispute.orderSummary ? (
-          <>
+          <div className="detail-block">
             <h3>Order context</h3>
-            <ul className="list">
-              <li>Order: {dispute.orderSummary.orderName ?? "Unknown"}</li>
-              <li>Customer: {dispute.orderSummary.customerName ?? "Unknown"}</li>
-              <li>Email: {dispute.orderSummary.customerEmail ?? "Unknown"}</li>
-              <li>Fulfillment: {dispute.orderSummary.fulfillmentStatus ?? "Unknown"}</li>
-            </ul>
-          </>
+            <div className="detail-grid">
+              <div className="detail-tile">
+                <span>Order</span>
+                <strong>{dispute.orderSummary.orderName ?? "Unknown"}</strong>
+              </div>
+              <div className="detail-tile">
+                <span>Customer</span>
+                <strong>{dispute.orderSummary.customerName ?? "Unknown"}</strong>
+              </div>
+              <div className="detail-tile">
+                <span>Email</span>
+                <strong>{dispute.orderSummary.customerEmail ?? "Unknown"}</strong>
+              </div>
+              <div className="detail-tile">
+                <span>Fulfillment</span>
+                <strong>{dispute.orderSummary.fulfillmentStatus ?? "Unknown"}</strong>
+              </div>
+            </div>
+          </div>
         ) : null}
 
-        <h3>Evidence checklist</h3>
-        <ul className="list">
-          {dispute.evidenceChecklist.map((item) => (
-            <li key={item.label}>
-              {item.label} · {item.state === "ready" ? "ready" : "missing"}
-            </li>
-          ))}
-        </ul>
+        <div className="detail-block">
+          <h3>Evidence checklist</h3>
+          <div className="checklist-grid">
+            {dispute.evidenceChecklist.map((item) => (
+              <div className={`checklist-item checklist-item-${item.state}`} key={item.label}>
+                <span>{item.label}</span>
+                <strong>{item.state === "ready" ? "Ready" : "Missing"}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
 
-        <h3>Evidence items</h3>
+        <h3>Evidence library</h3>
         <div className="stack">
           {dispute.evidenceItems.map((item) => (
-            <div key={item.id} className="panel">
+            <div key={item.id} className="evidence-card">
               <span className="pill">{item.category}</span>
               <h4>{item.title}</h4>
               <p>{item.description ?? "No description provided."}</p>
-              <p>Source: {item.sourceType}</p>
+              <p className="evidence-meta">Source: {item.sourceType}</p>
               {item.fileUrl ? (
                 <p>
-                  File: <a className="table-link" href={item.fileUrl} target="_blank">Open</a>
+                  File:{" "}
+                  <a className="table-link" href={item.fileUrl} rel="noreferrer" target="_blank">
+                    Open
+                  </a>
                 </p>
               ) : null}
             </div>

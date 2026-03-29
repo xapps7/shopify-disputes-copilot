@@ -3,29 +3,36 @@ import "./globals.css";
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { EmbeddedAppRedirect } from "@/components/embedded-app-redirect";
+import { getCurrentShopDomain } from "@/lib/shopify/auth";
+
 export const metadata: Metadata = {
   title: "Disputes Co-Pilot",
   description: "Shopify embedded app starter for dispute operations."
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const shopDomain = await getCurrentShopDomain();
+  const apiKey = process.env.SHOPIFY_API_KEY ?? "";
+
   return (
     <html lang="en">
       <body>
+        <EmbeddedAppRedirect apiKey={apiKey} shopDomain={shopDomain} />
         <div className="shell">
           <div className="container">
             <header className="hero">
-              <span className="eyebrow">Built for Shopify embedded app starter</span>
+              <span className="eyebrow">Shopify Payments disputes cockpit</span>
               <h1>Disputes and Chargeback Ops Co-Pilot</h1>
               <p>
-                Shopify Payments dispute workspace for intake, evidence assembly, packet generation,
-                and prevention recommendations.
+                Embedded operations software for triage, evidence assembly, packet generation, and
+                prevention guidance inside Shopify Admin.
               </p>
             </header>
 
             <nav className="nav">
-              <Link href="/">Home</Link>
               <Link href="/dashboard">Dashboard</Link>
+              <Link href="/">Overview</Link>
               <Link href="/settings">Settings</Link>
             </nav>
 

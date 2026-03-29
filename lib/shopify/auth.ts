@@ -31,6 +31,13 @@ export async function setCurrentShopDomain(shopDomain: string) {
   });
 }
 
+export function buildEmbeddedAppUrl(shopDomain: string, pathname = "/dashboard") {
+  const apiKey = process.env.SHOPIFY_API_KEY ?? "";
+  const path = pathname === "/" ? "" : pathname;
+
+  return `https://${shopDomain}/admin/apps/${apiKey}${path}?shop=${encodeURIComponent(shopDomain)}`;
+}
+
 export async function setOauthState(state: string) {
   const store = await cookies();
   store.set(STATE_COOKIE, state, {

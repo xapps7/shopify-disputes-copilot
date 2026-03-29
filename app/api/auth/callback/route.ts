@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import {
+  buildEmbeddedAppUrl,
   consumeOauthState,
   normalizeShopDomain,
   setCurrentShopDomain,
@@ -56,7 +57,7 @@ export async function GET(request: Request) {
       console.warn("OAuth callback completed with skipped webhooks", webhookResult);
     }
 
-    return NextResponse.redirect(`${process.env.SHOPIFY_APP_URL}/dashboard?shop=${shop}`);
+    return NextResponse.redirect(buildEmbeddedAppUrl(shop, "/dashboard"));
   } catch (error) {
     console.error("OAuth callback failed", error);
     return new NextResponse(

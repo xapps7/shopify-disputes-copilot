@@ -3,34 +3,43 @@ import Link from "next/link";
 export default function HomePage() {
   return (
     <div className="stack">
-      <section className="panel">
-        <h2>Current implementation</h2>
-        <p>
-          This starter ships the core backend and UI skeleton for a Shopify embedded dispute app:
-          webhook endpoints, dispute persistence, dashboard views, and the first dispute detail
-          workspace.
-        </p>
-        <p>
-          The next build steps are Shopify OAuth, webhook registration, storage-backed file uploads,
-          and async evidence-packet generation.
-        </p>
+      <section className="hero-band hero-band-home">
+        <div>
+          <p className="hero-kicker">Built for operators, not spreadsheets</p>
+          <h2>Run your dispute desk where the order data already lives.</h2>
+          <p className="hero-copy">
+            Centralize every active dispute, build evidence packs from live order context, and move
+            merchants from frantic deadline chasing to deliberate operating discipline.
+          </p>
+        </div>
+        <div className="hero-actions">
+          <Link className="pill-link" href="/dashboard">
+            Open command center
+          </Link>
+          <Link className="ghost-link" href="/settings">
+            Configure merchant profile
+          </Link>
+        </div>
       </section>
 
       <section className="two-col">
         <div className="panel">
-          <h3>Included now</h3>
+          <h3>Current product surface</h3>
           <ul className="list">
-            <li>Next.js TypeScript app scaffold</li>
-            <li>Prisma schema for dispute operations data</li>
-            <li>Webhook routes for disputes and privacy compliance</li>
-            <li>Dashboard and dispute detail routes</li>
-            <li>Shopify GraphQL client helper stubs</li>
+            <li>Embedded Shopify admin experience</li>
+            <li>OAuth install and merchant persistence</li>
+            <li>Manual dispute sync from Shopify GraphQL</li>
+            <li>Evidence uploads and packet draft generation</li>
+            <li>Protected-data webhook registration fallback</li>
           </ul>
         </div>
 
         <div className="panel">
-          <h3>Go next</h3>
-          <p>Open the dashboard route to inspect the first embedded experience.</p>
+          <h3>Immediate next move</h3>
+          <p>
+            Use the dashboard as the control room: sync disputes, prioritize due dates, and drill
+            into a case workspace to attach missing evidence.
+          </p>
           <Link className="pill-link" href="/dashboard">
             Open dashboard
           </Link>
