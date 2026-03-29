@@ -49,8 +49,12 @@ export async function GET(request: Request) {
     const tokenPayload = await exchangeCodeForAccessToken(shop, code);
 
     await persistMerchantInstall(shop, tokenPayload.access_token);
-    await registerWebhooks(shop, tokenPayload.access_token);
+    const webhookResult = await registerWebhooks(shop, tokenPayload.access_token);
     await setCurrentShopDomain(shop);
+
+    if (webhookResult.skipped.length > 0) {
+      console.warn("OAuth callback completed with skipped webhooks", webhookResult);
+    }
 
     return NextResponse.redirect(`${process.env.SHOPIFY_APP_URL}/dashboard?shop=${shop}`);
   } catch (error) {

@@ -53,6 +53,14 @@ type InstallResult = {
   shopDomain: string;
 };
 
+type WebhookRegistrationResult = {
+  registered: string[];
+  skipped: Array<{
+    topic: string;
+    reason: string;
+  }>;
+};
+
 async function graphqlRequest<T>(
   storeDomain: string,
   accessToken: string,
@@ -121,7 +129,10 @@ export async function persistMerchantInstall(shop: string, accessToken: string):
 }
 
 export async function registerWebhooks(shop: string, accessToken: string) {
-  const results = [];
+  const results: WebhookRegistrationResult = {
+    registered: [],
+    skipped: []
+  };
 
   for (const definition of installWebhookDefinitions) {
     const data = await graphqlRequest<{
@@ -134,14 +145,24 @@ export async function registerWebhooks(shop: string, accessToken: string) {
     });
 
     if (data.webhookSubscriptionCreate.userErrors.length > 0) {
-      throw new Error(
-        `Webhook registration failed for ${definition.topic}: ${data.webhookSubscriptionCreate.userErrors
-          .map((error) => error.message)
-          .join(", ")}`
-      );
+      const reason = data.webhookSubscriptionCreate.userErrors.map((error) => error.message).join(", ");
+      const isProtectedCustomerDataError = reason
+        .toLowerCase()
+        .includes("protected customer data");
+
+      if (isProtectedCustomerDataError) {
+        console.warn(`Skipping webhook ${definition.topic}: ${reason}`);
+        results.skipped.push({
+          topic: definition.topic,
+          reason
+        });
+        continue;
+      }
+
+      throw new Error(`Webhook registration failed for ${definition.topic}: ${reason}`);
     }
 
-    results.push(definition.topic);
+    results.registered.push(definition.topic);
   }
 
   return results;
