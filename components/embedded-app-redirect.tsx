@@ -18,6 +18,7 @@ export function EmbeddedAppRedirect({ apiKey, shopDomain, host }: EmbeddedAppRed
   useEffect(() => {
     const runtimeShop = searchParams.get("shop") ?? shopDomain;
     const runtimeHost = searchParams.get("host") ?? host;
+    const runtimeRedirectTo = searchParams.get("redirectTo");
 
     if (!apiKey || !runtimeShop) {
       return;
@@ -27,8 +28,14 @@ export function EmbeddedAppRedirect({ apiKey, shopDomain, host }: EmbeddedAppRed
       return;
     }
 
-    const targetPath = pathname === "/" ? "/dashboard" : pathname;
-    const targetUrl = buildEmbeddedAdminUrl(apiKey, runtimeShop, targetPath, runtimeHost);
+    const targetPath = pathname === "/" ? "/" : pathname;
+    const targetUrl = buildEmbeddedAdminUrl(
+      apiKey,
+      runtimeShop,
+      targetPath,
+      runtimeHost,
+      runtimeRedirectTo
+    );
     window.location.replace(targetUrl);
   }, [apiKey, host, pathname, searchParams, shopDomain]);
 

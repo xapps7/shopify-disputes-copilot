@@ -62,8 +62,8 @@ export async function GET(request: Request) {
     }
 
     const appUrl = new URL(process.env.SHOPIFY_APP_URL ?? "");
-    appUrl.pathname = "/dashboard";
     appUrl.searchParams.set("shop", shop);
+    appUrl.searchParams.set("redirectTo", "/dashboard");
 
     if (host) {
       appUrl.searchParams.set("host", host);

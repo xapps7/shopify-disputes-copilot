@@ -1,17 +1,24 @@
 export function buildEmbeddedAdminUrl(
   apiKey: string,
   shopDomain: string,
-  pathname = "/dashboard",
-  host?: string | null
+  pathname = "/",
+  host?: string | null,
+  redirectTo?: string | null
 ) {
   const query = new URLSearchParams({
-    shop: shopDomain,
-    redirectTo: pathname
+    shop: shopDomain
   });
 
   if (host) {
     query.set("host", host);
   }
 
-  return `https://${shopDomain}/admin/apps/${apiKey}?${query.toString()}`;
+  const normalizedPath = pathname === "/" ? "" : pathname;
+  const nextPath = redirectTo ?? (normalizedPath ? pathname : null);
+
+  if (nextPath) {
+    query.set("redirectTo", nextPath);
+  }
+
+  return `https://${shopDomain}/admin/apps/${apiKey}${normalizedPath}?${query.toString()}`;
 }
