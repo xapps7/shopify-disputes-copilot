@@ -5,6 +5,7 @@ export function buildEmbeddedAdminUrl(
   host?: string | null,
   redirectTo?: string | null
 ) {
+  const appHandle = process.env.SHOPIFY_APP_HANDLE?.trim() || apiKey;
   const query = new URLSearchParams({
     shop: shopDomain
   });
@@ -20,5 +21,5 @@ export function buildEmbeddedAdminUrl(
     query.set("redirectTo", nextPath);
   }
 
-  return `https://${shopDomain}/admin/apps/${apiKey}${normalizedPath}?${query.toString()}`;
+  return `https://${shopDomain}/admin/apps/${appHandle}/app?${query.toString()}`;
 }
