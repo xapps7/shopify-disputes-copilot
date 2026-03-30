@@ -14,6 +14,16 @@ export function DashboardHero({ openDisputes, totalAmount, avgReadiness }: Dashb
           Triage due dates, assemble evidence, and turn scattered order records into a clean
           representment workflow before the deadline closes.
         </p>
+        <div className="hero-inline-metrics">
+          <div>
+            <span>Open exposure</span>
+            <strong>{openDisputes} active cases</strong>
+          </div>
+          <div>
+            <span>Evidence posture</span>
+            <strong>{avgReadiness}% average readiness</strong>
+          </div>
+        </div>
       </div>
 
       <div className="hero-stats">

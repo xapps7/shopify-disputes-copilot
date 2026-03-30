@@ -9,6 +9,11 @@ type DisputePageProps = {
 export default async function DisputeDetailPage({ params }: DisputePageProps) {
   const { id } = await params;
   const dispute = await getDisputeDetail(id);
+  const readyEvidence = dispute.evidenceChecklist.filter((item) => item.state === "ready").length;
+  const readinessScore =
+    dispute.evidenceChecklist.length > 0
+      ? Math.round((readyEvidence / dispute.evidenceChecklist.length) * 100)
+      : 0;
 
   return (
     <div className="two-col dispute-layout">
@@ -17,15 +22,45 @@ export default async function DisputeDetailPage({ params }: DisputePageProps) {
           <div>
             <p className="hero-kicker">Case workspace</p>
             <h2>Dispute {dispute.shopifyDisputeId.split("/").pop()}</h2>
+            <p className="case-summary">
+              {dispute.reason?.replaceAll("_", " ") ?? "Unknown reason"} · due{" "}
+              {dispute.evidenceDueBy
+                ? new Intl.DateTimeFormat("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric"
+                  }).format(new Date(dispute.evidenceDueBy))
+                : "not set"}
+            </p>
           </div>
           <div className="case-header-meta">
-            <span className="pill">{dispute.status}</span>
+            <span className="status-pill status-pill-warning">{dispute.status.replaceAll("_", " ")}</span>
             <strong>
               {dispute.currencyCode ?? "USD"} {dispute.amount}
             </strong>
           </div>
         </div>
         <p>{dispute.reasonDetails ?? "No reason details available yet."}</p>
+
+        <div className="case-score-band">
+          <div className="case-score-card">
+            <span>Checklist coverage</span>
+            <strong>{readinessScore}%</strong>
+            <p>
+              {readyEvidence} of {dispute.evidenceChecklist.length} expected evidence categories are
+              ready.
+            </p>
+          </div>
+          <div className="case-score-card">
+            <span>Packet status</span>
+            <strong>{dispute.latestPacket?.status ?? "Not drafted"}</strong>
+            <p>
+              {dispute.latestPacket
+                ? `Version ${dispute.latestPacket.version} is available for review.`
+                : "Generate a draft once the evidence shelf is complete."}
+            </p>
+          </div>
+        </div>
 
         {dispute.orderSummary ? (
           <div className="detail-block">
@@ -56,7 +91,14 @@ export default async function DisputeDetailPage({ params }: DisputePageProps) {
           <div className="checklist-grid">
             {dispute.evidenceChecklist.map((item) => (
               <div className={`checklist-item checklist-item-${item.state}`} key={item.label}>
-                <span>{item.label}</span>
+                <div>
+                  <span>{item.label}</span>
+                  <p className="checklist-caption">
+                    {item.state === "ready"
+                      ? "Captured in the evidence shelf and available for packet assembly."
+                      : "Still missing from the current record set."}
+                  </p>
+                </div>
                 <strong>{item.state === "ready" ? "Ready" : "Missing"}</strong>
               </div>
             ))}
@@ -67,7 +109,7 @@ export default async function DisputeDetailPage({ params }: DisputePageProps) {
         <div className="stack">
           {dispute.evidenceItems.map((item) => (
             <div key={item.id} className="evidence-card">
-              <span className="pill">{item.category}</span>
+              <span className="pill">{item.category.replaceAll("_", " ")}</span>
               <h4>{item.title}</h4>
               <p>{item.description ?? "No description provided."}</p>
               <p className="evidence-meta">Source: {item.sourceType}</p>
@@ -87,11 +129,17 @@ export default async function DisputeDetailPage({ params }: DisputePageProps) {
       <aside className="stack">
         <div className="panel">
           <h3>Add merchant evidence</h3>
+          <p className="supporting-copy">
+            Attach files or merchant notes that close missing checklist categories.
+          </p>
           <EvidenceUploadForm disputeId={dispute.id} />
         </div>
 
         <div className="panel">
           <h3>Packet draft</h3>
+          <p className="supporting-copy">
+            Build the current case packet from the evidence shelf and merchant profile settings.
+          </p>
           <GeneratePacketButton disputeId={dispute.id} />
           {dispute.latestPacket ? (
             <ul className="list">
@@ -115,10 +163,12 @@ export default async function DisputeDetailPage({ params }: DisputePageProps) {
 
         <div className="panel">
           <h3>Timeline</h3>
-          <ul className="list">
+          <ul className="timeline-list">
             {dispute.timeline.map((event) => (
               <li key={event.id}>
-                {event.eventType} · {new Date(event.eventTimestamp).toLocaleString()} · {event.source}
+                <strong>{event.eventType.replaceAll("_", " ")}</strong>
+                <span>{new Date(event.eventTimestamp).toLocaleString()}</span>
+                <span>{event.source}</span>
               </li>
             ))}
           </ul>

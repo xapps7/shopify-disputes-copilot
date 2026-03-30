@@ -18,6 +18,15 @@ export default async function DashboardPage() {
     disputes.length > 0
       ? Math.round(disputes.reduce((sum, dispute) => sum + dispute.completenessScore, 0) / disputes.length)
       : 0;
+  const urgentDisputes = disputes.filter((dispute) => {
+    if (!dispute.evidenceDueBy) {
+      return false;
+    }
+
+    const delta = Math.ceil((new Date(dispute.evidenceDueBy).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    return delta <= 1;
+  });
+  const lowReadiness = disputes.filter((dispute) => dispute.completenessScore < 70);
 
   return (
     <div className="stack">
@@ -43,6 +52,24 @@ export default async function DashboardPage() {
           value={`${avgReadiness}%`}
           hint="Based on attached evidence categories."
         />
+        <MetricCard
+          label="Immediate attention"
+          value={String(urgentDisputes.length)}
+          hint="Due today or tomorrow."
+        />
+      </section>
+
+      <section className="ops-strip">
+        <div className="ops-strip-card">
+          <span className="ops-strip-label">Urgent lane</span>
+          <strong>{urgentDisputes.length} disputes need action inside 48 hours</strong>
+          <p>Prioritize due dates first, then close evidence gaps on low-readiness cases.</p>
+        </div>
+        <div className="ops-strip-card">
+          <span className="ops-strip-label">Readiness drag</span>
+          <strong>{lowReadiness.length} disputes are below 70% evidence readiness</strong>
+          <p>Those are the cases most likely to stall packet preparation and deadline response.</p>
+        </div>
       </section>
 
       <section className="two-col dashboard-layout">
@@ -63,7 +90,7 @@ export default async function DashboardPage() {
         <aside className="stack">
           <div className="panel accent-panel">
             <h3>Priority lane</h3>
-            <p>Surface the next three disputes that are closest to deadline or least prepared.</p>
+            <p>Surface the next three disputes that combine weak readiness with the shortest runway.</p>
             <DisputePriorities disputes={disputes} />
           </div>
 
@@ -74,6 +101,15 @@ export default async function DashboardPage() {
               <li>Fill checklist gaps before drafting the packet.</li>
               <li>Capture refund attempts and customer communication explicitly.</li>
               <li>Do not promise outcomes; optimize completeness and timing.</li>
+            </ul>
+          </div>
+
+          <div className="panel dark-panel">
+            <h3>Roadmap focus</h3>
+            <ul className="list">
+              <li>Turn the evidence shelf into a stronger in-app packet review surface.</li>
+              <li>Tag every dispute outcome with a prevention takeaway for future orders.</li>
+              <li>Move manual intake toward scheduled dispute collection once approval is granted.</li>
             </ul>
           </div>
         </aside>

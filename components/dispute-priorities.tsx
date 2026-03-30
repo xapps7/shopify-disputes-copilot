@@ -30,6 +30,10 @@ function dueLabel(value: string | null) {
 export function DisputePriorities({ disputes }: DisputePrioritiesProps) {
   const topItems = [...disputes]
     .sort((a, b) => {
+      if (a.completenessScore !== b.completenessScore) {
+        return a.completenessScore - b.completenessScore;
+      }
+
       if (!a.evidenceDueBy) return 1;
       if (!b.evidenceDueBy) return -1;
       return new Date(a.evidenceDueBy).getTime() - new Date(b.evidenceDueBy).getTime();
@@ -43,6 +47,9 @@ export function DisputePriorities({ disputes }: DisputePrioritiesProps) {
           <div>
             <p className="priority-label">{dispute.reason ?? "Unknown reason"}</p>
             <h3>{dispute.shopifyDisputeId.split("/").pop()}</h3>
+            <p className="priority-caption">
+              {dispute.currencyCode ?? "USD"} {dispute.amount} at risk
+            </p>
           </div>
           <div className="priority-meta">
             <span>{dueLabel(dispute.evidenceDueBy)}</span>
