@@ -1,0 +1,24 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "404863191fc79c664213d84a99e3196d"
+name = "Disputes Co-Pilot"
+application_url = "https://x7wttmvp3i.us-east-1.awsapprunner.com"
+embedded = true
+handle = "disputes-co-pilot"
+
+[build]
+automatically_update_urls_on_dev = false
+
+[webhooks]
+api_version = "2026-01"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_assigned_fulfillment_orders,read_merchant_managed_fulfillment_orders,read_orders,read_shopify_payments_disputes,read_third_party_fulfillment_orders"
+optional_scopes = [ ]
+use_legacy_install_flow = true
+
+[auth]
+redirect_urls = [
+  "https://x7wttmvp3i.us-east-1.awsapprunner.com/api/auth/callback"
+]

@@ -28,6 +28,8 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@shopify/app": "^3.58.2",
+    "@shopify/cli": "^3.92.1",
     "@types/node": "^22.13.14",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
