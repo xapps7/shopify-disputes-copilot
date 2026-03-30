@@ -17,6 +17,7 @@ export function buildEmbeddedAdminUrl(
   host?: string | null,
   _redirectTo?: string | null
 ) {
+  const appHandle = process.env.SHOPIFY_APP_HANDLE?.trim() || "disputes-co-pilot";
   const query = new URLSearchParams({
     shop: shopDomain
   });
@@ -28,8 +29,8 @@ export function buildEmbeddedAdminUrl(
   const decodedHost = decodeEmbeddedHost(host);
   const adminBase =
     decodedHost && decodedHost.startsWith("admin.shopify.com/")
-      ? `https://${decodedHost}/apps/${apiKey}`
-      : `https://${shopDomain}/admin/apps/${apiKey}`;
+      ? `https://${decodedHost}/apps/${appHandle}/app`
+      : `https://${shopDomain}/admin/apps/${appHandle}`;
 
   return `${adminBase}?${query.toString()}`;
 }
