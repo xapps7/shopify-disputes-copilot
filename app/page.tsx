@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { buildEmbeddedAppUrl } from "@/lib/shopify/auth";
-
 type HomePageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
@@ -15,16 +13,13 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const params = (await searchParams) ?? {};
   const redirectTo = getSingleValue(params.redirectTo);
   const shop = getSingleValue(params.shop);
-  const host = getSingleValue(params.host);
-  const hmac = getSingleValue(params.hmac);
-  const timestamp = getSingleValue(params.timestamp);
 
   if (redirectTo?.startsWith("/")) {
     redirect(redirectTo as never);
   }
 
   if (shop) {
-    redirect(buildEmbeddedAppUrl(shop, "/dashboard", host) as never);
+    redirect("/dashboard" as never);
   }
 
   return (

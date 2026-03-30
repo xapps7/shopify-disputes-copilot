@@ -3,7 +3,6 @@ import "./globals.css";
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { EmbeddedAppRedirect } from "@/components/embedded-app-redirect";
 import { getCurrentHost, getCurrentShopDomain } from "@/lib/shopify/auth";
 import { APP_COMMIT, APP_RELEASE } from "@/lib/version";
 
@@ -19,8 +18,11 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
 
   return (
     <html lang="en">
+      <head>
+        {apiKey ? <meta name="shopify-api-key" content={apiKey} /> : null}
+        <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+      </head>
       <body>
-        <EmbeddedAppRedirect apiKey={apiKey} host={host} shopDomain={shopDomain} />
         <div className="shell">
           <div className="container">
             <header className="hero">

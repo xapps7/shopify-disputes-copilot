@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 import {
-  buildEmbeddedAppUrl,
   consumeOauthState,
   normalizeShopDomain,
   setCurrentHost,
@@ -62,30 +61,15 @@ export async function GET(request: Request) {
       console.warn("OAuth callback completed with skipped webhooks", webhookResult);
     }
 
-    const embeddedUrl = buildEmbeddedAppUrl(shop, "/dashboard", host);
+    const appUrl = new URL(process.env.SHOPIFY_APP_URL ?? "");
+    appUrl.searchParams.set("shop", shop);
+    appUrl.searchParams.set("redirectTo", "/dashboard");
 
-    return new NextResponse(
-      `<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Opening app</title>
-    <script>
-      window.top.location.href = ${JSON.stringify(embeddedUrl)};
-    </script>
-  </head>
-  <body>
-    <p>Opening the app inside Shopify Admin...</p>
-    <p><a href="${embeddedUrl}">Continue</a></p>
-  </body>
-</html>`,
-      {
-        status: 200,
-        headers: {
-          "Content-Type": "text/html; charset=utf-8"
-        }
-      }
-    );
+    if (host) {
+      appUrl.searchParams.set("host", host);
+    }
+
+    return NextResponse.redirect(appUrl);
   } catch (error) {
     console.error("OAuth callback failed", error);
     return new NextResponse(
