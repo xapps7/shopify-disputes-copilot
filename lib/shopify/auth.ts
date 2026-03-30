@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 
 import { cookies } from "next/headers";
 
+import { buildEmbeddedAdminUrl } from "@/lib/shopify/embedded";
+
 const SHOP_COOKIE = "shopify_disputes_shop";
 const HOST_COOKIE = "shopify_disputes_host";
 const STATE_COOKIE = "shopify_disputes_state";
@@ -49,16 +51,7 @@ export async function setCurrentHost(host: string) {
 
 export function buildEmbeddedAppUrl(shopDomain: string, pathname = "/dashboard", host?: string | null) {
   const apiKey = process.env.SHOPIFY_API_KEY ?? "";
-  const params = new URLSearchParams({
-    shop: shopDomain,
-    redirectTo: pathname
-  });
-
-  if (host) {
-    params.set("host", host);
-  }
-
-  return `https://${shopDomain}/admin/apps/${apiKey}?${params.toString()}`;
+  return buildEmbeddedAdminUrl(apiKey, shopDomain, pathname, host);
 }
 
 export async function setOauthState(state: string) {

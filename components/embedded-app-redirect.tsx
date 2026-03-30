@@ -3,24 +3,13 @@
 import { useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
+import { buildEmbeddedAdminUrl } from "@/lib/shopify/embedded";
+
 type EmbeddedAppRedirectProps = {
   apiKey: string;
   shopDomain: string | null;
   host: string | null;
 };
-
-function buildAdminAppUrl(apiKey: string, shopDomain: string, host: string | null, pathname: string, search: string) {
-  const query = new URLSearchParams(search);
-  query.set("shop", shopDomain);
-  if (host) {
-    query.set("host", host);
-  }
-
-  const normalizedPath = pathname === "/" ? "" : pathname;
-  const suffix = query.toString() ? `?${query.toString()}` : "";
-
-  return `https://${shopDomain}/admin/apps/${apiKey}${normalizedPath}${suffix}`;
-}
 
 export function EmbeddedAppRedirect({ apiKey, shopDomain, host }: EmbeddedAppRedirectProps) {
   const pathname = usePathname();
@@ -38,8 +27,8 @@ export function EmbeddedAppRedirect({ apiKey, shopDomain, host }: EmbeddedAppRed
       return;
     }
 
-    const queryString = searchParams.toString();
-    const targetUrl = buildAdminAppUrl(apiKey, runtimeShop, runtimeHost, pathname, queryString);
+    const targetPath = pathname === "/" ? "/dashboard" : pathname;
+    const targetUrl = buildEmbeddedAdminUrl(apiKey, runtimeShop, targetPath, runtimeHost);
     window.location.replace(targetUrl);
   }, [apiKey, host, pathname, searchParams, shopDomain]);
 
