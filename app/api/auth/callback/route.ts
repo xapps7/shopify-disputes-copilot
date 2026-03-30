@@ -62,7 +62,30 @@ export async function GET(request: Request) {
       console.warn("OAuth callback completed with skipped webhooks", webhookResult);
     }
 
-    return NextResponse.redirect(buildEmbeddedAppUrl(shop, "/dashboard", host));
+    const embeddedUrl = buildEmbeddedAppUrl(shop, "/dashboard", host);
+
+    return new NextResponse(
+      `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Opening app</title>
+    <script>
+      window.top.location.href = ${JSON.stringify(embeddedUrl)};
+    </script>
+  </head>
+  <body>
+    <p>Opening the app inside Shopify Admin...</p>
+    <p><a href="${embeddedUrl}">Continue</a></p>
+  </body>
+</html>`,
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "text/html; charset=utf-8"
+        }
+      }
+    );
   } catch (error) {
     console.error("OAuth callback failed", error);
     return new NextResponse(
