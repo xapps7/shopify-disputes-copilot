@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { BlockStack, Button, InlineGrid, Text, TextField } from "@shopify/polaris";
 
 import type { MerchantSettings } from "@/lib/settings";
 
@@ -11,6 +12,12 @@ type SettingsFormProps = {
 export function SettingsForm({ initialSettings }: SettingsFormProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [returnPolicyUrl, setReturnPolicyUrl] = useState(initialSettings.returnPolicyUrl);
+  const [refundPolicyUrl, setRefundPolicyUrl] = useState(initialSettings.refundPolicyUrl);
+  const [supportEmail, setSupportEmail] = useState(initialSettings.supportEmail);
+  const [supportPhone, setSupportPhone] = useState(initialSettings.supportPhone);
+  const [statementDescriptor, setStatementDescriptor] = useState(initialSettings.statementDescriptor);
+  const [packetFooter, setPacketFooter] = useState(initialSettings.packetFooter);
 
   async function handleSubmit(formData: FormData) {
     setIsSaving(true);
@@ -37,26 +44,73 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
   }
 
   return (
-    <form action={handleSubmit} className="stack">
-      <input defaultValue={initialSettings.returnPolicyUrl} name="returnPolicyUrl" placeholder="Return policy URL" />
-      <input defaultValue={initialSettings.refundPolicyUrl} name="refundPolicyUrl" placeholder="Refund policy URL" />
-      <input defaultValue={initialSettings.supportEmail} name="supportEmail" placeholder="Support email" />
-      <input defaultValue={initialSettings.supportPhone} name="supportPhone" placeholder="Support phone" />
-      <input
-        defaultValue={initialSettings.statementDescriptor}
-        name="statementDescriptor"
-        placeholder="Statement descriptor"
-      />
-      <textarea
-        defaultValue={initialSettings.packetFooter}
-        name="packetFooter"
-        placeholder="Packet footer note"
-        rows={5}
-      />
-      <button className="pill-link button-reset" disabled={isSaving} type="submit">
-        {isSaving ? "Saving..." : "Save settings"}
-      </button>
-      {message ? <p className="sync-message">{message}</p> : null}
+    <form action={handleSubmit} className="polaris-form">
+      <BlockStack gap="400">
+        <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
+          <TextField
+            autoComplete="url"
+            label="Return policy URL"
+            name="returnPolicyUrl"
+            onChange={setReturnPolicyUrl}
+            placeholder="https://example.com/returns"
+            value={returnPolicyUrl}
+          />
+          <TextField
+            autoComplete="url"
+            label="Refund policy URL"
+            name="refundPolicyUrl"
+            onChange={setRefundPolicyUrl}
+            placeholder="https://example.com/refunds"
+            value={refundPolicyUrl}
+          />
+          <TextField
+            autoComplete="email"
+            label="Support email"
+            name="supportEmail"
+            onChange={setSupportEmail}
+            placeholder="support@example.com"
+            value={supportEmail}
+          />
+          <TextField
+            autoComplete="tel"
+            label="Support phone"
+            name="supportPhone"
+            onChange={setSupportPhone}
+            placeholder="+1 555 555 5555"
+            value={supportPhone}
+          />
+        </InlineGrid>
+
+        <TextField
+          autoComplete="off"
+          label="Statement descriptor"
+          name="statementDescriptor"
+          onChange={setStatementDescriptor}
+          placeholder="DISPUTES COPILOT"
+          value={statementDescriptor}
+        />
+
+        <TextField
+          autoComplete="off"
+          label="Packet footer note"
+          multiline={5}
+          name="packetFooter"
+          onChange={setPacketFooter}
+          placeholder="Add a short merchant note that appears at the end of generated packet drafts."
+          value={packetFooter}
+        />
+
+        <div className="polaris-actions">
+          <Button loading={isSaving} submit variant="primary">
+            Save settings
+          </Button>
+          {message ? (
+            <Text as="p" tone="subdued">
+              {message}
+            </Text>
+          ) : null}
+        </div>
+      </BlockStack>
     </form>
   );
 }

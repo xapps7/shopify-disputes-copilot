@@ -766,6 +766,22 @@ textarea {
   border: 1px solid #e1e8e1;
 }
 
+.polaris-card-stack {
+  display: grid;
+  gap: 20px;
+}
+
+.polaris-form {
+  width: 100%;
+}
+
+.polaris-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .list {
   margin: 0;
   padding-left: 18px;
