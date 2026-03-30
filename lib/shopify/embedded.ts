@@ -1,11 +1,10 @@
 export function buildEmbeddedAdminUrl(
   apiKey: string,
   shopDomain: string,
-  pathname = "/",
+  _pathname = "/",
   host?: string | null,
-  redirectTo?: string | null
+  _redirectTo?: string | null
 ) {
-  const appHandle = process.env.SHOPIFY_APP_HANDLE?.trim() || apiKey;
   const query = new URLSearchParams({
     shop: shopDomain
   });
@@ -14,12 +13,5 @@ export function buildEmbeddedAdminUrl(
     query.set("host", host);
   }
 
-  const normalizedPath = pathname === "/" ? "" : pathname;
-  const nextPath = redirectTo ?? (normalizedPath ? pathname : null);
-
-  if (nextPath) {
-    query.set("redirectTo", nextPath);
-  }
-
-  return `https://${shopDomain}/admin/apps/${appHandle}/app?${query.toString()}`;
+  return `https://${shopDomain}/admin/apps/${apiKey}?${query.toString()}`;
 }

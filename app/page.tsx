@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import DashboardPage from "@/app/dashboard/page";
+
 type HomePageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
@@ -11,28 +13,11 @@ function getSingleValue(value: string | string[] | undefined) {
 
 export default async function HomePage({ searchParams }: HomePageProps) {
   const params = (await searchParams) ?? {};
-  const redirectTo = getSingleValue(params.redirectTo);
   const shop = getSingleValue(params.shop);
   const host = getSingleValue(params.host);
 
-  if (redirectTo?.startsWith("/")) {
-    const target = new URL(redirectTo, "http://localhost");
-    if (shop) {
-      target.searchParams.set("shop", shop);
-    }
-    if (host) {
-      target.searchParams.set("host", host);
-    }
-    redirect(`${target.pathname}${target.search}` as never);
-  }
-
-  if (shop) {
-    const target = new URL("/dashboard", "http://localhost");
-    target.searchParams.set("shop", shop);
-    if (host) {
-      target.searchParams.set("host", host);
-    }
-    redirect(`${target.pathname}${target.search}` as never);
+  if (shop || host) {
+    return <DashboardPage />;
   }
 
   return (

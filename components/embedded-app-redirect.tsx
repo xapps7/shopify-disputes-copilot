@@ -12,13 +12,11 @@ type EmbeddedAppRedirectProps = {
 };
 
 export function EmbeddedAppRedirect({ apiKey, shopDomain, host }: EmbeddedAppRedirectProps) {
-  const pathname = usePathname();
   const searchParams = useSearchParams();
 
   useEffect(() => {
     const runtimeShop = searchParams.get("shop") ?? shopDomain;
     const runtimeHost = searchParams.get("host") ?? host;
-    const runtimeRedirectTo = searchParams.get("redirectTo");
 
     if (!apiKey || !runtimeShop) {
       return;
@@ -28,16 +26,9 @@ export function EmbeddedAppRedirect({ apiKey, shopDomain, host }: EmbeddedAppRed
       return;
     }
 
-    const targetPath = pathname === "/" ? "/" : pathname;
-    const targetUrl = buildEmbeddedAdminUrl(
-      apiKey,
-      runtimeShop,
-      targetPath,
-      runtimeHost,
-      runtimeRedirectTo
-    );
+    const targetUrl = buildEmbeddedAdminUrl(apiKey, runtimeShop, "/", runtimeHost);
     window.location.replace(targetUrl);
-  }, [apiKey, host, pathname, searchParams, shopDomain]);
+  }, [apiKey, host, searchParams, shopDomain]);
 
   return null;
 }
