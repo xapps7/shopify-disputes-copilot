@@ -13,13 +13,26 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const params = (await searchParams) ?? {};
   const redirectTo = getSingleValue(params.redirectTo);
   const shop = getSingleValue(params.shop);
+  const host = getSingleValue(params.host);
 
   if (redirectTo?.startsWith("/")) {
-    redirect(redirectTo as never);
+    const target = new URL(redirectTo, "http://localhost");
+    if (shop) {
+      target.searchParams.set("shop", shop);
+    }
+    if (host) {
+      target.searchParams.set("host", host);
+    }
+    redirect(`${target.pathname}${target.search}` as never);
   }
 
   if (shop) {
-    redirect("/dashboard" as never);
+    const target = new URL("/dashboard", "http://localhost");
+    target.searchParams.set("shop", shop);
+    if (host) {
+      target.searchParams.set("host", host);
+    }
+    redirect(`${target.pathname}${target.search}` as never);
   }
 
   return (
