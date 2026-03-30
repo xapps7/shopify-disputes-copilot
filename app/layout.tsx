@@ -4,7 +4,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { EmbeddedAppRedirect } from "@/components/embedded-app-redirect";
-import { RootRouteRedirect } from "@/components/root-route-redirect";
 import { getCurrentHost, getCurrentShopDomain } from "@/lib/shopify/auth";
 import { APP_COMMIT, APP_RELEASE } from "@/lib/version";
 
@@ -22,7 +21,6 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     <html lang="en">
       <body>
         <EmbeddedAppRedirect apiKey={apiKey} host={host} shopDomain={shopDomain} />
-        <RootRouteRedirect />
         <div className="shell">
           <div className="container">
             <header className="hero">

@@ -1,6 +1,45 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
-export default function HomePage() {
+type HomePageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+function getSingleValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function HomePage({ searchParams }: HomePageProps) {
+  const params = (await searchParams) ?? {};
+  const redirectTo = getSingleValue(params.redirectTo);
+  const shop = getSingleValue(params.shop);
+  const host = getSingleValue(params.host);
+  const hmac = getSingleValue(params.hmac);
+  const timestamp = getSingleValue(params.timestamp);
+
+  if (redirectTo?.startsWith("/")) {
+    redirect(redirectTo as never);
+  }
+
+  if (shop) {
+    const target = new URL("/dashboard", "http://localhost");
+    target.searchParams.set("shop", shop);
+
+    if (host) {
+      target.searchParams.set("host", host);
+    }
+
+    if (hmac) {
+      target.searchParams.set("hmac", hmac);
+    }
+
+    if (timestamp) {
+      target.searchParams.set("timestamp", timestamp);
+    }
+
+    redirect(`${target.pathname}${target.search}` as never);
+  }
+
   return (
     <div className="stack">
       <section className="hero-band hero-band-home">
