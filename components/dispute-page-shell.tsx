@@ -15,6 +15,7 @@ import {
 import { DisputeResponseDraft } from "@/components/dispute-response-draft";
 import { EvidenceUploadForm } from "@/components/evidence-upload-form";
 import { GeneratePacketButton } from "@/components/generate-packet-button";
+import { InfoHint } from "@/components/info-hint";
 import { PacketPreview } from "@/components/packet-preview";
 import type { DisputeDetailView, DisputeResponseDraftView } from "@/lib/types";
 
@@ -197,9 +198,30 @@ export function DisputePageShell({
           <BlockStack gap="400">
             <Card>
               <BlockStack gap="200">
-                <Text as="h2" variant="headingMd">
-                  Add missing proof
+                <InlineStack align="space-between">
+                  <Text as="h2" variant="headingMd">
+                    Next step
+                  </Text>
+                  <Badge tone={readinessScore < 70 ? "warning" : "success"}>
+                    {readinessScore < 70 ? "Collect proof" : "Review reply"}
+                  </Badge>
+                </InlineStack>
+                <Text as="p" variant="bodyMd" tone="subdued">
+                  {readinessScore < 70
+                    ? "Do not spend time polishing the merchant narrative yet. Add the missing evidence first."
+                    : "The evidence shelf is strong enough that the operator should now validate the reply and packet quality."}
                 </Text>
+              </BlockStack>
+            </Card>
+
+            <Card>
+              <BlockStack gap="200">
+                <InlineStack gap="100" blockAlign="center">
+                  <Text as="h2" variant="headingMd">
+                    Add missing proof
+                  </Text>
+                  <InfoHint content="Use this when the checklist still shows gaps or a key support file is absent." />
+                </InlineStack>
                 <Text as="p" variant="bodyMd" tone="subdued">
                   Add the missing items first if readiness is still low.
                 </Text>
@@ -209,9 +231,12 @@ export function DisputePageShell({
 
             <Card>
               <BlockStack gap="200">
-                <Text as="h2" variant="headingMd">
-                  Build and export packet
-                </Text>
+                <InlineStack gap="100" blockAlign="center">
+                  <Text as="h2" variant="headingMd">
+                    Build and export packet
+                  </Text>
+                  <InfoHint content="This assembles the current evidence shelf and merchant settings into the latest draft packet." />
+                </InlineStack>
                 <GeneratePacketButton disputeId={dispute.id} />
                 {dispute.latestPacket ? (
                   <BlockStack gap="100">

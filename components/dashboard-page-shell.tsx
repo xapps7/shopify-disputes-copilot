@@ -14,6 +14,7 @@ import {
 } from "@shopify/polaris";
 
 import { DashboardInsights } from "@/components/dashboard-insights";
+import { InfoHint } from "@/components/info-hint";
 import type { DashboardDispute, DashboardInsightView } from "@/lib/types";
 
 type DashboardPageShellProps = {
@@ -94,13 +95,47 @@ export function DashboardPageShell({
       primaryAction={{ content: "Sync disputes", url: "/dashboard" }}
     >
       <BlockStack gap="500">
+        <Card>
+          <BlockStack gap="200">
+            <InlineStack align="space-between">
+              <Text as="h2" variant="headingMd">
+                Next best actions
+              </Text>
+              <Badge tone="info">Operator flow</Badge>
+            </InlineStack>
+            <Text as="p" variant="bodyMd" tone="subdued">
+              Work the queue in sequence so the team does not write responses too early or miss issuer
+              deadlines.
+            </Text>
+            <div className="next-steps-grid">
+              {[
+                ["1. Clear urgent cases", "Any case due today or tomorrow should move first."],
+                ["2. Close evidence gaps", "If readiness is low, collect proof before editing the merchant reply."],
+                ["3. Review packet quality", "Only after evidence is solid should the merchant narrative be refined."]
+              ].map(([title, detail]) => (
+                <div className="next-step-card" key={title}>
+                  <Text as="p" variant="bodyMd" fontWeight="semibold">
+                    {title}
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {detail}
+                  </Text>
+                </div>
+              ))}
+            </div>
+          </BlockStack>
+        </Card>
+
         <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
           <Card>
             <BlockStack gap="150">
               <InlineStack align="space-between">
-                <Text as="h3" variant="headingMd">
-                  Today&apos;s exposure
-                </Text>
+                <InlineStack gap="100" blockAlign="center">
+                  <Text as="h3" variant="headingMd">
+                    Today&apos;s exposure
+                  </Text>
+                  <InfoHint content="Total disputed value across the currently active queue." />
+                </InlineStack>
                 <Text as="p" variant="headingMd">
                   ${totalAmount.toFixed(0)}
                 </Text>
@@ -115,9 +150,12 @@ export function DashboardPageShell({
           <Card>
             <BlockStack gap="150">
               <InlineStack align="space-between">
-                <Text as="h3" variant="headingMd">
-                  Readiness posture
-                </Text>
+                <InlineStack gap="100" blockAlign="center">
+                  <Text as="h3" variant="headingMd">
+                    Readiness posture
+                  </Text>
+                  <InfoHint content="Readiness estimates how complete the evidence shelf is for expected dispute categories." />
+                </InlineStack>
                 <Text as="p" variant="headingMd">
                   {avgReadiness}%
                 </Text>
@@ -165,9 +203,20 @@ export function DashboardPageShell({
               <BlockStack gap="300" key={section.title}>
                 <InlineStack align="space-between">
                   <BlockStack gap="050">
-                    <Text as="h3" variant="headingSm">
-                      {section.title}
-                    </Text>
+                    <InlineStack gap="100" blockAlign="center">
+                      <Text as="h3" variant="headingSm">
+                        {section.title}
+                      </Text>
+                      <InfoHint
+                        content={
+                          section.title === "Needs action now"
+                            ? "These cases are due immediately or already overdue."
+                            : section.title === "Blocked on evidence"
+                              ? "These cases need more proof before drafting should continue."
+                              : "These cases are strong enough for narrative and packet review."
+                        }
+                      />
+                    </InlineStack>
                     <Text as="p" variant="bodySm" tone="subdued">
                       {section.description}
                     </Text>

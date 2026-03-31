@@ -75,6 +75,18 @@ textarea {
   margin: 0 auto;
 }
 
+.info-hint {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(24, 33, 43, 0.12);
+  background: rgba(255, 255, 255, 0.9);
+  cursor: help;
+}
+
 .app-shell__nav-link {
   display: inline-flex;
   align-items: center;
@@ -531,6 +543,19 @@ textarea {
   gap: 12px;
 }
 
+.next-steps-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.next-step-card {
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid #e4e9e4;
+  background: #fbfcfb;
+}
+
 .queue-row {
   display: grid;
   grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
@@ -900,7 +925,8 @@ textarea {
   .packet-preview-grid,
   .evidence-library-grid,
   .queue-row,
-  .queue-row__meta {
+  .queue-row__meta,
+  .next-steps-grid {
     grid-template-columns: 1fr;
   }
 
