@@ -1,7 +1,9 @@
 import { DashboardHero } from "@/components/dashboard-hero";
+import { DashboardInsights } from "@/components/dashboard-insights";
 import { DisputesTable } from "@/components/disputes-table";
 import { DisputePriorities } from "@/components/dispute-priorities";
 import { MetricCard } from "@/components/metric-card";
+import { generateDashboardInsights } from "@/lib/ai/dashboard-insights";
 import { SyncDisputesButton } from "@/components/sync-disputes-button";
 import { listDashboardDisputes } from "@/lib/disputes/repository";
 import { getCurrentShopDomain } from "@/lib/shopify/auth";
@@ -27,6 +29,7 @@ export default async function DashboardPage() {
     return delta <= 1;
   });
   const lowReadiness = disputes.filter((dispute) => dispute.completenessScore < 70);
+  const insights = generateDashboardInsights(disputes);
 
   return (
     <div className="stack">
@@ -70,6 +73,16 @@ export default async function DashboardPage() {
           <strong>{lowReadiness.length} disputes are below 70% evidence readiness</strong>
           <p>Those are the cases most likely to stall packet preparation and deadline response.</p>
         </div>
+      </section>
+
+      <section className="panel">
+        <div className="section-heading">
+          <div>
+            <h2>AI operating guidance</h2>
+            <p>Generated guidance for queue pressure, evidence posture, and the next operator actions.</p>
+          </div>
+        </div>
+        <DashboardInsights insights={insights} />
       </section>
 
       <section className="two-col dashboard-layout">

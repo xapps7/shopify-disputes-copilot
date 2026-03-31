@@ -2,8 +2,8 @@ import "@shopify/polaris/build/esm/styles.css";
 import "./globals.css";
 
 import type { Metadata } from "next";
-import Link from "next/link";
 
+import { AppShell } from "@/components/app-shell";
 import { EmbeddedAppRedirect } from "@/components/embedded-app-redirect";
 import { PolarisProvider } from "@/components/polaris-provider";
 import { getCurrentHost, getCurrentShopDomain } from "@/lib/shopify/auth";
@@ -28,29 +28,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       <body>
         <PolarisProvider>
           <EmbeddedAppRedirect apiKey={apiKey} host={host} shopDomain={shopDomain} />
-          <div className="shell">
-            <div className="container">
-              <header className="hero">
-                <span className="eyebrow">Shopify Payments disputes cockpit</span>
-                <h1>Disputes and Chargeback Ops Co-Pilot</h1>
-                <p>
-                  Embedded operations software for triage, evidence assembly, packet generation, and
-                  prevention guidance inside Shopify Admin.
-                </p>
-                <p className="release-badge">
-                  Release {APP_RELEASE} · {APP_COMMIT}
-                </p>
-              </header>
-
-              <nav className="nav">
-                <Link href="/dashboard">Dashboard</Link>
-                <Link href="/">Overview</Link>
-                <Link href="/settings">Settings</Link>
-              </nav>
-
-              {children}
-            </div>
-          </div>
+          <AppShell commit={APP_COMMIT} release={APP_RELEASE}>
+            {children}
+          </AppShell>
         </PolarisProvider>
       </body>
     </html>

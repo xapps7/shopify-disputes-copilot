@@ -61,6 +61,39 @@ textarea {
   padding: 20px 24px 60px;
 }
 
+.app-shell {
+  min-height: 100vh;
+  padding: 20px;
+  background:
+    radial-gradient(circle at top left, rgba(13, 108, 98, 0.08) 0, transparent 24%),
+    radial-gradient(circle at top right, rgba(224, 204, 167, 0.16) 0, transparent 24%),
+    linear-gradient(180deg, #f7fbf7 0%, #edf2ec 100%);
+}
+
+.app-shell__frame {
+  max-width: 1320px;
+  margin: 0 auto;
+}
+
+.app-shell__nav-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 104px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(24, 33, 43, 0.08);
+  background: rgba(255, 255, 255, 0.85);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.app-shell__nav-link--active {
+  background: linear-gradient(135deg, #0d6c62 0%, #15544f 100%);
+  border-color: rgba(13, 108, 98, 0.16);
+  color: #fff;
+}
+
 .hero {
   margin-bottom: 20px;
   display: grid;
@@ -487,6 +520,12 @@ textarea {
   gap: 12px;
 }
 
+.dashboard-insights {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
 .priority-card {
   display: flex;
   align-items: flex-start;
@@ -789,6 +828,19 @@ textarea {
   width: 100%;
 }
 
+.packet-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.packet-preview-card {
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid #e2e8df;
+  background: linear-gradient(180deg, #ffffff 0%, #f8faf8 100%);
+}
+
 .polaris-actions {
   display: flex;
   align-items: center;
@@ -806,8 +858,10 @@ textarea {
   .two-col,
   .hero-band,
   .ops-strip,
+  .dashboard-insights,
   .case-score-band,
-  .detail-grid {
+  .detail-grid,
+  .packet-preview-grid {
     grid-template-columns: 1fr;
   }
 
@@ -825,15 +879,15 @@ textarea {
 }
 
 @media (max-width: 720px) {
-  .container {
-    padding: 16px 14px 44px;
-  }
-
   .hero,
   .panel,
   .hero-band {
     padding: 20px 18px;
     border-radius: 22px;
+  }
+
+  .app-shell {
+    padding: 12px;
   }
 
   .nav {

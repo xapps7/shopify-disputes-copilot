@@ -49,7 +49,22 @@ export const sampleDisputeDetail: DisputeDetailView = {
     version: 1,
     status: "READY",
     generatedAt: "2026-03-25T08:40:00.000Z",
-    pdfUrl: "/packets/local-1/sample-packet.txt"
+    pdfUrl: "/packets/local-1/sample-packet.txt",
+    summaryText: [
+      "Shop: xappsdev.myshopify.com",
+      "Dispute: gid://shopify/ShopifyPaymentsDispute/1001",
+      "Status: NEEDS_RESPONSE",
+      "Reason: FRAUD",
+      "Reason details: Customer claims cardholder did not authorize the order.",
+      "",
+      "Evidence items:",
+      "1. Delivered via UPS",
+      "   Category: DELIVERY_CONFIRMATION",
+      "   Source: shopify_fulfillment",
+      "2. Customer support exchange",
+      "   Category: CUSTOMER_COMMUNICATION",
+      "   Source: merchant_upload"
+    ].join("\n")
   },
   evidenceItems: [
     {

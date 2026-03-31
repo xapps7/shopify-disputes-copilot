@@ -2,6 +2,7 @@ import { getDisputeDetail } from "@/lib/disputes/repository";
 import { EvidenceUploadForm } from "@/components/evidence-upload-form";
 import { GeneratePacketButton } from "@/components/generate-packet-button";
 import { DisputeResponseDraft } from "@/components/dispute-response-draft";
+import { PacketPreview } from "@/components/packet-preview";
 import { generateDisputeResponseDraft } from "@/lib/ai/dispute-drafts";
 
 type DisputePageProps = {
@@ -110,6 +111,10 @@ export default async function DisputeDetailPage({ params }: DisputePageProps) {
 
         <div className="detail-block">
           <DisputeResponseDraft disputeId={dispute.id} initialDraft={responseDraft} />
+        </div>
+
+        <div className="detail-block">
+          <PacketPreview latestPacket={dispute.latestPacket} />
         </div>
 
         <h3>Evidence library</h3>

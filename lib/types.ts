@@ -10,6 +10,14 @@ export type DashboardDispute = {
   completenessScore: number;
 };
 
+export type DashboardInsightView = {
+  title: string;
+  tone: "warning" | "info" | "success";
+  summary: string;
+  detail: string;
+  actions: string[];
+};
+
 export type DisputeDetailView = {
   id: string;
   shopifyDisputeId: string;
@@ -34,6 +42,7 @@ export type DisputeDetailView = {
     status: string;
     generatedAt: string | null;
     pdfUrl: string | null;
+    summaryText: string | null;
   } | null;
   evidenceItems: Array<{
     id: string;

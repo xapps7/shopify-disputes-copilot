@@ -112,7 +112,8 @@ export async function getDisputeDetail(id: string): Promise<DisputeDetailView> {
           version: dispute.packets[0].version,
           status: dispute.packets[0].status,
           generatedAt: dispute.packets[0].generatedAt?.toISOString() ?? null,
-          pdfUrl: dispute.packets[0].pdfUrl ?? null
+          pdfUrl: dispute.packets[0].pdfUrl ?? null,
+          summaryText: dispute.packets[0].summaryText ?? null
         }
       : null,
     evidenceItems: dispute.evidenceItems.map((item) => ({
