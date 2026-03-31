@@ -10,7 +10,10 @@ type RecommendationsPageShellProps = {
 
 export function RecommendationsPageShell({ recommendations }: RecommendationsPageShellProps) {
   return (
-    <Page title="Recommendations" subtitle="Turn dispute outcomes into prevention actions for the merchant team.">
+    <Page
+      title="Recommendations"
+      subtitle="Turn dispute outcomes into prevention actions for the merchant team."
+    >
       {recommendations.length > 0 ? (
         <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
           {recommendations.map((item) => (
@@ -24,6 +27,9 @@ export function RecommendationsPageShell({ recommendations }: RecommendationsPag
                 </Text>
                 <Text as="p" variant="bodyMd" tone="subdued">
                   {item.recommendationText}
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {item.state.replaceAll("_", " ")}
                 </Text>
               </BlockStack>
             </Card>

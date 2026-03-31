@@ -2,6 +2,7 @@
 
 import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button, InlineStack, Text } from "@shopify/polaris";
 
 export function SyncDisputesButton() {
   const router = useRouter();
@@ -34,11 +35,15 @@ export function SyncDisputesButton() {
   }
 
   return (
-    <div className="sync-action">
-      <button className="pill-link button-reset" disabled={isSyncing} onClick={handleSync} type="button">
+    <InlineStack align="start" gap="300" blockAlign="center" wrap>
+      <Button loading={isSyncing} onClick={handleSync} variant="primary">
         {isSyncing ? "Syncing..." : "Sync recent disputes"}
-      </button>
-      {message ? <p className="sync-message">{message}</p> : null}
-    </div>
+      </Button>
+      {message ? (
+        <Text as="p" tone="subdued" variant="bodySm">
+          {message}
+        </Text>
+      ) : null}
+    </InlineStack>
   );
 }

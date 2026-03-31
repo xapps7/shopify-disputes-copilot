@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Badge, BlockStack, Card, EmptyState, IndexTable, Page, Text } from "@shopify/polaris";
+import { Badge, BlockStack, Card, EmptyState, IndexFilters, IndexTable, Page, Text, useSetIndexFiltersMode } from "@shopify/polaris";
 
 import type { EvidenceLibraryItemView } from "@/lib/types";
 
@@ -10,10 +10,37 @@ type EvidenceLibraryPageShellProps = {
 };
 
 export function EvidenceLibraryPageShell({ items }: EvidenceLibraryPageShellProps) {
+  const { mode, setMode } = useSetIndexFiltersMode();
+
   return (
-    <Page title="Evidence Library" subtitle="Search and organize evidence across disputes.">
-      <Card>
+    <Page
+      title="Evidence library"
+      subtitle="Search and organize uploaded files across disputes."
+      primaryAction={{ content: "View disputes", url: "/disputes" }}
+    >
+      <Card padding="0">
         <BlockStack gap="200">
+          <IndexFilters
+            tabs={[
+              { id: "all", content: "All files" },
+              { id: "communication", content: "Communication" },
+              { id: "refunds", content: "Refund proof" },
+              { id: "fulfillment", content: "Fulfillment" }
+            ]}
+            selected={0}
+            onSelect={() => {}}
+            canCreateNewView={false}
+            cancelAction={{ onAction: () => {}, disabled: true, loading: false }}
+            filters={[]}
+            appliedFilters={[]}
+            onClearAll={() => {}}
+            mode={mode}
+            setMode={setMode}
+            queryValue=""
+            queryPlaceholder="Search files"
+            onQueryChange={() => {}}
+            onQueryClear={() => {}}
+          />
           {items.length > 0 ? (
             <IndexTable
               headings={[

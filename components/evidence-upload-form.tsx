@@ -36,7 +36,7 @@ export function EvidenceUploadForm({ disputeId }: EvidenceUploadFormProps) {
   }
 
   return (
-    <form action={handleSubmit} className="stack polaris-form">
+    <form action={handleSubmit} className="polaris-form">
       <BlockStack gap="300">
         <TextField autoComplete="off" label="Evidence title" name="title" placeholder="Evidence title" />
         <Select

@@ -8,11 +8,13 @@ import {
   EmptyState,
   IndexFilters,
   IndexTable,
+  InlineStack,
   Page,
   Text,
   useSetIndexFiltersMode
 } from "@shopify/polaris";
 
+import { SyncDisputesButton } from "@/components/sync-disputes-button";
 import type { DashboardDispute } from "@/lib/types";
 
 type DisputesIndexPageShellProps = {
@@ -31,8 +33,18 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
   const { mode, setMode } = useSetIndexFiltersMode();
 
   return (
-    <Page title="Disputes" subtitle="Review active disputes, deadlines, and evidence readiness.">
+    <Page
+      title="Disputes"
+      subtitle="Review active disputes, deadlines, and evidence readiness."
+      primaryAction={{ content: "Open evidence library", url: "/evidence" }}
+    >
       <BlockStack gap="300">
+        <InlineStack align="space-between">
+          <Text as="p" variant="bodySm" tone="subdued">
+            Use the list like a Shopify resource index: sort by urgency, open the case, and complete evidence before submission.
+          </Text>
+          <SyncDisputesButton />
+        </InlineStack>
         <Card padding="0">
           <IndexFilters
             tabs={[
@@ -91,7 +103,11 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
                   <IndexTable.Cell>
                     {dispute.currencyCode ?? "USD"} {dispute.amount}
                   </IndexTable.Cell>
-                  <IndexTable.Cell>{dispute.completenessScore}%</IndexTable.Cell>
+                  <IndexTable.Cell>
+                    <Badge tone={dispute.completenessScore >= 75 ? "success" : dispute.completenessScore >= 50 ? "warning" : "critical"}>
+                      {`${dispute.completenessScore}%`}
+                    </Badge>
+                  </IndexTable.Cell>
                 </IndexTable.Row>
               ))}
             </IndexTable>

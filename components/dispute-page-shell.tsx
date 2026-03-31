@@ -1,23 +1,27 @@
 "use client";
 
+import Link from "next/link";
 import {
+  Banner,
   Badge,
   BlockStack,
   Box,
   Card,
+  DataTable,
+  Divider,
   InlineGrid,
   InlineStack,
   Layout,
+  List,
   Page,
+  ProgressBar,
   Text
 } from "@shopify/polaris";
 
 import { DisputeResponseDraft } from "@/components/dispute-response-draft";
 import { EvidenceUploadForm } from "@/components/evidence-upload-form";
 import { GeneratePacketButton } from "@/components/generate-packet-button";
-import { InfoHint } from "@/components/info-hint";
 import { OutcomeReviewForm } from "@/components/outcome-review-form";
-import { PacketPreview } from "@/components/packet-preview";
 import type { DisputeDetailView, DisputeResponseDraftView } from "@/lib/types";
 
 type DisputePageShellProps = {
@@ -27,268 +31,334 @@ type DisputePageShellProps = {
   responseDraft: DisputeResponseDraftView;
 };
 
+function statusTone(status: string) {
+  if (status.includes("WARNING") || status === "NEEDS_RESPONSE") return "warning" as const;
+  if (status === "WON") return "success" as const;
+  if (status === "LOST" || status === "ACCEPTED") return "critical" as const;
+  return "info" as const;
+}
+
+function deadlineTone(evidenceDueBy: string | null) {
+  if (!evidenceDueBy) return "info" as const;
+  const days = Math.ceil((new Date(evidenceDueBy).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+  if (days < 0) return "critical" as const;
+  if (days <= 2) return "warning" as const;
+  return "info" as const;
+}
+
+function nextStep(readinessScore: number) {
+  if (readinessScore < 60) {
+    return {
+      title: "Collect evidence before editing the reply",
+      detail: "The record is still missing key proof. Close the checklist gaps first so the merchant narrative can stay factual.",
+      tone: "warning" as const
+    };
+  }
+
+  if (readinessScore < 100) {
+    return {
+      title: "Review the packet and confirm the narrative",
+      detail: "Most required proof is present. Validate how the packet explains the facts and fill any remaining weaker areas.",
+      tone: "info" as const
+    };
+  }
+
+  return {
+    title: "Prepare for submission",
+    detail: "The packet is evidence-complete. Finalize the merchant response and choose the submission path.",
+    tone: "success" as const
+  };
+}
+
 export function DisputePageShell({
   dispute,
   readinessScore,
   readyEvidence,
   responseDraft
 }: DisputePageShellProps) {
+  const actionGuidance = nextStep(readinessScore);
+  const dueDateLabel = dispute.evidenceDueBy
+    ? new Date(dispute.evidenceDueBy).toLocaleDateString()
+    : "No deadline";
+
   return (
     <Page
       title={`Dispute ${dispute.shopifyDisputeId.split("/").pop()}`}
       subtitle={`${(dispute.reason ?? "Unknown").replaceAll("_", " ")} · ${dispute.currencyCode ?? "USD"} ${dispute.amount}`}
-      backAction={{ content: "Dashboard", url: "/dashboard" }}
+      backAction={{ content: "Disputes", url: "/disputes" }}
+      primaryAction={{
+        content: "Review packet",
+        url: `/packets/${dispute.id}`
+      }}
+      secondaryActions={[
+        ...(dispute.latestPacket?.pdfUrl
+          ? [
+              {
+                content: "Open export",
+                url: dispute.latestPacket.pdfUrl,
+                external: true
+              }
+            ]
+          : [])
+      ]}
     >
-      <Layout>
-        <Layout.Section>
-          <BlockStack gap="400">
-            <Card>
-              <BlockStack gap="400">
-                <BlockStack gap="100">
-                  <InlineStack gap="200" blockAlign="center">
-                    <Badge tone={dispute.status.includes("WARNING") ? "warning" : "info"}>
-                      {dispute.status.replaceAll("_", " ")}
-                    </Badge>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      {dispute.latestPacket
-                        ? `Packet v${dispute.latestPacket.version} ${dispute.latestPacket.status.toLowerCase()}`
-                        : "Packet not drafted yet"}
-                    </Text>
-                  </InlineStack>
-                  <Text as="h2" variant="headingMd">
-                    What matters on this case
-                  </Text>
-                  <Text as="p" variant="bodyMd">
-                    {dispute.reasonDetails ?? "No reason details available yet."}
-                  </Text>
-                </BlockStack>
+      <BlockStack gap="400">
+        <Banner tone={actionGuidance.tone}>
+          <p>{actionGuidance.detail}</p>
+        </Banner>
 
-                <InlineGrid columns={{ xs: 1, md: 3 }} gap="300">
-                  <Box background="bg-surface-secondary" borderRadius="300" padding="300">
-                    <BlockStack gap="100">
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        Readiness
+        <Layout>
+          <Layout.Section>
+            <BlockStack gap="400">
+              <Card>
+                <BlockStack gap="300">
+                  <InlineStack align="space-between" blockAlign="start">
+                    <BlockStack gap="150">
+                      <InlineStack gap="200" blockAlign="center">
+                        <Badge tone={statusTone(dispute.status)}>{dispute.status.replaceAll("_", " ")}</Badge>
+                        <Badge tone={deadlineTone(dispute.evidenceDueBy)}>{`Due ${dueDateLabel}`}</Badge>
+                      </InlineStack>
+                      <Text as="h2" variant="headingMd">
+                        Dispute summary
                       </Text>
-                      <Text as="p" variant="headingMd">
-                        {readinessScore}%
-                      </Text>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        {readyEvidence} of {dispute.evidenceChecklist.length} categories ready
+                      <Text as="p" variant="bodyMd" tone="subdued">
+                        {dispute.reasonDetails ?? "No additional issuer context is available yet."}
                       </Text>
                     </BlockStack>
-                  </Box>
-                  <Box background="bg-surface-secondary" borderRadius="300" padding="300">
-                    <BlockStack gap="100">
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        Amount at risk
-                      </Text>
-                      <Text as="p" variant="headingMd">
-                        {dispute.currencyCode ?? "USD"} {dispute.amount}
-                      </Text>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        Keep the reply tightly tied to evidence, not claims.
-                      </Text>
-                    </BlockStack>
-                  </Box>
-                  <Box background="bg-surface-secondary" borderRadius="300" padding="300">
-                    <BlockStack gap="100">
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        Recommended next step
-                      </Text>
-                      <Text as="p" variant="bodyMd" fontWeight="medium">
-                        {readinessScore < 70 ? "Collect evidence first" : "Review narrative and packet"}
-                      </Text>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        The page is structured in that exact order below.
-                      </Text>
-                    </BlockStack>
-                  </Box>
-                </InlineGrid>
-
-                {dispute.orderSummary ? (
-                  <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
-                    {[
-                      ["Order", dispute.orderSummary.orderName ?? "Unknown"],
-                      ["Customer", dispute.orderSummary.customerName ?? "Unknown"],
-                      ["Email", dispute.orderSummary.customerEmail ?? "Unknown"],
-                      ["Fulfillment", dispute.orderSummary.fulfillmentStatus ?? "Unknown"]
-                    ].map(([label, value]) => (
-                      <Box background="bg-surface-secondary" borderRadius="300" key={label} padding="300">
-                        <BlockStack gap="100">
-                          <Text as="p" variant="bodySm" tone="subdued">
-                            {label}
-                          </Text>
-                          <Text as="p" variant="bodyMd" fontWeight="medium">
-                            {value}
-                          </Text>
-                        </BlockStack>
-                      </Box>
-                    ))}
-                  </InlineGrid>
-                ) : null}
-              </BlockStack>
-            </Card>
-
-            <Card>
-              <BlockStack gap="300">
-                <Text as="h2" variant="headingMd">
-                  What is missing
-                </Text>
-                <div className="checklist-grid">
-                  {dispute.evidenceChecklist.map((item) => (
-                    <div className={`checklist-item checklist-item-${item.state}`} key={item.label}>
-                      <div>
-                        <span>{item.label}</span>
-                        <p className="checklist-caption">
-                          {item.state === "ready"
-                            ? "Captured in the evidence shelf and ready for packet assembly."
-                            : "Still missing from the current record set."}
-                        </p>
-                      </div>
-                      <Badge tone={item.state === "ready" ? "success" : "warning"}>
-                        {item.state === "ready" ? "Ready" : "Missing"}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </BlockStack>
-            </Card>
-
-            <DisputeResponseDraft disputeId={dispute.id} initialDraft={responseDraft} />
-            <PacketPreview latestPacket={dispute.latestPacket} />
-
-            <Card>
-              <BlockStack gap="300">
-                <Text as="h2" variant="headingMd">
-                  Evidence library
-                </Text>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  This is the source record set the merchant reply and packet are built from.
-                </Text>
-                <div className="evidence-library-grid">
-                  {dispute.evidenceItems.map((item) => (
-                    <div key={item.id} className="evidence-card">
+                    <Box minWidth="220px">
                       <BlockStack gap="150">
                         <InlineStack align="space-between">
-                          <Badge>{item.category.replaceAll("_", " ")}</Badge>
-                          <Text as="span" variant="bodySm" tone="subdued">
-                            {item.sourceType}
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            Evidence completeness
+                          </Text>
+                          <Text as="p" variant="bodySm">
+                            {readinessScore}%
                           </Text>
                         </InlineStack>
-                        <Text as="h3" variant="headingSm">
-                          {item.title}
+                        <ProgressBar progress={readinessScore} tone={readinessScore < 60 ? "critical" : "primary"} />
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          {readyEvidence} of {dispute.evidenceChecklist.length} required categories are ready.
                         </Text>
-                        <Text as="p" variant="bodyMd" tone="subdued">
-                          {item.description ?? "No description provided."}
-                        </Text>
-                        {item.fileUrl ? (
-                          <a className="table-link" href={item.fileUrl} rel="noreferrer" target="_blank">
-                            Open file
-                          </a>
-                        ) : null}
                       </BlockStack>
-                    </div>
-                  ))}
-                </div>
-              </BlockStack>
-            </Card>
-          </BlockStack>
-        </Layout.Section>
+                    </Box>
+                  </InlineStack>
 
-        <Layout.Section variant="oneThird">
-          <BlockStack gap="400">
-            <Card>
-              <BlockStack gap="200">
-                <InlineStack align="space-between">
+                  <InlineGrid columns={{ xs: 1, md: 4 }} gap="300">
+                    {[
+                      ["Amount", `${dispute.currencyCode ?? "USD"} ${dispute.amount}`],
+                      ["Reason", (dispute.reason ?? "Unknown").replaceAll("_", " ")],
+                      ["Order", dispute.orderSummary?.orderName ?? "Unknown"],
+                      ["Customer", dispute.orderSummary?.customerName ?? "Unknown"]
+                    ].map(([label, value]) => (
+                      <BlockStack gap="050" key={label}>
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          {label}
+                        </Text>
+                        <Text as="p" variant="bodyMd" fontWeight="medium">
+                          {value}
+                        </Text>
+                      </BlockStack>
+                    ))}
+                  </InlineGrid>
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
+                    Order and payment context
+                  </Text>
+                  <DataTable
+                    columnContentTypes={["text", "text"]}
+                    headings={["Field", "Value"]}
+                    rows={[
+                      ["Order", dispute.orderSummary?.orderName ?? "Unavailable"],
+                      ["Customer", dispute.orderSummary?.customerName ?? "Unavailable"],
+                      ["Email", dispute.orderSummary?.customerEmail ?? "Unavailable"],
+                      ["Fulfillment", dispute.orderSummary?.fulfillmentStatus ?? "Unavailable"],
+                      ["Dispute deadline", dueDateLabel]
+                    ]}
+                  />
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="300">
+                  <InlineStack align="space-between">
+                    <Text as="h2" variant="headingMd">
+                      Evidence checklist
+                    </Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Complete the missing rows before refining the final response.
+                    </Text>
+                  </InlineStack>
+
+                  <BlockStack gap="200">
+                    {dispute.evidenceChecklist.map((item, index) => (
+                      <BlockStack gap="200" key={item.label}>
+                        <InlineStack align="space-between" blockAlign="center">
+                          <BlockStack gap="050">
+                            <Text as="p" variant="bodyMd" fontWeight="medium">
+                              {item.label}
+                            </Text>
+                            <Text as="p" variant="bodySm" tone="subdued">
+                              {item.state === "ready"
+                                ? "Included in the current evidence shelf."
+                                : "Still missing from the dispute record."}
+                            </Text>
+                          </BlockStack>
+                          <Badge tone={item.state === "ready" ? "success" : "warning"}>
+                            {item.state === "ready" ? "Ready" : "Missing"}
+                          </Badge>
+                        </InlineStack>
+                        {index < dispute.evidenceChecklist.length - 1 ? <Divider /> : null}
+                      </BlockStack>
+                    ))}
+                  </BlockStack>
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="300">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <BlockStack gap="050">
+                      <Text as="h2" variant="headingMd">
+                        Evidence files
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Review source files linked to this dispute.
+                      </Text>
+                    </BlockStack>
+                    <Link className="table-link" href={"/evidence" as never}>
+                      Open evidence library
+                    </Link>
+                  </InlineStack>
+
+                  <DataTable
+                    columnContentTypes={["text", "text", "text"]}
+                    headings={["File", "Category", "Source"]}
+                    rows={dispute.evidenceItems.map((item) => [
+                      item.fileUrl ? (
+                        <a className="table-link" href={item.fileUrl} key={`${item.id}-link`} rel="noreferrer" target="_blank">
+                          {item.title}
+                        </a>
+                      ) : (
+                        item.title
+                      ),
+                      item.category.replaceAll("_", " "),
+                      item.sourceType
+                    ])}
+                  />
+                </BlockStack>
+              </Card>
+
+              <DisputeResponseDraft disputeId={dispute.id} initialDraft={responseDraft} />
+            </BlockStack>
+          </Layout.Section>
+
+          <Layout.Section variant="oneThird">
+            <BlockStack gap="400">
+              <Card>
+                <BlockStack gap="200">
                   <Text as="h2" variant="headingMd">
                     Next step
                   </Text>
-                  <Badge tone={readinessScore < 70 ? "warning" : "success"}>
-                    {readinessScore < 70 ? "Collect proof" : "Review reply"}
-                  </Badge>
-                </InlineStack>
-                <Text as="p" variant="bodyMd" tone="subdued">
-                  {readinessScore < 70
-                    ? "Do not spend time polishing the merchant narrative yet. Add the missing evidence first."
-                    : "The evidence shelf is strong enough that the operator should now validate the reply and packet quality."}
-                </Text>
-              </BlockStack>
-            </Card>
-
-            <Card>
-              <BlockStack gap="200">
-                <InlineStack gap="100" blockAlign="center">
-                  <Text as="h2" variant="headingMd">
-                    Add missing proof
+                  <Text as="p" variant="bodyMd" fontWeight="medium">
+                    {actionGuidance.title}
                   </Text>
-                  <InfoHint content="Use this when the checklist still shows gaps or a key support file is absent." />
-                </InlineStack>
-                <Text as="p" variant="bodyMd" tone="subdued">
-                  Add the missing items first if readiness is still low.
-                </Text>
-                <EvidenceUploadForm disputeId={dispute.id} />
-              </BlockStack>
-            </Card>
-
-            <Card>
-              <BlockStack gap="200">
-                <InlineStack gap="100" blockAlign="center">
-                  <Text as="h2" variant="headingMd">
-                    Build and export packet
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {actionGuidance.detail}
                   </Text>
-                  <InfoHint content="This assembles the current evidence shelf and merchant settings into the latest draft packet." />
-                </InlineStack>
-                <GeneratePacketButton disputeId={dispute.id} />
-                {dispute.latestPacket ? (
-                  <BlockStack gap="100">
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      Version {dispute.latestPacket.version}
-                    </Text>
-                    {dispute.latestPacket.pdfUrl ? (
-                      <a className="table-link" href={dispute.latestPacket.pdfUrl} target="_blank">
-                        Open exported draft
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="200">
+                  <Text as="h2" variant="headingMd">
+                    Add evidence
+                  </Text>
+                  <EvidenceUploadForm disputeId={dispute.id} />
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="200">
+                  <Text as="h2" variant="headingMd">
+                    Packet
+                  </Text>
+                  <GeneratePacketButton disputeId={dispute.id} />
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {dispute.latestPacket
+                      ? `Latest draft: version ${dispute.latestPacket.version}`
+                      : "No packet draft has been generated yet."}
+                  </Text>
+                  <InlineStack gap="200" wrap>
+                    <Link className="table-link" href={`/packets/${dispute.id}` as never}>
+                      Review packet preview
+                    </Link>
+                    {dispute.latestPacket?.pdfUrl ? (
+                      <a className="table-link" href={dispute.latestPacket.pdfUrl} rel="noreferrer" target="_blank">
+                        Open exported file
                       </a>
                     ) : null}
-                  </BlockStack>
-                ) : (
-                  <Text as="p" variant="bodyMd" tone="subdued">
-                    No packet generated yet.
+                  </InlineStack>
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="200">
+                  <Text as="h2" variant="headingMd">
+                    Recommendations
                   </Text>
-                )}
-              </BlockStack>
-            </Card>
+                  {dispute.recommendations.length > 0 ? (
+                    <List type="bullet">
+                      {dispute.recommendations.map((item) => (
+                        <List.Item key={item.id}>{item.recommendationText}</List.Item>
+                      ))}
+                    </List>
+                  ) : (
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Recommendations appear after outcome review and tagging.
+                    </Text>
+                  )}
+                </BlockStack>
+              </Card>
 
-            <Card>
-              <BlockStack gap="200">
-                <Text as="h2" variant="headingMd">
-                  Timeline
-                </Text>
-                <div className="timeline-list">
-                  {dispute.timeline.map((event) => (
-                    <div key={event.id} className="timeline-item">
-                      <Text as="p" variant="bodyMd" fontWeight="medium">
-                        {event.eventType.replaceAll("_", " ")}
-                      </Text>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        {new Date(event.eventTimestamp).toLocaleString()}
-                      </Text>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        {event.source}
-                      </Text>
-                    </div>
-                  ))}
-                </div>
-              </BlockStack>
-            </Card>
+              <Card>
+                <BlockStack gap="200">
+                  <Text as="h2" variant="headingMd">
+                    Timeline
+                  </Text>
+                  <BlockStack gap="200">
+                    {dispute.timeline.map((event, index) => (
+                      <BlockStack gap="100" key={event.id}>
+                        <InlineStack align="space-between">
+                          <Text as="p" variant="bodyMd" fontWeight="medium">
+                            {event.eventType.replaceAll("_", " ")}
+                          </Text>
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            {new Date(event.eventTimestamp).toLocaleDateString()}
+                          </Text>
+                        </InlineStack>
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          {event.source}
+                        </Text>
+                        {index < dispute.timeline.length - 1 ? <Divider /> : null}
+                      </BlockStack>
+                    ))}
+                  </BlockStack>
+                </BlockStack>
+              </Card>
 
-            <OutcomeReviewForm
-              currentStatus={dispute.status}
-              disputeId={dispute.id}
-              recommendations={dispute.recommendations}
-            />
-          </BlockStack>
-        </Layout.Section>
-      </Layout>
+              <OutcomeReviewForm
+                currentStatus={dispute.status}
+                disputeId={dispute.id}
+                recommendations={dispute.recommendations}
+              />
+            </BlockStack>
+          </Layout.Section>
+        </Layout>
+      </BlockStack>
     </Page>
   );
 }

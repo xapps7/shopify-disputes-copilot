@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  Banner,
   Badge,
   BlockStack,
   Card,
@@ -13,6 +14,7 @@ import {
   Text
 } from "@shopify/polaris";
 
+import { SyncDisputesButton } from "@/components/sync-disputes-button";
 import type { DashboardDispute, OverviewMetricsView, PreventionRecommendationView } from "@/lib/types";
 
 type OverviewPageShellProps = {
@@ -31,8 +33,20 @@ function toneForStatus(status: string) {
 
 export function OverviewPageShell({ metrics, recentDisputes, recommendations }: OverviewPageShellProps) {
   return (
-    <Page title="Overview" subtitle="Monitor active disputes, approaching deadlines, and prevention signals.">
+    <Page
+      title="Overview"
+      subtitle="Monitor open disputes, approaching deadlines, and evidence readiness."
+      primaryAction={{ content: "View disputes", url: "/disputes" }}
+    >
       <BlockStack gap="400">
+        {metrics.dueSoon > 0 ? (
+          <Banner tone="warning">
+            <p>{metrics.dueSoon} disputes are due within 48 hours. Review deadlines before editing response narratives.</p>
+          </Banner>
+        ) : null}
+
+        <SyncDisputesButton />
+
         <InlineGrid columns={{ xs: 1, md: 4 }} gap="400">
           {[
             ["Open disputes", String(metrics.openDisputes)],

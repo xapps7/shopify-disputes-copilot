@@ -10,7 +10,10 @@ type AnalyticsPageShellProps = {
 
 export function AnalyticsPageShell({ snapshot }: AnalyticsPageShellProps) {
   return (
-    <Page title="Analytics" subtitle="Simple operational reporting for dispute volume, risk, and readiness.">
+    <Page
+      title="Analytics"
+      subtitle="Simple operational reporting for dispute volume, deadlines, and evidence readiness."
+    >
       <BlockStack gap="400">
         <InlineGrid columns={{ xs: 1, md: 4 }} gap="400">
           {[
@@ -32,18 +35,38 @@ export function AnalyticsPageShell({ snapshot }: AnalyticsPageShellProps) {
           ))}
         </InlineGrid>
 
-        <Card>
-          <DataTable
-            columnContentTypes={["text", "numeric"]}
-            headings={["Signal", "Value"]}
-            rows={[
-              ["Due-date risk", String(snapshot.dueSoonCount)],
-              ["Average readiness", `${snapshot.avgReadiness}%`],
-              ["Fraud disputes", String(snapshot.fraudCount)],
-              ["Product not received", String(snapshot.productNotReceivedCount)]
-            ]}
-          />
-        </Card>
+        <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
+          <Card>
+            <BlockStack gap="200">
+              <Text as="h2" variant="headingMd">
+                Risk snapshot
+              </Text>
+              <DataTable
+                columnContentTypes={["text", "numeric"]}
+                headings={["Signal", "Value"]}
+                rows={[
+                  ["Due within 48 hours", String(snapshot.dueSoonCount)],
+                  ["Average evidence readiness", `${snapshot.avgReadiness}%`]
+                ]}
+              />
+            </BlockStack>
+          </Card>
+          <Card>
+            <BlockStack gap="200">
+              <Text as="h2" variant="headingMd">
+                Common reasons
+              </Text>
+              <DataTable
+                columnContentTypes={["text", "numeric"]}
+                headings={["Reason", "Cases"]}
+                rows={[
+                  ["Fraud", String(snapshot.fraudCount)],
+                  ["Product not received", String(snapshot.productNotReceivedCount)]
+                ]}
+              />
+            </BlockStack>
+          </Card>
+        </InlineGrid>
       </BlockStack>
     </Page>
   );
