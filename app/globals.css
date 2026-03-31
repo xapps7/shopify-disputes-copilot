@@ -32,7 +32,7 @@ body {
     radial-gradient(circle at top right, rgba(224, 204, 167, 0.16) 0, transparent 24%),
     linear-gradient(180deg, #f7fbf7 0%, #edf2ec 100%);
   color: var(--ink);
-  font-family: "Avenir Next", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: var(--p-font-family-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
 }
 
 body {
@@ -71,7 +71,7 @@ textarea {
 }
 
 .app-shell__frame {
-  max-width: 1320px;
+  max-width: 1200px;
   margin: 0 auto;
 }
 
@@ -79,13 +79,13 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 104px;
-  padding: 10px 14px;
+  min-width: 96px;
+  padding: 8px 12px;
   border-radius: 999px;
   border: 1px solid rgba(24, 33, 43, 0.08);
   background: rgba(255, 255, 255, 0.85);
-  font-size: 0.92rem;
-  font-weight: 700;
+  font-size: 0.86rem;
+  font-weight: 600;
 }
 
 .app-shell__nav-link--active {
@@ -369,17 +369,17 @@ textarea {
 
 .hero-band h2 {
   margin: 0;
-  font-size: clamp(2rem, 3vw, 2.9rem);
-  line-height: 1.02;
-  letter-spacing: -0.04em;
+  font-size: clamp(1.6rem, 2.4vw, 2.1rem);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
 }
 
 .hero-copy {
   margin: 14px 0 0;
   max-width: 58ch;
   color: var(--muted);
-  font-size: 1rem;
-  line-height: 1.7;
+  font-size: 0.95rem;
+  line-height: 1.6;
 }
 
 .hero-actions {
@@ -524,6 +524,37 @@ textarea {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
+}
+
+.queue-list {
+  display: grid;
+  gap: 12px;
+}
+
+.queue-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 20px;
+  padding: 16px 18px;
+  border: 1px solid #e4e9e4;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.queue-row:hover {
+  border-color: #cfd8cf;
+  background: #fbfcfb;
+}
+
+.queue-row__main,
+.queue-row__meta {
+  display: grid;
+  gap: 10px;
+}
+
+.queue-row__meta {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
 }
 
 .priority-card {
@@ -784,6 +815,12 @@ textarea {
   background: linear-gradient(180deg, #ffffff 0%, #fbfcfb 100%);
 }
 
+.evidence-library-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
 .evidence-card h4 {
   margin-bottom: 10px;
 }
@@ -800,12 +837,11 @@ textarea {
 .timeline-list {
   margin: 0;
   padding: 0;
-  list-style: none;
   display: grid;
   gap: 12px;
 }
 
-.timeline-list li {
+.timeline-item {
   display: grid;
   gap: 4px;
   padding: 14px 16px;
@@ -861,7 +897,10 @@ textarea {
   .dashboard-insights,
   .case-score-band,
   .detail-grid,
-  .packet-preview-grid {
+  .packet-preview-grid,
+  .evidence-library-grid,
+  .queue-row,
+  .queue-row__meta {
     grid-template-columns: 1fr;
   }
 

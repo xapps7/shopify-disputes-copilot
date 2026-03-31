@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
-import { Badge, BlockStack, Box, Card, InlineStack, Text } from "@shopify/polaris";
+import { BlockStack, Box, Card, InlineStack, Text } from "@shopify/polaris";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -24,23 +24,15 @@ export function AppShell({ children, release, commit }: AppShellProps) {
     <div className="app-shell">
       <div className="app-shell__frame">
         <Card>
-          <BlockStack gap="400">
-            <InlineStack align="space-between" blockAlign="start" gap="400">
-              <BlockStack gap="100">
-                <Text as="p" variant="bodySm" tone="subdued">
-                  Shopify Payments dispute operations
-                </Text>
-                <Text as="h1" variant="headingLg">
-                  Disputes Co-Pilot
-                </Text>
-                <Text as="p" variant="bodyMd" tone="subdued">
-                  Triage deadlines, tighten evidence quality, and prepare merchant-ready dispute responses
-                  inside Shopify Admin.
-                </Text>
-              </BlockStack>
-              <Badge tone="info">{`${release} · ${commit}`}</Badge>
-            </InlineStack>
-
+          <BlockStack gap="300">
+            <BlockStack gap="100">
+              <Text as="p" variant="bodySm" tone="subdued">
+                Shopify Payments dispute operations
+              </Text>
+              <Text as="h1" variant="headingLg">
+                Disputes Co-Pilot
+              </Text>
+            </BlockStack>
             <InlineStack gap="200">
               {navItems.map((item) => {
                 const active =
@@ -59,6 +51,9 @@ export function AppShell({ children, release, commit }: AppShellProps) {
                 );
               })}
             </InlineStack>
+            <Text as="p" tone="subdued" variant="bodySm">
+              {`${release} · ${commit}`}
+            </Text>
           </BlockStack>
         </Card>
 
