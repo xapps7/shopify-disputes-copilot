@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import type { Route } from "next";
 import { usePathname } from "next/navigation";
 import { BlockStack, Box, InlineStack, Text } from "@shopify/polaris";
 
@@ -12,10 +11,13 @@ type AppShellProps = {
 };
 
 const navItems = [
-  { href: "/dashboard", label: "Dashboard" },
   { href: "/", label: "Overview" },
+  { href: "/disputes", label: "Disputes" },
+  { href: "/evidence", label: "Evidence Library" },
+  { href: "/analytics", label: "Analytics" },
+  { href: "/recommendations", label: "Recommendations" },
   { href: "/settings", label: "Settings" }
-] as const satisfies ReadonlyArray<{ href: Route; label: string }>;
+] as const satisfies ReadonlyArray<{ href: string; label: string }>;
 
 export function AppShell({ children, release, commit }: AppShellProps) {
   const pathname = usePathname();
@@ -48,7 +50,7 @@ export function AppShell({ children, release, commit }: AppShellProps) {
                 return (
                   <Link
                     className={`app-shell__tab ${active ? "app-shell__tab--active" : ""}`}
-                    href={item.href}
+                    href={item.href as never}
                     key={item.href}
                   >
                     {item.label}

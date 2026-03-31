@@ -10,6 +10,13 @@ export type DashboardDispute = {
   completenessScore: number;
 };
 
+export type OverviewMetricsView = {
+  openDisputes: number;
+  dueSoon: number;
+  totalAmount: number;
+  evidenceReady: number;
+};
+
 export type DashboardInsightView = {
   title: string;
   tone: "warning" | "info" | "success";
@@ -78,4 +85,27 @@ export type PreventionRecommendationView = {
   recommendationText: string;
   priority: number;
   state: string;
+};
+
+export type EvidenceLibraryItemView = {
+  id: string;
+  disputeId: string;
+  disputeReference: string;
+  title: string;
+  category: string;
+  sourceType: string;
+  description: string | null;
+  fileUrl: string | null;
+  createdAt: string;
+};
+
+export type AnalyticsSnapshotView = {
+  openCount: number;
+  wonCount: number;
+  lostCount: number;
+  acceptedCount: number;
+  dueSoonCount: number;
+  fraudCount: number;
+  productNotReceivedCount: number;
+  avgReadiness: number;
 };

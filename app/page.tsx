@@ -1,5 +1,6 @@
-import DashboardPage from "@/app/dashboard/page";
 import { OverviewPageShell } from "@/components/overview-page-shell";
+import { getOverviewMetrics, listDashboardDisputes, listRecommendations } from "@/lib/disputes/repository";
+import { getCurrentShopDomain } from "@/lib/shopify/auth";
 
 type HomePageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -13,10 +14,35 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const params = (await searchParams) ?? {};
   const shop = getSingleValue(params.shop);
   const host = getSingleValue(params.host);
+  const shopDomain = shop ?? (await getCurrentShopDomain());
 
   if (shop || host) {
-    return <DashboardPage />;
+    const [metrics, recentDisputes, recommendations] = await Promise.all([
+      getOverviewMetrics(shopDomain),
+      listDashboardDisputes(shopDomain),
+      listRecommendations(shopDomain)
+    ]);
+
+    return (
+      <OverviewPageShell
+        metrics={metrics}
+        recentDisputes={recentDisputes}
+        recommendations={recommendations}
+      />
+    );
   }
 
-  return <OverviewPageShell />;
+  const [metrics, recentDisputes, recommendations] = await Promise.all([
+    getOverviewMetrics(shopDomain),
+    listDashboardDisputes(shopDomain),
+    listRecommendations(shopDomain)
+  ]);
+
+  return (
+    <OverviewPageShell
+      metrics={metrics}
+      recentDisputes={recentDisputes}
+      recommendations={recommendations}
+    />
+  );
 }

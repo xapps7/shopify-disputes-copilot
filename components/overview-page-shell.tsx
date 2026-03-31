@@ -1,59 +1,162 @@
 "use client";
 
 import Link from "next/link";
-import { Card, Page, Text } from "@shopify/polaris";
+import {
+  Badge,
+  BlockStack,
+  Card,
+  EmptyState,
+  IndexTable,
+  InlineGrid,
+  InlineStack,
+  Page,
+  Text
+} from "@shopify/polaris";
 
-export function OverviewPageShell() {
+import type { DashboardDispute, OverviewMetricsView, PreventionRecommendationView } from "@/lib/types";
+
+type OverviewPageShellProps = {
+  metrics: OverviewMetricsView;
+  recentDisputes: DashboardDispute[];
+  recommendations: PreventionRecommendationView[];
+};
+
+function toneForStatus(status: string) {
+  if (status.includes("WARNING") || status === "NEEDS_RESPONSE") return "warning" as const;
+  if (status === "UNDER_REVIEW") return "info" as const;
+  if (status === "WON") return "success" as const;
+  if (status === "LOST" || status === "ACCEPTED") return "critical" as const;
+  return undefined;
+}
+
+export function OverviewPageShell({ metrics, recentDisputes, recommendations }: OverviewPageShellProps) {
   return (
-    <Page title="Overview" subtitle="Run your dispute desk where the order data already lives.">
-      <div className="stack">
+    <Page title="Overview" subtitle="Monitor active disputes, approaching deadlines, and prevention signals.">
+      <BlockStack gap="400">
+        <InlineGrid columns={{ xs: 1, md: 4 }} gap="400">
+          {[
+            ["Open disputes", String(metrics.openDisputes)],
+            ["Due soon", String(metrics.dueSoon)],
+            ["Total disputed", `$${metrics.totalAmount.toFixed(0)}`],
+            ["Evidence-ready", String(metrics.evidenceReady)]
+          ].map(([label, value]) => (
+            <Card key={label}>
+              <BlockStack gap="100">
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {label}
+                </Text>
+                <Text as="p" variant="headingLg">
+                  {value}
+                </Text>
+              </BlockStack>
+            </Card>
+          ))}
+        </InlineGrid>
+
+        <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
+          <Card>
+            <BlockStack gap="200">
+              <Text as="h2" variant="headingMd">
+                Attention needed
+              </Text>
+              <BlockStack gap="200">
+                <InlineStack align="space-between">
+                  <Text as="p" variant="bodyMd">
+                    Disputes due within 48 hours
+                  </Text>
+                  <Badge tone={metrics.dueSoon > 0 ? "warning" : "success"}>{String(metrics.dueSoon)}</Badge>
+                </InlineStack>
+                <InlineStack align="space-between">
+                  <Text as="p" variant="bodyMd">
+                    Evidence-ready cases
+                  </Text>
+                  <Badge tone="info">{String(metrics.evidenceReady)}</Badge>
+                </InlineStack>
+              </BlockStack>
+            </BlockStack>
+          </Card>
+
+          <Card>
+            <BlockStack gap="200">
+              <Text as="h2" variant="headingMd">
+                Prevention insights
+              </Text>
+              {recommendations.length > 0 ? (
+                recommendations.slice(0, 3).map((item) => (
+                  <BlockStack gap="050" key={item.id}>
+                    <Text as="p" variant="bodyMd" fontWeight="semibold">
+                      {item.category.replaceAll("_", " ")}
+                    </Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      {item.recommendationText}
+                    </Text>
+                  </BlockStack>
+                ))
+              ) : (
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Recommendations appear after dispute outcomes are recorded.
+                </Text>
+              )}
+            </BlockStack>
+          </Card>
+        </InlineGrid>
+
         <Card>
-          <div className="hero-band hero-band-home">
-            <div>
-              <p className="hero-kicker">Built for operators, not spreadsheets</p>
-              <h2>Centralize every active dispute into one deliberate operating workflow.</h2>
-              <p className="hero-copy">
-                Use the dashboard as the control room: sync disputes, prioritize due dates, draft seller
-                responses, and keep evidence quality ahead of the deadline.
-              </p>
-            </div>
-            <div className="hero-actions">
-              <Link className="pill-link" href="/dashboard">
-                Open command center
+          <BlockStack gap="200">
+            <InlineStack align="space-between">
+              <Text as="h2" variant="headingMd">
+                Recent disputes
+              </Text>
+              <Link className="table-link" href={"/disputes" as never}>
+                View all disputes
               </Link>
-              <Link className="ghost-link" href="/settings">
-                Configure merchant profile
-              </Link>
-            </div>
-          </div>
+            </InlineStack>
+            {recentDisputes.length > 0 ? (
+              <IndexTable
+                headings={[
+                  { title: "Dispute" },
+                  { title: "Reason" },
+                  { title: "Status" },
+                  { title: "Due" },
+                  { title: "Amount" }
+                ]}
+                itemCount={recentDisputes.length}
+                selectable={false}
+              >
+                {recentDisputes.slice(0, 6).map((dispute, index) => (
+                  <IndexTable.Row id={dispute.id} key={dispute.id} position={index}>
+                    <IndexTable.Cell>
+                      <Link className="table-link" href={`/disputes/${dispute.id}` as never}>
+                        {dispute.shopifyDisputeId.split("/").pop()}
+                      </Link>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>{(dispute.reason ?? "Unknown").replaceAll("_", " ")}</IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <Badge tone={toneForStatus(dispute.status)}>{dispute.status.replaceAll("_", " ")}</Badge>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      {dispute.evidenceDueBy
+                        ? new Date(dispute.evidenceDueBy).toLocaleDateString()
+                        : "No deadline"}
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      {dispute.currencyCode ?? "USD"} {dispute.amount}
+                    </IndexTable.Cell>
+                  </IndexTable.Row>
+                ))}
+              </IndexTable>
+            ) : (
+              <EmptyState
+                heading="No disputes yet"
+                action={{ content: "Sync disputes", url: "/disputes" }}
+                image=""
+              >
+                <p>Once disputes are synced, the overview will highlight what needs attention first.</p>
+              </EmptyState>
+            )}
+          </BlockStack>
         </Card>
-
-        <section className="two-col">
-          <div className="panel">
-            <h3>Current product surface</h3>
-            <ul className="list">
-              <li>Embedded Shopify admin experience</li>
-              <li>Manual dispute sync from Shopify GraphQL</li>
-              <li>Evidence uploads and packet draft generation</li>
-              <li>AI-assisted merchant reply drafting</li>
-              <li>Protected-data webhook registration fallback</li>
-            </ul>
-          </div>
-
-          <div className="panel">
-            <h3>Immediate next move</h3>
-            <Text as="p" variant="bodyMd">
-              Review the queue in the dashboard, then open a dispute workspace to tighten the packet
-              before submission.
-            </Text>
-            <div className="hero-actions">
-              <Link className="pill-link" href="/dashboard">
-                Open dashboard
-              </Link>
-            </div>
-          </div>
-        </section>
-      </div>
+      </BlockStack>
     </Page>
   );
 }
