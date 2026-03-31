@@ -7,6 +7,7 @@ import {
   Banner,
   Badge,
   BlockStack,
+  Box,
   Card,
   Divider,
   EmptyState,
@@ -84,87 +85,39 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
 
         <Card>
           <BlockStack gap="300">
-            <Text as="p" variant="bodyMd" tone="subdued">
-              Overview
-            </Text>
-            <Text as="h2" variant="heading2xl">
-              {metrics.openDisputes} open disputes
-            </Text>
-            <Text as="p" variant="bodyMd" tone="subdued">
-              Review due dates first, then complete missing evidence before refining merchant replies.
-            </Text>
-            <Divider />
-            <BlockStack gap="150">
-              <Text as="h3" variant="headingSm">
-                Attention needed
+            <BlockStack gap="100">
+              <Text as="p" variant="bodyMd" tone="subdued">
+                Open disputes
               </Text>
-              <InlineStack align="space-between">
-                <Text as="p" variant="bodyMd" fontWeight="medium">
-                  Disputes due within 48 hours
-                </Text>
-                <Badge tone={metrics.dueSoon > 0 ? "warning" : "success"}>{String(metrics.dueSoon)}</Badge>
-              </InlineStack>
-              <Divider />
-              <InlineStack align="space-between">
-                <Text as="p" variant="bodyMd" fontWeight="medium">
-                  Evidence-ready cases
-                </Text>
-                <Badge tone="info">{String(metrics.evidenceReady)}</Badge>
-              </InlineStack>
-              <Divider />
-              <InlineStack align="space-between">
-                <Text as="p" variant="bodyMd" fontWeight="medium">
-                  Open disputes
-                </Text>
-                <Text as="p" variant="bodyMd">
-                  {metrics.openDisputes}
-                </Text>
-              </InlineStack>
+              <Text as="h2" variant="heading2xl">
+                {metrics.openDisputes} active cases
+              </Text>
+              <Text as="p" variant="bodyMd" tone="subdued">
+                Total disputed amount {`$${metrics.totalAmount.toFixed(0)}`}. Work due dates first, then close evidence gaps before editing the final narrative.
+              </Text>
             </BlockStack>
             <Divider />
             <InlineStack gap="600" wrap>
               {[
-                ["Due soon", String(metrics.dueSoon)],
-                ["Evidence ready", String(metrics.evidenceReady)],
-                ["Total disputed", `$${metrics.totalAmount.toFixed(0)}`]
-              ].map(([label, value]) => (
+                ["Due within 48 hours", String(metrics.dueSoon), metrics.dueSoon > 0 ? "warning" : "success"],
+                ["Evidence ready", String(metrics.evidenceReady), "info"],
+                ["Total disputed", `$${metrics.totalAmount.toFixed(0)}`, "default"]
+              ].map(([label, value, tone]) => (
                 <BlockStack gap="050" key={label}>
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    {label}
-                  </Text>
-                  <Text as="p" variant="headingMd">
-                    {value}
-                  </Text>
+                  <InlineStack gap="150" blockAlign="center">
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      {label}
+                    </Text>
+                    {tone !== "default" ? <Badge tone={tone as "success" | "warning" | "info"}>{value}</Badge> : null}
+                  </InlineStack>
+                  {tone === "default" ? (
+                    <Text as="p" variant="headingMd">
+                      {value}
+                    </Text>
+                  ) : null}
                 </BlockStack>
               ))}
             </InlineStack>
-          </BlockStack>
-        </Card>
-
-        <Card>
-          <BlockStack gap="200">
-            <Text as="h2" variant="headingMd">
-              Prevention insights
-            </Text>
-            {recommendations.length > 0 ? (
-              <BlockStack gap="200">
-                {recommendations.slice(0, 3).map((item, index) => (
-                  <BlockStack gap="050" key={item.id}>
-                    <Text as="p" variant="bodyMd" fontWeight="semibold">
-                      {item.category.replaceAll("_", " ")}
-                    </Text>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      {item.recommendationText}
-                    </Text>
-                    {index < Math.min(recommendations.length, 3) - 1 ? <Divider /> : null}
-                  </BlockStack>
-                ))}
-              </BlockStack>
-            ) : (
-              <Text as="p" variant="bodySm" tone="subdued">
-                Recommendations appear after dispute outcomes are recorded.
-              </Text>
-            )}
           </BlockStack>
         </Card>
 
@@ -224,6 +177,40 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
               >
                 <p>Once disputes are synced, the overview will highlight what needs attention first.</p>
               </EmptyState>
+            )}
+          </BlockStack>
+        </Card>
+
+        <Card>
+          <BlockStack gap="200">
+            <InlineStack align="space-between">
+              <Text as="h2" variant="headingMd">
+                Prevention insights
+              </Text>
+              <Text as="p" variant="bodySm" tone="subdued">
+                Based on recorded dispute outcomes
+              </Text>
+            </InlineStack>
+            {recommendations.length > 0 ? (
+              <BlockStack gap="200">
+                {recommendations.slice(0, 3).map((item, index) => (
+                  <Box key={item.id}>
+                    <BlockStack gap="050">
+                      <Text as="p" variant="bodyMd" fontWeight="semibold">
+                        {item.category.replaceAll("_", " ")}
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        {item.recommendationText}
+                      </Text>
+                    </BlockStack>
+                    {index < Math.min(recommendations.length, 3) - 1 ? <Divider /> : null}
+                  </Box>
+                ))}
+              </BlockStack>
+            ) : (
+              <Text as="p" variant="bodySm" tone="subdued">
+                Recommendations appear after dispute outcomes are recorded.
+              </Text>
             )}
           </BlockStack>
         </Card>
