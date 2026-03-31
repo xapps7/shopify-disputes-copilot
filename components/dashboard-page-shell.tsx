@@ -5,7 +5,6 @@ import {
   Badge,
   BlockStack,
   Box,
-  Button,
   Card,
   InlineGrid,
   InlineStack,
@@ -45,6 +44,20 @@ function dueLabel(value: string | null) {
   return { label: `Due in ${delta}d`, tone: "attention" as const };
 }
 
+function priorityBucket(dispute: DashboardDispute) {
+  const due = dueLabel(dispute.evidenceDueBy);
+
+  if (due.tone === "critical" || due.tone === "warning") {
+    return "urgent" as const;
+  }
+
+  if (dispute.completenessScore < 70) {
+    return "blocked" as const;
+  }
+
+  return "review" as const;
+}
+
 function statusTone(status: string) {
   if (status.includes("WARNING") || status === "NEEDS_RESPONSE") {
     return "warning" as const;
@@ -70,67 +83,48 @@ export function DashboardPageShell({
   lowReadinessCount,
   insights
 }: DashboardPageShellProps) {
+  const urgentItems = disputes.filter((dispute) => priorityBucket(dispute) === "urgent");
+  const blockedItems = disputes.filter((dispute) => priorityBucket(dispute) === "blocked");
+  const reviewItems = disputes.filter((dispute) => priorityBucket(dispute) === "review");
+
   return (
     <Page
-      title="Dispute command center"
-      subtitle="A lightweight operating view for triage, evidence readiness, and merchant response prep."
+      title="Inbox"
+      subtitle="Start with what is due now, then move to evidence gaps, then review cases that are ready to tighten."
       primaryAction={{ content: "Sync disputes", url: "/dashboard" }}
     >
       <BlockStack gap="500">
-        <InlineGrid columns={{ xs: 1, md: 4 }} gap="400">
-          {[
-            { label: "Open queue", value: String(openDisputes), footnote: "cases still active" },
-            { label: "Exposure", value: `$${totalAmount.toFixed(0)}`, footnote: "disputed gross value" },
-            { label: "Readiness", value: `${avgReadiness}%`, footnote: "evidence completeness" },
-            { label: "Urgent", value: String(urgentCount), footnote: "due in 48 hours" }
-          ].map((metric) => (
-            <Card key={metric.label}>
-              <BlockStack gap="100">
-                <Text as="p" variant="bodySm" tone="subdued">
-                  {metric.label}
-                </Text>
-                <Text as="p" variant="headingLg">
-                  {metric.value}
-                </Text>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  {metric.footnote}
-                </Text>
-              </BlockStack>
-            </Card>
-          ))}
-        </InlineGrid>
-
         <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
           <Card>
-            <BlockStack gap="200">
+            <BlockStack gap="150">
               <InlineStack align="space-between">
-                <Text as="h3" variant="headingSm">
-                  Queue pressure
+                <Text as="h3" variant="headingMd">
+                  Today&apos;s exposure
                 </Text>
-                <Badge tone={urgentCount > 0 ? "warning" : "success"}>
-                  {urgentCount > 0 ? `${urgentCount} urgent` : "Stable"}
-                </Badge>
+                <Text as="p" variant="headingMd">
+                  ${totalAmount.toFixed(0)}
+                </Text>
               </InlineStack>
-              <Text as="p" variant="bodyMd">
-                Prioritize deadline pressure first. Then close evidence gaps on low-readiness cases before
-                editing merchant reply language.
+              <Text as="p" variant="bodyMd" tone="subdued">
+                {openDisputes} active disputes in queue. Handle {urgentCount} urgent cases first before
+                editing narrative quality on the rest.
               </Text>
             </BlockStack>
           </Card>
 
           <Card>
-            <BlockStack gap="200">
+            <BlockStack gap="150">
               <InlineStack align="space-between">
-                <Text as="h3" variant="headingSm">
-                  Evidence posture
+                <Text as="h3" variant="headingMd">
+                  Readiness posture
                 </Text>
-                <Badge tone={lowReadinessCount > 0 ? "attention" : "success"}>
-                  {lowReadinessCount > 0 ? `${lowReadinessCount} below target` : "Healthy"}
-                </Badge>
+                <Text as="p" variant="headingMd">
+                  {avgReadiness}%
+                </Text>
               </InlineStack>
-              <Text as="p" variant="bodyMd">
-                Keep the operator workflow simple: collect proof, draft the reply, regenerate the packet,
-                then submit through Shopify.
+              <Text as="p" variant="bodyMd" tone="subdued">
+                {lowReadinessCount} cases are still missing enough evidence that writing the reply too early
+                would waste time.
               </Text>
             </BlockStack>
           </Card>
@@ -138,75 +132,116 @@ export function DashboardPageShell({
 
         <Card>
           <BlockStack gap="400">
-            <InlineStack align="space-between">
-              <BlockStack gap="100">
-                <Text as="h2" variant="headingMd">
-                  Live queue
-                </Text>
-                <Text as="p" variant="bodyMd" tone="subdued">
-                  Native merchant triage view with deadline, readiness, and direct case access.
-                </Text>
+            <BlockStack gap="100">
+              <Text as="h2" variant="headingMd">
+                Work queues
+              </Text>
+              <Text as="p" variant="bodyMd" tone="subdued">
+                Organize the desk by what needs action, what is blocked, and what is ready for a final
+                merchant review.
+              </Text>
+            </BlockStack>
+
+            {[
+              {
+                title: "Needs action now",
+                description: "Deadline pressure or already overdue. Do these first.",
+                tone: "warning" as const,
+                items: urgentItems
+              },
+              {
+                title: "Blocked on evidence",
+                description: "Not urgent yet, but still too weak to draft confidently.",
+                tone: "attention" as const,
+                items: blockedItems
+              },
+              {
+                title: "Ready to review",
+                description: "Good enough to refine narrative quality and packet structure.",
+                tone: "success" as const,
+                items: reviewItems
+              }
+            ].map((section) => (
+              <BlockStack gap="300" key={section.title}>
+                <InlineStack align="space-between">
+                  <BlockStack gap="050">
+                    <Text as="h3" variant="headingSm">
+                      {section.title}
+                    </Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      {section.description}
+                    </Text>
+                  </BlockStack>
+                  <Badge tone={section.tone}>{String(section.items.length)}</Badge>
+                </InlineStack>
+
+                {section.items.length > 0 ? (
+                  <div className="queue-list">
+                    {section.items.map((dispute) => {
+                      const due = dueLabel(dispute.evidenceDueBy);
+
+                      return (
+                        <Link className="queue-row" href={`/disputes/${dispute.id}`} key={dispute.id}>
+                          <div className="queue-row__main">
+                            <InlineStack gap="200" blockAlign="center">
+                              <Text as="span" variant="bodyMd" fontWeight="semibold">
+                                {dispute.shopifyDisputeId.split("/").pop()}
+                              </Text>
+                              <Badge tone={statusTone(dispute.status)}>
+                                {dispute.status.replaceAll("_", " ")}
+                              </Badge>
+                            </InlineStack>
+                            <Text as="p" variant="bodySm" tone="subdued">
+                              {(dispute.reason ?? "Unknown").replaceAll("_", " ")}
+                              {" · "}
+                              {dispute.shopifyOrderId?.split("/").pop()
+                                ? `Order ${dispute.shopifyOrderId.split("/").pop()}`
+                                : "Order unavailable"}
+                            </Text>
+                          </div>
+
+                          <div className="queue-row__meta">
+                            <BlockStack gap="100">
+                              <Text as="p" variant="bodySm" tone="subdued">
+                                Amount
+                              </Text>
+                              <Text as="p" variant="bodyMd" fontWeight="medium">
+                                {dispute.currencyCode ?? "USD"} {dispute.amount}
+                              </Text>
+                            </BlockStack>
+
+                            <BlockStack gap="100">
+                              <Text as="p" variant="bodySm" tone="subdued">
+                                Due
+                              </Text>
+                              <Badge tone={due.tone}>{due.label}</Badge>
+                            </BlockStack>
+
+                            <BlockStack gap="100">
+                              <Text as="p" variant="bodySm" tone="subdued">
+                                Readiness
+                              </Text>
+                              <Box minWidth="120px">
+                                <ProgressBar progress={dispute.completenessScore} size="small" />
+                              </Box>
+                              <Text as="p" variant="bodySm">
+                                {dispute.completenessScore}%
+                              </Text>
+                            </BlockStack>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <Box background="bg-surface-secondary" borderRadius="300" padding="300">
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Nothing here right now.
+                    </Text>
+                  </Box>
+                )}
               </BlockStack>
-              <Button url="/dashboard">Refresh view</Button>
-            </InlineStack>
-
-            <div className="queue-list">
-              {disputes.map((dispute) => {
-                const due = dueLabel(dispute.evidenceDueBy);
-
-                return (
-                  <Link className="queue-row" href={`/disputes/${dispute.id}`} key={dispute.id}>
-                    <div className="queue-row__main">
-                      <InlineStack gap="200" blockAlign="center">
-                        <Text as="span" variant="bodyMd" fontWeight="semibold">
-                          {dispute.shopifyDisputeId.split("/").pop()}
-                        </Text>
-                        <Badge tone={statusTone(dispute.status)}>
-                          {dispute.status.replaceAll("_", " ")}
-                        </Badge>
-                      </InlineStack>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        {(dispute.reason ?? "Unknown").replaceAll("_", " ")}
-                        {" · "}
-                        {dispute.shopifyOrderId?.split("/").pop()
-                          ? `Order ${dispute.shopifyOrderId.split("/").pop()}`
-                          : "Order unavailable"}
-                      </Text>
-                    </div>
-
-                    <div className="queue-row__meta">
-                      <BlockStack gap="100">
-                        <Text as="p" variant="bodySm" tone="subdued">
-                          Amount
-                        </Text>
-                        <Text as="p" variant="bodyMd" fontWeight="medium">
-                          {dispute.currencyCode ?? "USD"} {dispute.amount}
-                        </Text>
-                      </BlockStack>
-
-                      <BlockStack gap="100">
-                        <Text as="p" variant="bodySm" tone="subdued">
-                          Due
-                        </Text>
-                        <Badge tone={due.tone}>{due.label}</Badge>
-                      </BlockStack>
-
-                      <BlockStack gap="100">
-                        <Text as="p" variant="bodySm" tone="subdued">
-                          Readiness
-                        </Text>
-                        <Box minWidth="120px">
-                          <ProgressBar progress={dispute.completenessScore} size="small" />
-                        </Box>
-                        <Text as="p" variant="bodySm">
-                          {dispute.completenessScore}%
-                        </Text>
-                      </BlockStack>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
+            ))}
           </BlockStack>
         </Card>
 

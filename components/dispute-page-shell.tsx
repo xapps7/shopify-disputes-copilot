@@ -42,23 +42,32 @@ export function DisputePageShell({
           <BlockStack gap="400">
             <Card>
               <BlockStack gap="400">
-                <InlineGrid columns={{ xs: 1, md: 3 }} gap="400">
-                  <Box background="bg-surface-secondary" borderRadius="300" padding="400">
+                <BlockStack gap="100">
+                  <InlineStack gap="200" blockAlign="center">
+                    <Badge tone={dispute.status.includes("WARNING") ? "warning" : "info"}>
+                      {dispute.status.replaceAll("_", " ")}
+                    </Badge>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      {dispute.latestPacket
+                        ? `Packet v${dispute.latestPacket.version} ${dispute.latestPacket.status.toLowerCase()}`
+                        : "Packet not drafted yet"}
+                    </Text>
+                  </InlineStack>
+                  <Text as="h2" variant="headingMd">
+                    What matters on this case
+                  </Text>
+                  <Text as="p" variant="bodyMd">
+                    {dispute.reasonDetails ?? "No reason details available yet."}
+                  </Text>
+                </BlockStack>
+
+                <InlineGrid columns={{ xs: 1, md: 3 }} gap="300">
+                  <Box background="bg-surface-secondary" borderRadius="300" padding="300">
                     <BlockStack gap="100">
                       <Text as="p" variant="bodySm" tone="subdued">
-                        Status
+                        Readiness
                       </Text>
-                      <Badge tone={dispute.status.includes("WARNING") ? "warning" : "info"}>
-                        {dispute.status.replaceAll("_", " ")}
-                      </Badge>
-                    </BlockStack>
-                  </Box>
-                  <Box background="bg-surface-secondary" borderRadius="300" padding="400">
-                    <BlockStack gap="100">
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        Checklist coverage
-                      </Text>
-                      <Text as="p" variant="headingLg">
+                      <Text as="p" variant="headingMd">
                         {readinessScore}%
                       </Text>
                       <Text as="p" variant="bodySm" tone="subdued">
@@ -66,26 +75,33 @@ export function DisputePageShell({
                       </Text>
                     </BlockStack>
                   </Box>
-                  <Box background="bg-surface-secondary" borderRadius="300" padding="400">
+                  <Box background="bg-surface-secondary" borderRadius="300" padding="300">
                     <BlockStack gap="100">
                       <Text as="p" variant="bodySm" tone="subdued">
-                        Packet state
+                        Amount at risk
                       </Text>
                       <Text as="p" variant="headingMd">
-                        {dispute.latestPacket?.status ?? "Not drafted"}
+                        {dispute.currencyCode ?? "USD"} {dispute.amount}
                       </Text>
                       <Text as="p" variant="bodySm" tone="subdued">
-                        {dispute.latestPacket
-                          ? `Version ${dispute.latestPacket.version} ready for review`
-                          : "Generate after reviewing evidence"}
+                        Keep the reply tightly tied to evidence, not claims.
+                      </Text>
+                    </BlockStack>
+                  </Box>
+                  <Box background="bg-surface-secondary" borderRadius="300" padding="300">
+                    <BlockStack gap="100">
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Recommended next step
+                      </Text>
+                      <Text as="p" variant="bodyMd" fontWeight="medium">
+                        {readinessScore < 70 ? "Collect evidence first" : "Review narrative and packet"}
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        The page is structured in that exact order below.
                       </Text>
                     </BlockStack>
                   </Box>
                 </InlineGrid>
-
-                <Text as="p" variant="bodyMd">
-                  {dispute.reasonDetails ?? "No reason details available yet."}
-                </Text>
 
                 {dispute.orderSummary ? (
                   <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
@@ -114,7 +130,7 @@ export function DisputePageShell({
             <Card>
               <BlockStack gap="300">
                 <Text as="h2" variant="headingMd">
-                  Evidence checklist
+                  What is missing
                 </Text>
                 <div className="checklist-grid">
                   {dispute.evidenceChecklist.map((item) => (
@@ -143,6 +159,9 @@ export function DisputePageShell({
               <BlockStack gap="300">
                 <Text as="h2" variant="headingMd">
                   Evidence library
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  This is the source record set the merchant reply and packet are built from.
                 </Text>
                 <div className="evidence-library-grid">
                   {dispute.evidenceItems.map((item) => (
@@ -179,10 +198,10 @@ export function DisputePageShell({
             <Card>
               <BlockStack gap="200">
                 <Text as="h2" variant="headingMd">
-                  Add merchant evidence
+                  Add missing proof
                 </Text>
                 <Text as="p" variant="bodyMd" tone="subdued">
-                  Attach files or notes that close missing checklist categories.
+                  Add the missing items first if readiness is still low.
                 </Text>
                 <EvidenceUploadForm disputeId={dispute.id} />
               </BlockStack>
@@ -191,7 +210,7 @@ export function DisputePageShell({
             <Card>
               <BlockStack gap="200">
                 <Text as="h2" variant="headingMd">
-                  Packet draft
+                  Build and export packet
                 </Text>
                 <GeneratePacketButton disputeId={dispute.id} />
                 {dispute.latestPacket ? (
