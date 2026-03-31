@@ -5,6 +5,7 @@ import {
   Badge,
   BlockStack,
   Box,
+  Button,
   Card,
   InlineGrid,
   InlineStack,
@@ -89,42 +90,23 @@ export function DashboardPageShell({
   const reviewItems = disputes.filter((dispute) => priorityBucket(dispute) === "review");
 
   return (
-    <Page
-      title="Inbox"
-      subtitle="Start with what is due now, then move to evidence gaps, then review cases that are ready to tighten."
-      primaryAction={{ content: "Sync disputes", url: "/dashboard" }}
-    >
+    <Page>
       <BlockStack gap="500">
-        <Card>
-          <BlockStack gap="200">
-            <InlineStack align="space-between">
-              <Text as="h2" variant="headingMd">
-                Next best actions
-              </Text>
-              <Badge tone="info">Operator flow</Badge>
-            </InlineStack>
-            <Text as="p" variant="bodyMd" tone="subdued">
-              Work the queue in sequence so the team does not write responses too early or miss issuer
-              deadlines.
+        <div className="page-lead">
+          <BlockStack gap="100">
+            <Text as="h2" variant="headingXl">
+              Inbox
             </Text>
-            <div className="next-steps-grid">
-              {[
-                ["1. Clear urgent cases", "Any case due today or tomorrow should move first."],
-                ["2. Close evidence gaps", "If readiness is low, collect proof before editing the merchant reply."],
-                ["3. Review packet quality", "Only after evidence is solid should the merchant narrative be refined."]
-              ].map(([title, detail]) => (
-                <div className="next-step-card" key={title}>
-                  <Text as="p" variant="bodyMd" fontWeight="semibold">
-                    {title}
-                  </Text>
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    {detail}
-                  </Text>
-                </div>
-              ))}
-            </div>
+            <Text as="p" variant="bodyMd" tone="subdued">
+              Handle urgent cases first, then collect missing proof, then review reply quality.
+            </Text>
           </BlockStack>
-        </Card>
+          <div className="page-lead__actions">
+            <Button variant="primary" url="/dashboard">
+              Sync disputes
+            </Button>
+          </div>
+        </div>
 
         <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
           <Card>
@@ -167,6 +149,33 @@ export function DashboardPageShell({
             </BlockStack>
           </Card>
         </InlineGrid>
+
+        <Card>
+          <BlockStack gap="200">
+            <InlineStack align="space-between">
+              <Text as="h2" variant="headingMd">
+                Next best actions
+              </Text>
+              <Badge tone="info">Operator flow</Badge>
+            </InlineStack>
+            <div className="next-steps-grid">
+              {[
+                ["1. Clear urgent cases", "Any case due today or tomorrow should move first."],
+                ["2. Close evidence gaps", "If readiness is low, collect proof before editing the merchant reply."],
+                ["3. Review packet quality", "Only after evidence is solid should the merchant narrative be refined."]
+              ].map(([title, detail]) => (
+                <div className="next-step-card" key={title}>
+                  <Text as="p" variant="bodyMd" fontWeight="semibold">
+                    {title}
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {detail}
+                  </Text>
+                </div>
+              ))}
+            </div>
+          </BlockStack>
+        </Card>
 
         <Card>
           <BlockStack gap="400">
