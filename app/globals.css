@@ -46,6 +46,11 @@ input[type="file"] {
   padding: 0 20px;
 }
 
+.app-shell__masthead {
+  max-width: 960px;
+  padding: 16px 20px 0;
+}
+
 .info-hint {
   width: 18px;
   height: 18px;
@@ -117,6 +122,10 @@ input[type="file"] {
 @media (max-width: 768px) {
   .app-shell__frame {
     padding: 0 12px;
+  }
+
+  .app-shell__masthead {
+    padding: 12px 0 0;
   }
 
   .packet-preview-grid {
