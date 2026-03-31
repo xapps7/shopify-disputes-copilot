@@ -74,6 +74,17 @@ export async function getDisputeDetail(id: string): Promise<DisputeDetailView> {
       packets: {
         orderBy: { version: "desc" },
         take: 1
+      },
+      merchant: {
+        include: {
+          recommendations: {
+            where: {
+              disputeId: id
+            },
+            orderBy: [{ priority: "asc" }, { createdAt: "desc" }],
+            take: 6
+          }
+        }
       }
     }
   });
@@ -129,6 +140,13 @@ export async function getDisputeDetail(id: string): Promise<DisputeDetailView> {
       eventType: event.eventType,
       eventTimestamp: event.eventTimestamp.toISOString(),
       source: event.source
+    })),
+    recommendations: dispute.merchant.recommendations.map((item) => ({
+      id: item.id,
+      category: item.category,
+      recommendationText: item.recommendationText,
+      priority: item.priority,
+      state: item.state
     }))
   };
 }

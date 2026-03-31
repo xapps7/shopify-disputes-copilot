@@ -58,6 +58,7 @@ export type DisputeDetailView = {
     eventTimestamp: string;
     source: string;
   }>;
+  recommendations: PreventionRecommendationView[];
 };
 
 export type DisputeResponseDraftView = {
@@ -69,4 +70,12 @@ export type DisputeResponseDraftView = {
   strengths: string[];
   missingEvidence: string[];
   nextActions: string[];
+};
+
+export type PreventionRecommendationView = {
+  id: string;
+  category: string;
+  recommendationText: string;
+  priority: number;
+  state: string;
 };

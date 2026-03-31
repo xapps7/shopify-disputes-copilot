@@ -16,6 +16,7 @@ import { DisputeResponseDraft } from "@/components/dispute-response-draft";
 import { EvidenceUploadForm } from "@/components/evidence-upload-form";
 import { GeneratePacketButton } from "@/components/generate-packet-button";
 import { InfoHint } from "@/components/info-hint";
+import { OutcomeReviewForm } from "@/components/outcome-review-form";
 import { PacketPreview } from "@/components/packet-preview";
 import type { DisputeDetailView, DisputeResponseDraftView } from "@/lib/types";
 
@@ -279,6 +280,12 @@ export function DisputePageShell({
                 </div>
               </BlockStack>
             </Card>
+
+            <OutcomeReviewForm
+              currentStatus={dispute.status}
+              disputeId={dispute.id}
+              recommendations={dispute.recommendations}
+            />
           </BlockStack>
         </Layout.Section>
       </Layout>

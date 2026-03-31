@@ -97,5 +97,14 @@ export const sampleDisputeDetail: DisputeDetailView = {
       eventTimestamp: "2026-03-25T08:30:00.000Z",
       source: "system"
     }
+  ],
+  recommendations: [
+    {
+      id: "r1",
+      category: "FULFILLMENT",
+      recommendationText: "Capture carrier delivery proof and post-delivery confirmation for similar orders.",
+      priority: 1,
+      state: "OPEN"
+    }
   ]
 };
