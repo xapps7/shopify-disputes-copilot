@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import type { Route } from "next";
-import { usePathname } from "next/navigation";
-import { BlockStack, Box, Card, InlineStack, Text } from "@shopify/polaris";
+import { usePathname, useRouter } from "next/navigation";
+import { BlockStack, Box, Card, Tabs, Text } from "@shopify/polaris";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -19,38 +19,33 @@ const navItems = [
 
 export function AppShell({ children, release, commit }: AppShellProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const selected = navItems.findIndex((item) =>
+    item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(`${item.href}/`)
+  );
 
   return (
     <div className="app-shell">
       <div className="app-shell__frame">
         <Card>
-          <BlockStack gap="300">
+          <BlockStack gap="200">
             <BlockStack gap="100">
               <Text as="p" variant="bodySm" tone="subdued">
-                Shopify Payments dispute operations
+                Shopify Payments disputes
               </Text>
               <Text as="h1" variant="headingLg">
                 Disputes Co-Pilot
               </Text>
             </BlockStack>
-            <InlineStack gap="200">
-              {navItems.map((item) => {
-                const active =
-                  item.href === "/"
-                    ? pathname === "/"
-                    : pathname === item.href || pathname.startsWith(`${item.href}/`);
-
-                return (
-                  <Link
-                    className={`app-shell__nav-link ${active ? "app-shell__nav-link--active" : ""}`}
-                    href={item.href}
-                    key={item.href}
-                  >
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </InlineStack>
+            <Tabs
+              fitted
+              onSelect={(index) => router.push(navItems[index]?.href ?? "/dashboard")}
+              selected={selected < 0 ? 0 : selected}
+              tabs={navItems.map((item) => ({
+                id: item.href,
+                content: item.label
+              }))}
+            />
             <Text as="p" tone="subdued" variant="bodySm">
               {`${release} · ${commit}`}
             </Text>

@@ -27,10 +27,7 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100%;
-  background:
-    radial-gradient(circle at top left, rgba(13, 108, 98, 0.08) 0, transparent 24%),
-    radial-gradient(circle at top right, rgba(224, 204, 167, 0.16) 0, transparent 24%),
-    linear-gradient(180deg, #f7fbf7 0%, #edf2ec 100%);
+  background: #f6f6f7;
   color: var(--ink);
   font-family: var(--p-font-family-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
 }
@@ -63,11 +60,8 @@ textarea {
 
 .app-shell {
   min-height: 100vh;
-  padding: 20px;
-  background:
-    radial-gradient(circle at top left, rgba(13, 108, 98, 0.08) 0, transparent 24%),
-    radial-gradient(circle at top right, rgba(224, 204, 167, 0.16) 0, transparent 24%),
-    linear-gradient(180deg, #f7fbf7 0%, #edf2ec 100%);
+  padding: 16px 20px 28px;
+  background: #f6f6f7;
 }
 
 .app-shell__frame {
@@ -85,25 +79,6 @@ textarea {
   border: 1px solid rgba(24, 33, 43, 0.12);
   background: rgba(255, 255, 255, 0.9);
   cursor: help;
-}
-
-.app-shell__nav-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 96px;
-  padding: 8px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(24, 33, 43, 0.08);
-  background: rgba(255, 255, 255, 0.85);
-  font-size: 0.86rem;
-  font-weight: 600;
-}
-
-.app-shell__nav-link--active {
-  background: linear-gradient(135deg, #0d6c62 0%, #15544f 100%);
-  border-color: rgba(13, 108, 98, 0.16);
-  color: #fff;
 }
 
 .hero {
