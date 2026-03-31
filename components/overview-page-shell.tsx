@@ -11,7 +11,6 @@ import {
   Divider,
   EmptyState,
   IndexTable,
-  InlineGrid,
   InlineStack,
   Page,
   Text
@@ -85,10 +84,20 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
 
         <Card>
           <BlockStack gap="300">
-            <Text as="h2" variant="headingMd">
-              Attention needed
+            <Text as="p" variant="bodyMd" tone="subdued">
+              Overview
             </Text>
-            <BlockStack gap="200">
+            <Text as="h2" variant="heading2xl">
+              {metrics.openDisputes} open disputes
+            </Text>
+            <Text as="p" variant="bodyMd" tone="subdued">
+              Review due dates first, then complete missing evidence before refining merchant replies.
+            </Text>
+            <Divider />
+            <BlockStack gap="150">
+              <Text as="h3" variant="headingSm">
+                Attention needed
+              </Text>
               <InlineStack align="space-between">
                 <Text as="p" variant="bodyMd" fontWeight="medium">
                   Disputes due within 48 hours
@@ -112,21 +121,13 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
                 </Text>
               </InlineStack>
             </BlockStack>
-          </BlockStack>
-        </Card>
-
-        <Card>
-          <BlockStack gap="300">
-            <Text as="h2" variant="headingMd">
-              Summary
-            </Text>
-            <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
+            <Divider />
+            <InlineStack gap="600" wrap>
               {[
-                ["Open disputes", String(metrics.openDisputes)],
                 ["Due soon", String(metrics.dueSoon)],
                 ["Evidence ready", String(metrics.evidenceReady)],
                 ["Total disputed", `$${metrics.totalAmount.toFixed(0)}`]
-              ].map(([label, value], index) => (
+              ].map(([label, value]) => (
                 <BlockStack gap="050" key={label}>
                   <Text as="p" variant="bodySm" tone="subdued">
                     {label}
@@ -134,10 +135,9 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
                   <Text as="p" variant="headingMd">
                     {value}
                   </Text>
-                  {index === 1 ? <Divider /> : null}
                 </BlockStack>
               ))}
-            </InlineGrid>
+            </InlineStack>
           </BlockStack>
         </Card>
 
