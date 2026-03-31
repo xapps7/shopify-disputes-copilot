@@ -2,6 +2,7 @@
 
 import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
+import { BlockStack, Button, Text } from "@shopify/polaris";
 
 type GeneratePacketButtonProps = {
   disputeId: string;
@@ -40,11 +41,15 @@ export function GeneratePacketButton({ disputeId }: GeneratePacketButtonProps) {
   }
 
   return (
-    <div className="stack">
-      <button className="pill-link button-reset" disabled={isGenerating} onClick={handleGenerate} type="button">
+    <BlockStack gap="300">
+      <Button loading={isGenerating} onClick={handleGenerate} variant="primary">
         {isGenerating ? "Generating..." : "Generate packet draft"}
-      </button>
-      {message ? <p className="sync-message">{message}</p> : null}
-    </div>
+      </Button>
+      {message ? (
+        <Text as="p" tone="subdued" variant="bodySm">
+          {message}
+        </Text>
+      ) : null}
+    </BlockStack>
   );
 }

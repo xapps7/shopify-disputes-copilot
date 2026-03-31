@@ -50,3 +50,14 @@ export type DisputeDetailView = {
     source: string;
   }>;
 };
+
+export type DisputeResponseDraftView = {
+  generatedAt: string;
+  headline: string;
+  executiveSummary: string;
+  merchantReply: string;
+  internalGuidance: string[];
+  strengths: string[];
+  missingEvidence: string[];
+  nextActions: string[];
+};

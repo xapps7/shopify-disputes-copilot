@@ -157,6 +157,10 @@ textarea {
   box-shadow: var(--shadow-soft);
 }
 
+.panel :where(.Polaris-Card) {
+  box-shadow: none;
+}
+
 .panel h2,
 .panel h3,
 .panel h4 {
@@ -641,7 +645,7 @@ textarea {
 .case-score-card {
   padding: 18px;
   border-radius: 20px;
-  background: #f7faf7;
+  background: linear-gradient(180deg, rgba(244, 249, 246, 0.95) 0%, rgba(255, 255, 255, 0.96) 100%);
   border: 1px solid #e1e8e1;
 }
 
@@ -668,6 +672,11 @@ textarea {
 
 .detail-block {
   margin-top: 26px;
+}
+
+.dispute-layout .panel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 248, 0.96) 100%);
 }
 
 .detail-grid {
@@ -733,7 +742,7 @@ textarea {
   padding: 18px;
   border-radius: 20px;
   border: 1px solid #e2e8df;
-  background: white;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcfb 100%);
 }
 
 .evidence-card h4 {
@@ -772,6 +781,11 @@ textarea {
 }
 
 .polaris-form {
+  width: 100%;
+}
+
+.polaris-form .Polaris-TextField,
+.polaris-form .Polaris-Select {
   width: 100%;
 }
 

@@ -1,6 +1,8 @@
 import { getDisputeDetail } from "@/lib/disputes/repository";
 import { EvidenceUploadForm } from "@/components/evidence-upload-form";
 import { GeneratePacketButton } from "@/components/generate-packet-button";
+import { DisputeResponseDraft } from "@/components/dispute-response-draft";
+import { generateDisputeResponseDraft } from "@/lib/ai/dispute-drafts";
 
 type DisputePageProps = {
   params: Promise<{ id: string }>;
@@ -9,6 +11,7 @@ type DisputePageProps = {
 export default async function DisputeDetailPage({ params }: DisputePageProps) {
   const { id } = await params;
   const dispute = await getDisputeDetail(id);
+  const responseDraft = generateDisputeResponseDraft(dispute);
   const readyEvidence = dispute.evidenceChecklist.filter((item) => item.state === "ready").length;
   const readinessScore =
     dispute.evidenceChecklist.length > 0
@@ -105,6 +108,10 @@ export default async function DisputeDetailPage({ params }: DisputePageProps) {
           </div>
         </div>
 
+        <div className="detail-block">
+          <DisputeResponseDraft disputeId={dispute.id} initialDraft={responseDraft} />
+        </div>
+
         <h3>Evidence library</h3>
         <div className="stack">
           {dispute.evidenceItems.map((item) => (
@@ -177,8 +184,8 @@ export default async function DisputeDetailPage({ params }: DisputePageProps) {
         <div className="panel">
           <h3>Next implementation</h3>
           <ul className="list">
+            <li>Connect live model inference instead of rules-only drafting</li>
             <li>Render richer packet preview in-app</li>
-            <li>Generate PDF rather than text draft</li>
             <li>Enable evidence submission after API validation</li>
             <li>Pull refunds and customer communication connectors</li>
           </ul>
