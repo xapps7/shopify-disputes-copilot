@@ -65,8 +65,12 @@ textarea {
 }
 
 .app-shell__frame {
-  max-width: 1200px;
+  max-width: 1060px;
   margin: 0 auto;
+}
+
+.app-shell__header {
+  padding: 0 2px;
 }
 
 .info-hint {

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { usePathname, useRouter } from "next/navigation";
-import { BlockStack, Box, Card, Tabs, Text } from "@shopify/polaris";
+import { BlockStack, Box, Tabs, Text } from "@shopify/polaris";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -27,9 +27,9 @@ export function AppShell({ children, release, commit }: AppShellProps) {
   return (
     <div className="app-shell">
       <div className="app-shell__frame">
-        <Card>
-          <BlockStack gap="200">
-            <BlockStack gap="100">
+        <div className="app-shell__header">
+          <BlockStack gap="150">
+            <BlockStack gap="050">
               <Text as="p" variant="bodySm" tone="subdued">
                 Shopify Payments disputes
               </Text>
@@ -50,7 +50,7 @@ export function AppShell({ children, release, commit }: AppShellProps) {
               {`${release} · ${commit}`}
             </Text>
           </BlockStack>
-        </Card>
+        </div>
 
         <Box paddingBlockStart="400">{children}</Box>
       </div>
