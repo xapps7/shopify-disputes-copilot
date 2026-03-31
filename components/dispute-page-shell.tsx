@@ -5,18 +5,16 @@ import {
   Banner,
   Badge,
   BlockStack,
-  Box,
   Card,
   DataTable,
   Divider,
-  InlineGrid,
   InlineStack,
   Layout,
-  List,
   Page,
   ProgressBar,
   Text
 } from "@shopify/polaris";
+import { useState } from "react";
 
 import { DisputeResponseDraft } from "@/components/dispute-response-draft";
 import { EvidenceUploadForm } from "@/components/evidence-upload-form";
@@ -80,6 +78,7 @@ export function DisputePageShell({
   const dueDateLabel = dispute.evidenceDueBy
     ? new Date(dispute.evidenceDueBy).toLocaleDateString()
     : "No deadline";
+  const [submitMessage, setSubmitMessage] = useState<string | null>(null);
 
   return (
     <Page
@@ -87,14 +86,20 @@ export function DisputePageShell({
       subtitle={`${(dispute.reason ?? "Unknown").replaceAll("_", " ")} · ${dispute.currencyCode ?? "USD"} ${dispute.amount}`}
       backAction={{ content: "Disputes", url: "/disputes" }}
       primaryAction={{
-        content: "Review packet",
-        url: `/packets/${dispute.id}`
+        content: "Submit evidence",
+        onAction: () => {
+          setSubmitMessage(
+            dispute.latestPacket
+              ? "Direct submission is not enabled yet. Download the packet and submit it in Shopify Admin."
+              : "Generate a packet draft before submitting evidence."
+          );
+        }
       }}
       secondaryActions={[
         ...(dispute.latestPacket?.pdfUrl
           ? [
               {
-                content: "Open export",
+                content: "Download packet",
                 url: dispute.latestPacket.pdfUrl,
                 external: true
               }
@@ -106,6 +111,12 @@ export function DisputePageShell({
         <Banner tone={actionGuidance.tone}>
           <p>{actionGuidance.detail}</p>
         </Banner>
+
+        {submitMessage ? (
+          <Banner tone="info">
+            <p>{submitMessage}</p>
+          </Banner>
+        ) : null}
 
         <Layout>
           <Layout.Section>
@@ -125,30 +136,14 @@ export function DisputePageShell({
                         {dispute.reasonDetails ?? "No additional issuer context is available yet."}
                       </Text>
                     </BlockStack>
-                    <Box minWidth="220px">
-                      <BlockStack gap="150">
-                        <InlineStack align="space-between">
-                          <Text as="p" variant="bodySm" tone="subdued">
-                            Evidence completeness
-                          </Text>
-                          <Text as="p" variant="bodySm">
-                            {readinessScore}%
-                          </Text>
-                        </InlineStack>
-                        <ProgressBar progress={readinessScore} tone={readinessScore < 60 ? "critical" : "primary"} />
-                        <Text as="p" variant="bodySm" tone="subdued">
-                          {readyEvidence} of {dispute.evidenceChecklist.length} required categories are ready.
-                        </Text>
-                      </BlockStack>
-                    </Box>
                   </InlineStack>
 
-                  <InlineGrid columns={{ xs: 1, md: 4 }} gap="300">
+                  <InlineStack gap="600" wrap>
                     {[
                       ["Amount", `${dispute.currencyCode ?? "USD"} ${dispute.amount}`],
                       ["Reason", (dispute.reason ?? "Unknown").replaceAll("_", " ")],
                       ["Order", dispute.orderSummary?.orderName ?? "Unknown"],
-                      ["Customer", dispute.orderSummary?.customerName ?? "Unknown"]
+                      ["Readiness", `${readinessScore}%`]
                     ].map(([label, value]) => (
                       <BlockStack gap="050" key={label}>
                         <Text as="p" variant="bodySm" tone="subdued">
@@ -159,26 +154,37 @@ export function DisputePageShell({
                         </Text>
                       </BlockStack>
                     ))}
-                  </InlineGrid>
+                  </InlineStack>
+                  <ProgressBar progress={readinessScore} tone={readinessScore < 60 ? "critical" : "primary"} />
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {readyEvidence} of {dispute.evidenceChecklist.length} required categories are ready.
+                  </Text>
                 </BlockStack>
               </Card>
 
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
-                    Order and payment context
+                    Timeline
                   </Text>
-                  <DataTable
-                    columnContentTypes={["text", "text"]}
-                    headings={["Field", "Value"]}
-                    rows={[
-                      ["Order", dispute.orderSummary?.orderName ?? "Unavailable"],
-                      ["Customer", dispute.orderSummary?.customerName ?? "Unavailable"],
-                      ["Email", dispute.orderSummary?.customerEmail ?? "Unavailable"],
-                      ["Fulfillment", dispute.orderSummary?.fulfillmentStatus ?? "Unavailable"],
-                      ["Dispute deadline", dueDateLabel]
-                    ]}
-                  />
+                  <BlockStack gap="200">
+                    {dispute.timeline.map((event, index) => (
+                      <BlockStack gap="100" key={event.id}>
+                        <InlineStack align="space-between">
+                          <Text as="p" variant="bodyMd" fontWeight="medium">
+                            {event.eventType.replaceAll("_", " ")}
+                          </Text>
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            {new Date(event.eventTimestamp).toLocaleDateString()}
+                          </Text>
+                        </InlineStack>
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          {event.source}
+                        </Text>
+                        {index < dispute.timeline.length - 1 ? <Divider /> : null}
+                      </BlockStack>
+                    ))}
+                  </BlockStack>
                 </BlockStack>
               </Card>
 
@@ -253,6 +259,28 @@ export function DisputePageShell({
               </Card>
 
               <DisputeResponseDraft disputeId={dispute.id} initialDraft={responseDraft} />
+
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
+                    Packet preview and submission
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Review the packet before export. If direct submission is unavailable, download the packet and submit it manually in Shopify Admin.
+                  </Text>
+                  <InlineStack gap="300" wrap>
+                    <Link className="table-link" href={`/packets/${dispute.id}` as never}>
+                      Open packet preview
+                    </Link>
+                    {dispute.latestPacket?.pdfUrl ? (
+                      <a className="table-link" href={dispute.latestPacket.pdfUrl} rel="noreferrer" target="_blank">
+                        Download current packet
+                      </a>
+                    ) : null}
+                  </InlineStack>
+                  <GeneratePacketButton disputeId={dispute.id} />
+                </BlockStack>
+              </Card>
             </BlockStack>
           </Layout.Section>
 
@@ -261,14 +289,76 @@ export function DisputePageShell({
               <Card>
                 <BlockStack gap="200">
                   <Text as="h2" variant="headingMd">
-                    Next step
+                    Order summary
                   </Text>
-                  <Text as="p" variant="bodyMd" fontWeight="medium">
-                    {actionGuidance.title}
+                  <DataTable
+                    columnContentTypes={["text", "text"]}
+                    headings={["Field", "Value"]}
+                    rows={[
+                      ["Order", dispute.orderSummary?.orderName ?? "Unavailable"],
+                      ["Customer", dispute.orderSummary?.customerName ?? "Unavailable"],
+                      ["Email", dispute.orderSummary?.customerEmail ?? "Unavailable"]
+                    ]}
+                  />
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="200">
+                  <Text as="h2" variant="headingMd">
+                    Fulfillment
                   </Text>
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    {actionGuidance.detail}
+                  <DataTable
+                    columnContentTypes={["text", "text"]}
+                    headings={["Field", "Value"]}
+                    rows={[
+                      ["Status", dispute.orderSummary?.fulfillmentStatus ?? "Unavailable"],
+                      ["Delivery evidence", readyEvidence > 0 ? "Present in evidence record" : "Not yet linked"]
+                    ]}
+                  />
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="200">
+                  <Text as="h2" variant="headingMd">
+                    Payment and refunds
                   </Text>
+                  <DataTable
+                    columnContentTypes={["text", "text"]}
+                    headings={["Field", "Value"]}
+                    rows={[
+                      ["Disputed amount", `${dispute.currencyCode ?? "USD"} ${dispute.amount}`],
+                      ["Refund proof", dispute.evidenceItems.some((item) => item.category === "REFUND_PROOF") ? "Present" : "Not linked"],
+                      ["Packet status", dispute.latestPacket?.status ?? "Not generated"]
+                    ]}
+                  />
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="200">
+                  <Text as="h2" variant="headingMd">
+                    Risk indicators
+                  </Text>
+                  <BlockStack gap="100">
+                    <InlineStack align="space-between">
+                      <Text as="p" variant="bodySm">
+                        Missing evidence categories
+                      </Text>
+                      <Badge tone={readinessScore < 100 ? "warning" : "success"}>
+                        {String(dispute.evidenceChecklist.length - readyEvidence)}
+                      </Badge>
+                    </InlineStack>
+                    <InlineStack align="space-between">
+                      <Text as="p" variant="bodySm">
+                        Deadline state
+                      </Text>
+                      <Badge tone={deadlineTone(dispute.evidenceDueBy)}>
+                        {new Date(dispute.evidenceDueBy ?? Date.now()).getTime() - Date.now() <= 172800000 ? "Urgent" : "On track"}
+                      </Badge>
+                    </InlineStack>
+                  </BlockStack>
                 </BlockStack>
               </Card>
 
@@ -284,69 +374,13 @@ export function DisputePageShell({
               <Card>
                 <BlockStack gap="200">
                   <Text as="h2" variant="headingMd">
-                    Packet
-                  </Text>
-                  <GeneratePacketButton disputeId={dispute.id} />
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    {dispute.latestPacket
-                      ? `Latest draft: version ${dispute.latestPacket.version}`
-                      : "No packet draft has been generated yet."}
-                  </Text>
-                  <InlineStack gap="200" wrap>
-                    <Link className="table-link" href={`/packets/${dispute.id}` as never}>
-                      Review packet preview
-                    </Link>
-                    {dispute.latestPacket?.pdfUrl ? (
-                      <a className="table-link" href={dispute.latestPacket.pdfUrl} rel="noreferrer" target="_blank">
-                        Open exported file
-                      </a>
-                    ) : null}
-                  </InlineStack>
-                </BlockStack>
-              </Card>
-
-              <Card>
-                <BlockStack gap="200">
-                  <Text as="h2" variant="headingMd">
                     Recommendations
                   </Text>
-                  {dispute.recommendations.length > 0 ? (
-                    <List type="bullet">
-                      {dispute.recommendations.map((item) => (
-                        <List.Item key={item.id}>{item.recommendationText}</List.Item>
-                      ))}
-                    </List>
-                  ) : (
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      Recommendations appear after outcome review and tagging.
-                    </Text>
-                  )}
-                </BlockStack>
-              </Card>
-
-              <Card>
-                <BlockStack gap="200">
-                  <Text as="h2" variant="headingMd">
-                    Timeline
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {dispute.recommendations.length > 0
+                      ? dispute.recommendations[0].recommendationText
+                      : "Recommendations appear after outcome review and tagging."}
                   </Text>
-                  <BlockStack gap="200">
-                    {dispute.timeline.map((event, index) => (
-                      <BlockStack gap="100" key={event.id}>
-                        <InlineStack align="space-between">
-                          <Text as="p" variant="bodyMd" fontWeight="medium">
-                            {event.eventType.replaceAll("_", " ")}
-                          </Text>
-                          <Text as="p" variant="bodySm" tone="subdued">
-                            {new Date(event.eventTimestamp).toLocaleDateString()}
-                          </Text>
-                        </InlineStack>
-                        <Text as="p" variant="bodySm" tone="subdued">
-                          {event.source}
-                        </Text>
-                        {index < dispute.timeline.length - 1 ? <Divider /> : null}
-                      </BlockStack>
-                    ))}
-                  </BlockStack>
                 </BlockStack>
               </Card>
 

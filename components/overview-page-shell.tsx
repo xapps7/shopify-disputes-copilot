@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { startTransition, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Banner,
   Badge,
   BlockStack,
   Card,
+  Divider,
   EmptyState,
   IndexTable,
   InlineGrid,
@@ -14,7 +17,6 @@ import {
   Text
 } from "@shopify/polaris";
 
-import { SyncDisputesButton } from "@/components/sync-disputes-button";
 import type { DashboardDispute, OverviewMetricsView, PreventionRecommendationView } from "@/lib/types";
 
 type OverviewPageShellProps = {
@@ -32,11 +34,41 @@ function toneForStatus(status: string) {
 }
 
 export function OverviewPageShell({ metrics, recentDisputes, recommendations }: OverviewPageShellProps) {
+  const router = useRouter();
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+
+  async function handleSync() {
+    setIsSyncing(true);
+    setSyncMessage(null);
+
+    const response = await fetch("/api/sync/disputes", { method: "POST" });
+    const payload = (await response.json().catch(() => null)) as
+      | { synced?: number; message?: string }
+      | null;
+
+    setSyncMessage(
+      response.ok ? `Synced ${payload?.synced ?? 0} disputes.` : (payload?.message ?? "Sync failed.")
+    );
+
+    if (response.ok) {
+      startTransition(() => {
+        router.refresh();
+      });
+    }
+
+    setIsSyncing(false);
+  }
+
   return (
     <Page
       title="Overview"
-      subtitle="Monitor open disputes, approaching deadlines, and evidence readiness."
+      subtitle="Start with urgent disputes, then work through evidence and packet readiness."
       primaryAction={{ content: "View disputes", url: "/disputes" }}
+      secondaryActions={[
+        { content: "Open evidence library", url: "/evidence" },
+        { content: "Sync disputes", onAction: handleSync, loading: isSyncing }
+      ]}
     >
       <BlockStack gap="400">
         {metrics.dueSoon > 0 ? (
@@ -45,58 +77,78 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
           </Banner>
         ) : null}
 
-        <SyncDisputesButton />
+        {syncMessage ? (
+          <Text as="p" tone="subdued" variant="bodySm">
+            {syncMessage}
+          </Text>
+        ) : null}
 
-        <InlineGrid columns={{ xs: 1, md: 4 }} gap="400">
-          {[
-            ["Open disputes", String(metrics.openDisputes)],
-            ["Due soon", String(metrics.dueSoon)],
-            ["Total disputed", `$${metrics.totalAmount.toFixed(0)}`],
-            ["Evidence-ready", String(metrics.evidenceReady)]
-          ].map(([label, value]) => (
-            <Card key={label}>
-              <BlockStack gap="100">
-                <Text as="p" variant="bodySm" tone="subdued">
-                  {label}
-                </Text>
-                <Text as="p" variant="headingLg">
-                  {value}
-                </Text>
-              </BlockStack>
-            </Card>
-          ))}
-        </InlineGrid>
-
-        <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
-          <Card>
+        <Card>
+          <BlockStack gap="300">
+            <Text as="h2" variant="headingMd">
+              Attention needed
+            </Text>
             <BlockStack gap="200">
-              <Text as="h2" variant="headingMd">
-                Attention needed
-              </Text>
-              <BlockStack gap="200">
-                <InlineStack align="space-between">
-                  <Text as="p" variant="bodyMd">
-                    Disputes due within 48 hours
-                  </Text>
-                  <Badge tone={metrics.dueSoon > 0 ? "warning" : "success"}>{String(metrics.dueSoon)}</Badge>
-                </InlineStack>
-                <InlineStack align="space-between">
-                  <Text as="p" variant="bodyMd">
-                    Evidence-ready cases
-                  </Text>
-                  <Badge tone="info">{String(metrics.evidenceReady)}</Badge>
-                </InlineStack>
-              </BlockStack>
+              <InlineStack align="space-between">
+                <Text as="p" variant="bodyMd" fontWeight="medium">
+                  Disputes due within 48 hours
+                </Text>
+                <Badge tone={metrics.dueSoon > 0 ? "warning" : "success"}>{String(metrics.dueSoon)}</Badge>
+              </InlineStack>
+              <Divider />
+              <InlineStack align="space-between">
+                <Text as="p" variant="bodyMd" fontWeight="medium">
+                  Evidence-ready cases
+                </Text>
+                <Badge tone="info">{String(metrics.evidenceReady)}</Badge>
+              </InlineStack>
+              <Divider />
+              <InlineStack align="space-between">
+                <Text as="p" variant="bodyMd" fontWeight="medium">
+                  Open disputes
+                </Text>
+                <Text as="p" variant="bodyMd">
+                  {metrics.openDisputes}
+                </Text>
+              </InlineStack>
             </BlockStack>
-          </Card>
+          </BlockStack>
+        </Card>
 
-          <Card>
-            <BlockStack gap="200">
-              <Text as="h2" variant="headingMd">
-                Prevention insights
-              </Text>
-              {recommendations.length > 0 ? (
-                recommendations.slice(0, 3).map((item) => (
+        <Card>
+          <BlockStack gap="300">
+            <Text as="h2" variant="headingMd">
+              Summary
+            </Text>
+            <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
+              {[
+                ["Open disputes", String(metrics.openDisputes)],
+                ["Due soon", String(metrics.dueSoon)],
+                ["Evidence ready", String(metrics.evidenceReady)],
+                ["Total disputed", `$${metrics.totalAmount.toFixed(0)}`]
+              ].map(([label, value], index) => (
+                <BlockStack gap="050" key={label}>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {label}
+                  </Text>
+                  <Text as="p" variant="headingMd">
+                    {value}
+                  </Text>
+                  {index === 1 ? <Divider /> : null}
+                </BlockStack>
+              ))}
+            </InlineGrid>
+          </BlockStack>
+        </Card>
+
+        <Card>
+          <BlockStack gap="200">
+            <Text as="h2" variant="headingMd">
+              Prevention insights
+            </Text>
+            {recommendations.length > 0 ? (
+              <BlockStack gap="200">
+                {recommendations.slice(0, 3).map((item, index) => (
                   <BlockStack gap="050" key={item.id}>
                     <Text as="p" variant="bodyMd" fontWeight="semibold">
                       {item.category.replaceAll("_", " ")}
@@ -104,16 +156,17 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
                     <Text as="p" variant="bodySm" tone="subdued">
                       {item.recommendationText}
                     </Text>
+                    {index < Math.min(recommendations.length, 3) - 1 ? <Divider /> : null}
                   </BlockStack>
-                ))
-              ) : (
-                <Text as="p" variant="bodySm" tone="subdued">
-                  Recommendations appear after dispute outcomes are recorded.
-                </Text>
-              )}
-            </BlockStack>
-          </Card>
-        </InlineGrid>
+                ))}
+              </BlockStack>
+            ) : (
+              <Text as="p" variant="bodySm" tone="subdued">
+                Recommendations appear after dispute outcomes are recorded.
+              </Text>
+            )}
+          </BlockStack>
+        </Card>
 
         <Card>
           <BlockStack gap="200">
@@ -149,9 +202,13 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
                       <Badge tone={toneForStatus(dispute.status)}>{dispute.status.replaceAll("_", " ")}</Badge>
                     </IndexTable.Cell>
                     <IndexTable.Cell>
-                      {dispute.evidenceDueBy
-                        ? new Date(dispute.evidenceDueBy).toLocaleDateString()
-                        : "No deadline"}
+                      {dispute.evidenceDueBy ? (
+                        <Badge tone={new Date(dispute.evidenceDueBy).getTime() - Date.now() <= 172800000 ? "critical" : "info"}>
+                          {new Date(dispute.evidenceDueBy).toLocaleDateString()}
+                        </Badge>
+                      ) : (
+                        "No deadline"
+                      )}
                     </IndexTable.Cell>
                     <IndexTable.Cell>
                       {dispute.currencyCode ?? "USD"} {dispute.amount}
@@ -162,7 +219,7 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
             ) : (
               <EmptyState
                 heading="No disputes yet"
-                action={{ content: "Sync disputes", url: "/disputes" }}
+                action={{ content: "Sync disputes", onAction: handleSync }}
                 image=""
               >
                 <p>Once disputes are synced, the overview will highlight what needs attention first.</p>

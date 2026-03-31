@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { startTransition, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Badge,
   BlockStack,
@@ -14,7 +16,6 @@ import {
   useSetIndexFiltersMode
 } from "@shopify/polaris";
 
-import { SyncDisputesButton } from "@/components/sync-disputes-button";
 import type { DashboardDispute } from "@/lib/types";
 
 type DisputesIndexPageShellProps = {
@@ -31,30 +32,74 @@ function toneForStatus(status: string) {
 
 export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps) {
   const { mode, setMode } = useSetIndexFiltersMode();
+  const router = useRouter();
+  const [selectedTab, setSelectedTab] = useState(0);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+
+  async function handleSync() {
+    setIsSyncing(true);
+    setSyncMessage(null);
+
+    const response = await fetch("/api/sync/disputes", { method: "POST" });
+    const payload = (await response.json().catch(() => null)) as
+      | { synced?: number; message?: string }
+      | null;
+
+    setSyncMessage(
+      response.ok ? `Synced ${payload?.synced ?? 0} disputes.` : (payload?.message ?? "Sync failed.")
+    );
+
+    if (response.ok) {
+      startTransition(() => {
+        router.refresh();
+      });
+    }
+
+    setIsSyncing(false);
+  }
+
+  const filteredDisputes = useMemo(() => {
+    switch (selectedTab) {
+      case 1:
+        return disputes.filter((dispute) => {
+          if (!dispute.evidenceDueBy) return false;
+          return new Date(dispute.evidenceDueBy).getTime() - Date.now() <= 172800000;
+        });
+      case 2:
+        return disputes.filter((dispute) =>
+          ["NEEDS_RESPONSE", "WARNING_NEEDS_RESPONSE"].includes(dispute.status)
+        );
+      case 3:
+        return disputes.filter((dispute) => dispute.status === "UNDER_REVIEW");
+      default:
+        return disputes;
+    }
+  }, [disputes, selectedTab]);
 
   return (
     <Page
       title="Disputes"
       subtitle="Review active disputes, deadlines, and evidence readiness."
-      primaryAction={{ content: "Open evidence library", url: "/evidence" }}
+      primaryAction={{ content: "Sync disputes", onAction: handleSync, loading: isSyncing }}
+      secondaryActions={[{ content: "Open evidence library", url: "/evidence" }]}
     >
       <BlockStack gap="300">
-        <InlineStack align="space-between">
+        {syncMessage ? (
           <Text as="p" variant="bodySm" tone="subdued">
-            Use the list like a Shopify resource index: sort by urgency, open the case, and complete evidence before submission.
+            {syncMessage}
           </Text>
-          <SyncDisputesButton />
-        </InlineStack>
+        ) : null}
         <Card padding="0">
           <IndexFilters
             tabs={[
               { id: "all", content: "All" },
               { id: "due-soon", content: "Due soon" },
-              { id: "blocked", content: "Blocked" },
-              { id: "ready", content: "Ready to review" }
+              { id: "needs-response", content: "Needs response" },
+              { id: "under-review", content: "Under review" }
             ]}
-            selected={0}
-            onSelect={() => {}}
+            selected={selectedTab}
+            onSelect={setSelectedTab}
             canCreateNewView={false}
             cancelAction={{ onAction: () => {}, disabled: true, loading: false }}
             filters={[]}
@@ -67,7 +112,7 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
             onQueryChange={() => {}}
             onQueryClear={() => {}}
           />
-          {disputes.length > 0 ? (
+          {filteredDisputes.length > 0 ? (
             <IndexTable
               headings={[
                 { title: "Dispute" },
@@ -78,10 +123,10 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
                 { title: "Amount" },
                 { title: "Readiness" }
               ]}
-              itemCount={disputes.length}
+              itemCount={filteredDisputes.length}
               selectable={false}
             >
-              {disputes.map((dispute, index) => (
+              {filteredDisputes.map((dispute, index) => (
                 <IndexTable.Row id={dispute.id} key={dispute.id} position={index}>
                   <IndexTable.Cell>
                     <Link className="table-link" href={`/disputes/${dispute.id}` as never}>
@@ -96,9 +141,13 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
                     <Badge tone={toneForStatus(dispute.status)}>{dispute.status.replaceAll("_", " ")}</Badge>
                   </IndexTable.Cell>
                   <IndexTable.Cell>
-                    {dispute.evidenceDueBy
-                      ? new Date(dispute.evidenceDueBy).toLocaleDateString()
-                      : "No deadline"}
+                    {dispute.evidenceDueBy ? (
+                      <Badge tone={new Date(dispute.evidenceDueBy).getTime() - Date.now() <= 172800000 ? "critical" : "info"}>
+                        {new Date(dispute.evidenceDueBy).toLocaleDateString()}
+                      </Badge>
+                    ) : (
+                      "No deadline"
+                    )}
                   </IndexTable.Cell>
                   <IndexTable.Cell>
                     {dispute.currencyCode ?? "USD"} {dispute.amount}
