@@ -38,6 +38,7 @@ input[type="file"] {
 .app-shell {
   min-height: 100vh;
   background: #f6f6f7;
+  width: 100%;
 }
 
 .app-shell__frame {

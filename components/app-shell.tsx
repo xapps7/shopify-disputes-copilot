@@ -33,7 +33,7 @@ export function AppShell({ children, release, commit }: AppShellProps) {
 
   return (
     <div className="app-shell">
-      <Box paddingBlockStart="400" paddingBlockEnd="800">
+      <Box paddingBlockStart="400" paddingBlockEnd="800" width="100%">
         <div className="app-shell__frame">
           <BlockStack gap="400">
             <div className="app-shell__masthead">

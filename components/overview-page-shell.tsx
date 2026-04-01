@@ -78,16 +78,9 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
           </Banner>
         ) : null}
 
-        <BlockStack gap="100">
-          <Text as="p" variant="bodyMd">
-            Start with urgent disputes, then complete missing evidence.
-          </Text>
-          {syncMessage ? (
-            <Text as="p" tone="subdued" variant="bodySm">
-              {syncMessage}
-            </Text>
-          ) : null}
-        </BlockStack>
+        <Text as="p" variant="bodyMd">
+          Start with urgent disputes, then complete missing evidence.
+        </Text>
 
         <InlineStack gap="600" wrap>
           {[
@@ -107,8 +100,8 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
           ))}
         </InlineStack>
 
-        <BlockStack gap="200">
-          <Text as="h2" variant="headingMd">
+        <Box>
+          <Text as="p" variant="bodyMd">
             Attention needed
           </Text>
           <BlockStack gap="150">
@@ -135,7 +128,7 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
               </Badge>
             </InlineStack>
           </BlockStack>
-        </BlockStack>
+        </Box>
 
         <BlockStack gap="200">
           <InlineStack align="space-between">
@@ -190,7 +183,7 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
                 ))}
               </IndexTable>
             ) : (
-              <Box padding="400">
+              <Box padding="400" width="100%">
                 <EmptyState
                   heading="No disputes yet"
                   action={{ content: "Sync disputes", onAction: handleSync }}
@@ -203,7 +196,13 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
           </Card>
         </BlockStack>
 
-        <BlockStack gap="150">
+        {syncMessage ? (
+          <Text as="p" tone="subdued" variant="bodySm">
+            {syncMessage}
+          </Text>
+        ) : null}
+
+        <Box>
           <Text as="h2" variant="headingMd">
             Prevention insights
           </Text>
@@ -226,7 +225,7 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
               Recommendations appear after dispute outcomes are recorded.
             </Text>
           )}
-        </BlockStack>
+        </Box>
       </BlockStack>
     </Page>
   );
