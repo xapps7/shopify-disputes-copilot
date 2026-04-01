@@ -63,17 +63,13 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
 
   return (
     <Page
+      fullWidth
       title="Disputes Co-Pilot"
       subtitle="Workflow entry point for active Shopify Payments disputes."
       primaryAction={{ content: "View disputes", url: "/disputes" }}
-      actionGroups={[
-        {
-          title: "More actions",
-          actions: [
-            { content: "Open evidence library", url: "/evidence" },
-            { content: isSyncing ? "Syncing disputes..." : "Sync disputes", onAction: handleSync, disabled: isSyncing }
-          ]
-        }
+      secondaryActions={[
+        { content: "Open evidence library", url: "/evidence" },
+        { content: isSyncing ? "Syncing disputes..." : "Sync disputes", onAction: handleSync, disabled: isSyncing }
       ]}
     >
       <BlockStack gap="400">

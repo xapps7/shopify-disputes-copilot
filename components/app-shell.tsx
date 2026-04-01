@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { BlockStack, Box, Tabs, Text } from "@shopify/polaris";
+import { BlockStack, Box, Tabs } from "@shopify/polaris";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -19,6 +19,8 @@ const navItems = [
 ] as const satisfies ReadonlyArray<{ href: string; label: string }>;
 
 export function AppShell({ children, release, commit }: AppShellProps) {
+  void release;
+  void commit;
   const pathname = usePathname();
   const router = useRouter();
   const selectedTabIndex = navItems.findIndex((item) =>
@@ -49,9 +51,6 @@ export function AppShell({ children, release, commit }: AppShellProps) {
               />
             </div>
             {children}
-            <Text as="p" tone="subdued" variant="bodySm">
-              {`${release} · ${commit}`}
-            </Text>
           </BlockStack>
         </div>
       </Box>
