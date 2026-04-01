@@ -13,7 +13,6 @@ const navItems = [
   { href: "/", label: "Overview" },
   { href: "/disputes", label: "Disputes" },
   { href: "/evidence", label: "Evidence Library" },
-  { href: "/analytics", label: "Analytics" },
   { href: "/recommendations", label: "Recommendations" },
   { href: "/settings", label: "Settings" }
 ] as const satisfies ReadonlyArray<{ href: string; label: string }>;

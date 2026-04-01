@@ -10,12 +10,11 @@ import {
   EmptyState,
   IndexFilters,
   IndexTable,
-  InlineStack,
-  Page,
   Text,
   useSetIndexFiltersMode
 } from "@shopify/polaris";
 
+import { AdminPageLayout } from "@/components/admin-page-layout";
 import type { DashboardDispute } from "@/lib/types";
 
 type DisputesIndexPageShellProps = {
@@ -78,12 +77,12 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
   }, [disputes, selectedTab]);
 
   return (
-    <Page
-      fullWidth
+    <AdminPageLayout
       title="Disputes"
       subtitle="Review active disputes, deadlines, and evidence readiness."
       primaryAction={{ content: "Sync disputes", onAction: handleSync, loading: isSyncing }}
       secondaryActions={[{ content: "Open evidence library", url: "/evidence" }]}
+      gap="300"
     >
       <BlockStack gap="300">
         {syncMessage ? (
@@ -168,6 +167,6 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
           )}
         </Card>
       </BlockStack>
-    </Page>
+    </AdminPageLayout>
   );
 }

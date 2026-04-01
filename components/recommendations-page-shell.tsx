@@ -1,7 +1,8 @@
 "use client";
 
-import { Badge, BlockStack, Card, EmptyState, InlineGrid, Page, Text } from "@shopify/polaris";
+import { Badge, BlockStack, Card, Divider, EmptyState, InlineStack, Text } from "@shopify/polaris";
 
+import { AdminPageLayout } from "@/components/admin-page-layout";
 import type { PreventionRecommendationView } from "@/lib/types";
 
 type RecommendationsPageShellProps = {
@@ -10,31 +11,37 @@ type RecommendationsPageShellProps = {
 
 export function RecommendationsPageShell({ recommendations }: RecommendationsPageShellProps) {
   return (
-    <Page
+    <AdminPageLayout
       title="Recommendations"
       subtitle="Turn dispute outcomes into prevention actions for the merchant team."
+      gap="300"
     >
       {recommendations.length > 0 ? (
-        <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
-          {recommendations.map((item) => (
-            <Card key={item.id}>
-              <BlockStack gap="150">
-                <Badge tone={item.priority === 1 ? "warning" : item.priority === 2 ? "attention" : "info"}>
-                  {`Priority ${item.priority}`}
-                </Badge>
-                <Text as="h2" variant="headingMd">
-                  {item.category.replaceAll("_", " ")}
-                </Text>
-                <Text as="p" variant="bodyMd" tone="subdued">
-                  {item.recommendationText}
-                </Text>
+        <Card padding="0">
+          <BlockStack gap="0">
+            {recommendations.map((item, index) => (
+              <BlockStack gap="150" key={item.id}>
+                <InlineStack align="space-between" blockAlign="start">
+                  <BlockStack gap="050">
+                    <Text as="h2" variant="headingMd">
+                      {item.category.replaceAll("_", " ")}
+                    </Text>
+                    <Text as="p" variant="bodyMd" tone="subdued">
+                      {item.recommendationText}
+                    </Text>
+                  </BlockStack>
+                  <Badge tone={item.priority === 1 ? "warning" : item.priority === 2 ? "attention" : "info"}>
+                    {`Priority ${item.priority}`}
+                  </Badge>
+                </InlineStack>
                 <Text as="p" variant="bodySm" tone="subdued">
                   {item.state.replaceAll("_", " ")}
                 </Text>
+                {index < recommendations.length - 1 ? <Divider /> : null}
               </BlockStack>
-            </Card>
-          ))}
-        </InlineGrid>
+            ))}
+          </BlockStack>
+        </Card>
       ) : (
         <Card>
           <EmptyState heading="No recommendations yet" image="">
@@ -42,6 +49,6 @@ export function RecommendationsPageShell({ recommendations }: RecommendationsPag
           </EmptyState>
         </Card>
       )}
-    </Page>
+    </AdminPageLayout>
   );
 }

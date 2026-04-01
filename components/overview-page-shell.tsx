@@ -13,10 +13,10 @@ import {
   EmptyState,
   IndexTable,
   InlineStack,
-  Page,
   Text
 } from "@shopify/polaris";
 
+import { AdminPageLayout } from "@/components/admin-page-layout";
 import type { DashboardDispute, OverviewMetricsView, PreventionRecommendationView } from "@/lib/types";
 
 type OverviewPageShellProps = {
@@ -61,8 +61,7 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
   }
 
   return (
-    <Page
-      fullWidth
+    <AdminPageLayout
       title="Disputes Co-Pilot"
       subtitle="Workflow entry point for active Shopify Payments disputes."
       primaryAction={{ content: "View disputes", url: "/disputes" }}
@@ -70,14 +69,16 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
         { content: "Open evidence library", url: "/evidence" },
         { content: isSyncing ? "Syncing disputes..." : "Sync disputes", onAction: handleSync, disabled: isSyncing }
       ]}
-    >
-      <BlockStack gap="400">
-        {metrics.dueSoon > 0 ? (
+      gap="400"
+      banner={
+        metrics.dueSoon > 0 ? (
           <Banner tone="critical">
             <p>{metrics.dueSoon} disputes require response within 48 hours.</p>
           </Banner>
-        ) : null}
-
+        ) : undefined
+      }
+    >
+      <BlockStack gap="400">
         <Text as="p" variant="bodyMd">
           Start with urgent disputes, then complete missing evidence.
         </Text>
@@ -227,6 +228,6 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
           )}
         </Box>
       </BlockStack>
-    </Page>
+    </AdminPageLayout>
   );
 }
