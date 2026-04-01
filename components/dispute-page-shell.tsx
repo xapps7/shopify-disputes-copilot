@@ -82,6 +82,7 @@ export function DisputePageShell({
 
   return (
     <Page
+      fullWidth
       title={`Dispute ${dispute.shopifyDisputeId.split("/").pop()}`}
       subtitle={`${(dispute.reason ?? "Unknown").replaceAll("_", " ")} · ${dispute.currencyCode ?? "USD"} ${dispute.amount}`}
       backAction={{ content: "Disputes", url: "/disputes" }}

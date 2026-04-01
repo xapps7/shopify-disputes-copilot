@@ -37,6 +37,7 @@ export function PacketPreviewPageShell({ dispute }: PacketPreviewPageShellProps)
 
   return (
     <Page
+      fullWidth
       title="Packet preview"
       subtitle="Review the compiled evidence narrative before export or submission."
       backAction={{ content: "Back to dispute", url: `/disputes/${dispute.id}` }}

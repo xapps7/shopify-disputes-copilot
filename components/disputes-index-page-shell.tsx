@@ -79,6 +79,7 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
 
   return (
     <Page
+      fullWidth
       title="Disputes"
       subtitle="Review active disputes, deadlines, and evidence readiness."
       primaryAction={{ content: "Sync disputes", onAction: handleSync, loading: isSyncing }}

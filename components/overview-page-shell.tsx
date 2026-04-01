@@ -8,7 +8,6 @@ import {
   Badge,
   BlockStack,
   Box,
-  Button,
   Card,
   Divider,
   EmptyState,
@@ -79,27 +78,16 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
           </Banner>
         ) : null}
 
-        <InlineStack align="space-between" blockAlign="start" wrap>
-          <BlockStack gap="100">
-            <Text as="p" variant="bodyMd">
-              Start with urgent disputes, then complete missing evidence.
+        <BlockStack gap="100">
+          <Text as="p" variant="bodyMd">
+            Start with urgent disputes, then complete missing evidence.
+          </Text>
+          {syncMessage ? (
+            <Text as="p" tone="subdued" variant="bodySm">
+              {syncMessage}
             </Text>
-            {syncMessage ? (
-              <Text as="p" tone="subdued" variant="bodySm">
-                {syncMessage}
-              </Text>
-            ) : null}
-          </BlockStack>
-          <InlineStack gap="200" wrap>
-            <Button url="/disputes" variant="primary">
-              View disputes
-            </Button>
-            <Button url="/evidence">Open evidence library</Button>
-            <Button loading={isSyncing} onClick={handleSync}>
-              Sync disputes
-            </Button>
-          </InlineStack>
-        </InlineStack>
+          ) : null}
+        </BlockStack>
 
         <InlineStack gap="600" wrap>
           {[

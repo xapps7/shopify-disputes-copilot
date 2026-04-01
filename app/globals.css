@@ -42,11 +42,10 @@ input[type="file"] {
 
 .app-shell__frame {
   width: 100%;
-  padding: 0 20px;
 }
 
 .app-shell__masthead {
-  padding: 0 0 8px;
+  padding: 0 20px 8px;
   border-bottom: 1px solid #e1e3e5;
 }
 
@@ -119,12 +118,8 @@ input[type="file"] {
 }
 
 @media (max-width: 768px) {
-  .app-shell__frame {
-    padding: 0 12px;
-  }
-
   .app-shell__masthead {
-    padding: 0 0 8px;
+    padding: 0 12px 8px;
   }
 
   .packet-preview-grid {
