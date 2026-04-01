@@ -1,6 +1,6 @@
 "use client";
 
-import { BlockStack, Box, Page } from "@shopify/polaris";
+import { BlockStack, Page } from "@shopify/polaris";
 
 type PageAction = {
   content: string;
@@ -42,7 +42,7 @@ export function AdminPageLayout({
     >
       <BlockStack gap={gap}>
         {banner}
-        {mode === "form" ? <Box maxWidth="42rem">{children}</Box> : children}
+        {children}
       </BlockStack>
     </Page>
   );

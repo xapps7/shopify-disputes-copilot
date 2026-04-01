@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { BlockStack, Box, Tabs } from "@shopify/polaris";
+import { Tabs } from "@shopify/polaris";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -32,27 +32,21 @@ export function AppShell({ children, release, commit }: AppShellProps) {
 
   return (
     <div className="app-shell">
-      <Box paddingBlockStart="400" paddingBlockEnd="800" width="100%">
-        <div className="app-shell__frame">
-          <BlockStack gap="400">
-            <div className="app-shell__masthead">
-              <Tabs
-                tabs={navItems.map((item) => ({
-                  id: item.href,
-                  content: item.label,
-                  accessibilityLabel: item.label
-                }))}
-                selected={selectedTabIndex >= 0 ? selectedTabIndex : 0}
-                onSelect={(selectedTab) => {
-                  router.push(navItems[selectedTab]?.href ?? "/");
-                }}
-                fitted={false}
-              />
-            </div>
-            {children}
-          </BlockStack>
-        </div>
-      </Box>
+      <div className="app-shell__masthead">
+        <Tabs
+          tabs={navItems.map((item) => ({
+            id: item.href,
+            content: item.label,
+            accessibilityLabel: item.label
+          }))}
+          selected={selectedTabIndex >= 0 ? selectedTabIndex : 0}
+          onSelect={(selectedTab) => {
+            router.push(navItems[selectedTab]?.href ?? "/");
+          }}
+          fitted={false}
+        />
+      </div>
+      <div className="app-shell__content">{children}</div>
     </div>
   );
 }
