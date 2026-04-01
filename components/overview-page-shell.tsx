@@ -8,6 +8,7 @@ import {
   Badge,
   BlockStack,
   Box,
+  Button,
   Card,
   Divider,
   EmptyState,
@@ -62,83 +63,118 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
 
   return (
     <Page
-      title="Overview"
-      subtitle="Start with urgent disputes, then work through evidence and packet readiness."
+      title="Disputes Co-Pilot"
+      subtitle="Workflow entry point for active Shopify Payments disputes."
       primaryAction={{ content: "View disputes", url: "/disputes" }}
-      secondaryActions={[
-        { content: "Open evidence library", url: "/evidence" },
-        { content: "Sync disputes", onAction: handleSync, loading: isSyncing }
+      actionGroups={[
+        {
+          title: "More actions",
+          actions: [
+            { content: "Open evidence library", url: "/evidence" },
+            { content: isSyncing ? "Syncing disputes..." : "Sync disputes", onAction: handleSync, disabled: isSyncing }
+          ]
+        }
       ]}
     >
       <BlockStack gap="400">
         {metrics.dueSoon > 0 ? (
-          <Banner tone="warning">
-            <p>{metrics.dueSoon} disputes are due within 48 hours. Review deadlines before editing response narratives.</p>
+          <Banner tone="critical">
+            <p>{metrics.dueSoon} disputes require response within 48 hours.</p>
           </Banner>
         ) : null}
 
-        {syncMessage ? (
-          <Text as="p" tone="subdued" variant="bodySm">
-            {syncMessage}
-          </Text>
-        ) : null}
+        <InlineStack align="space-between" blockAlign="start" wrap>
+          <BlockStack gap="100">
+            <Text as="p" variant="bodyMd">
+              Start with urgent disputes, then complete missing evidence.
+            </Text>
+            {syncMessage ? (
+              <Text as="p" tone="subdued" variant="bodySm">
+                {syncMessage}
+              </Text>
+            ) : null}
+          </BlockStack>
+          <InlineStack gap="200" wrap>
+            <Button url="/disputes" variant="primary">
+              View disputes
+            </Button>
+            <Button url="/evidence">Open evidence library</Button>
+            <Button loading={isSyncing} onClick={handleSync}>
+              Sync disputes
+            </Button>
+          </InlineStack>
+        </InlineStack>
 
-        <Card>
-          <BlockStack gap="300">
-            <BlockStack gap="100">
-              <Text as="p" variant="bodyMd" tone="subdued">
-                Open disputes
+        <InlineStack gap="600" wrap>
+          {[
+            ["Open disputes", String(metrics.openDisputes)],
+            ["Due soon", String(metrics.dueSoon)],
+            ["Evidence ready", String(metrics.evidenceReady)],
+            ["Total disputed", `$${metrics.totalAmount.toFixed(0)}`]
+          ].map(([label, value]) => (
+            <InlineStack gap="100" key={label}>
+              <Text as="span" variant="bodySm" tone="subdued">
+                {`${label}:`}
               </Text>
-              <Text as="h2" variant="heading2xl">
-                {metrics.openDisputes} active cases
+              <Text as="span" variant="bodyMd" fontWeight="medium">
+                {value}
               </Text>
-              <Text as="p" variant="bodyMd" tone="subdued">
-                Total disputed amount {`$${metrics.totalAmount.toFixed(0)}`}. Work due dates first, then close evidence gaps before editing the final narrative.
-              </Text>
-            </BlockStack>
+            </InlineStack>
+          ))}
+        </InlineStack>
+
+        <BlockStack gap="200">
+          <Text as="h2" variant="headingMd">
+            Attention needed
+          </Text>
+          <BlockStack gap="150">
+            <InlineStack align="space-between">
+              <Link className="table-link" href={"/disputes" as never}>
+                Disputes due within 48 hours
+              </Link>
+              <Badge tone={metrics.dueSoon > 0 ? "critical" : "success"}>{String(metrics.dueSoon)}</Badge>
+            </InlineStack>
             <Divider />
-            <InlineStack gap="600" wrap>
-              {[
-                ["Due within 48 hours", String(metrics.dueSoon), metrics.dueSoon > 0 ? "warning" : "success"],
-                ["Evidence ready", String(metrics.evidenceReady), "info"],
-                ["Total disputed", `$${metrics.totalAmount.toFixed(0)}`, "default"]
-              ].map(([label, value, tone]) => (
-                <BlockStack gap="050" key={label}>
-                  <InlineStack gap="150" blockAlign="center">
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      {label}
-                    </Text>
-                    {tone !== "default" ? <Badge tone={tone as "success" | "warning" | "info"}>{value}</Badge> : null}
-                  </InlineStack>
-                  {tone === "default" ? (
-                    <Text as="p" variant="headingMd">
-                      {value}
-                    </Text>
-                  ) : null}
-                </BlockStack>
-              ))}
+            <InlineStack align="space-between">
+              <Link className="table-link" href={"/disputes" as never}>
+                Evidence-ready cases
+              </Link>
+              <Badge tone="info">{String(metrics.evidenceReady)}</Badge>
+            </InlineStack>
+            <Divider />
+            <InlineStack align="space-between">
+              <Link className="table-link" href={"/disputes" as never}>
+                Missing evidence cases
+              </Link>
+              <Badge tone={metrics.openDisputes - metrics.evidenceReady > 0 ? "warning" : "success"}>
+                {String(Math.max(metrics.openDisputes - metrics.evidenceReady, 0))}
+              </Badge>
             </InlineStack>
           </BlockStack>
-        </Card>
+        </BlockStack>
 
-        <Card>
+        <Card padding="0">
           <BlockStack gap="200">
-            <InlineStack align="space-between">
-              <Text as="h2" variant="headingMd">
-                Recent disputes
-              </Text>
-              <Link className="table-link" href={"/disputes" as never}>
-                View all disputes
-              </Link>
-            </InlineStack>
+            <Box padding="400">
+              <InlineStack align="space-between">
+                <Text as="h2" variant="headingMd">
+                  Recent disputes
+                </Text>
+                <Link className="table-link" href={"/disputes" as never}>
+                  View all disputes
+                </Link>
+              </InlineStack>
+            </Box>
             {recentDisputes.length > 0 ? (
               <IndexTable
                 headings={[
                   { title: "Dispute" },
+                  { title: "Order" },
                   { title: "Reason" },
                   { title: "Status" },
-                  { title: "Due" },
-                  { title: "Amount" }
+                  { title: "Due date" },
+                  { title: "Amount" },
+                  { title: "Readiness" }
                 ]}
                 itemCount={recentDisputes.length}
                 selectable={false}
@@ -150,6 +186,7 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
                         {dispute.shopifyDisputeId.split("/").pop()}
                       </Link>
                     </IndexTable.Cell>
+                    <IndexTable.Cell>{dispute.shopifyOrderId?.split("/").pop() ?? "Unavailable"}</IndexTable.Cell>
                     <IndexTable.Cell>{(dispute.reason ?? "Unknown").replaceAll("_", " ")}</IndexTable.Cell>
                     <IndexTable.Cell>
                       <Badge tone={toneForStatus(dispute.status)}>{dispute.status.replaceAll("_", " ")}</Badge>
@@ -166,54 +203,48 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
                     <IndexTable.Cell>
                       {dispute.currencyCode ?? "USD"} {dispute.amount}
                     </IndexTable.Cell>
+                    <IndexTable.Cell>{`${dispute.completenessScore}%`}</IndexTable.Cell>
                   </IndexTable.Row>
                 ))}
               </IndexTable>
             ) : (
-              <EmptyState
-                heading="No disputes yet"
-                action={{ content: "Sync disputes", onAction: handleSync }}
-                image=""
-              >
-                <p>Once disputes are synced, the overview will highlight what needs attention first.</p>
-              </EmptyState>
+              <Box padding="400">
+                <EmptyState
+                  heading="No disputes yet"
+                  action={{ content: "Sync disputes", onAction: handleSync }}
+                  image=""
+                >
+                  <p>Once disputes are synced, the overview will highlight what needs attention first.</p>
+                </EmptyState>
+              </Box>
             )}
           </BlockStack>
         </Card>
 
-        <Card>
-          <BlockStack gap="200">
-            <InlineStack align="space-between">
-              <Text as="h2" variant="headingMd">
-                Prevention insights
-              </Text>
-              <Text as="p" variant="bodySm" tone="subdued">
-                Based on recorded dispute outcomes
-              </Text>
-            </InlineStack>
-            {recommendations.length > 0 ? (
-              <BlockStack gap="200">
-                {recommendations.slice(0, 3).map((item, index) => (
-                  <Box key={item.id}>
-                    <BlockStack gap="050">
-                      <Text as="p" variant="bodyMd" fontWeight="semibold">
-                        {item.category.replaceAll("_", " ")}
-                      </Text>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        {item.recommendationText}
-                      </Text>
-                    </BlockStack>
-                    {index < Math.min(recommendations.length, 3) - 1 ? <Divider /> : null}
-                  </Box>
-                ))}
-              </BlockStack>
-            ) : (
-              <Text as="p" variant="bodySm" tone="subdued">
-                Recommendations appear after dispute outcomes are recorded.
-              </Text>
-            )}
-          </BlockStack>
-        </Card>
+        <BlockStack gap="150">
+          <Text as="h2" variant="headingMd">
+            Prevention insights
+          </Text>
+          {recommendations.length > 0 ? (
+            recommendations.slice(0, 2).map((item, index) => (
+              <Box key={item.id}>
+                <BlockStack gap="050">
+                  <Text as="p" variant="bodyMd" fontWeight="semibold">
+                    {item.category.replaceAll("_", " ")}
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {item.recommendationText}
+                  </Text>
+                </BlockStack>
+                {index < Math.min(recommendations.length, 2) - 1 ? <Divider /> : null}
+              </Box>
+            ))
+          ) : (
+            <Text as="p" variant="bodySm" tone="subdued">
+              Recommendations appear after dispute outcomes are recorded.
+            </Text>
+          )}
+        </BlockStack>
       </BlockStack>
     </Page>
   );
