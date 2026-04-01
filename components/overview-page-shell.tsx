@@ -137,18 +137,16 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
           </BlockStack>
         </BlockStack>
 
-        <Card padding="0">
-          <BlockStack gap="200">
-            <Box padding="400">
-              <InlineStack align="space-between">
-                <Text as="h2" variant="headingMd">
-                  Recent disputes
-                </Text>
-                <Link className="table-link" href={"/disputes" as never}>
-                  View all disputes
-                </Link>
-              </InlineStack>
-            </Box>
+        <BlockStack gap="200">
+          <InlineStack align="space-between">
+            <Text as="h2" variant="headingMd">
+              Recent disputes
+            </Text>
+            <Link className="table-link" href={"/disputes" as never}>
+              View all disputes
+            </Link>
+          </InlineStack>
+          <Card padding="0">
             {recentDisputes.length > 0 ? (
               <IndexTable
                 headings={[
@@ -202,8 +200,8 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
                 </EmptyState>
               </Box>
             )}
-          </BlockStack>
-        </Card>
+          </Card>
+        </BlockStack>
 
         <BlockStack gap="150">
           <Text as="h2" variant="headingMd">
