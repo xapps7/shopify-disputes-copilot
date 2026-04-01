@@ -34,6 +34,7 @@ export type DisputeDetailView = {
   amount: string;
   currencyCode: string | null;
   evidenceDueBy: string | null;
+  evidenceSentOn: string | null;
   orderSummary: {
     orderName: string | null;
     customerName: string | null;
@@ -50,6 +51,7 @@ export type DisputeDetailView = {
     generatedAt: string | null;
     pdfUrl: string | null;
     summaryText: string | null;
+    submittedAt: string | null;
   } | null;
   evidenceItems: Array<{
     id: string;

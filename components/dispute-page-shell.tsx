@@ -20,6 +20,7 @@ import { DisputeResponseDraft } from "@/components/dispute-response-draft";
 import { EvidenceUploadForm } from "@/components/evidence-upload-form";
 import { GeneratePacketButton } from "@/components/generate-packet-button";
 import { OutcomeReviewForm } from "@/components/outcome-review-form";
+import { SubmissionCenter } from "@/components/submission-center";
 import type { DisputeDetailView, DisputeResponseDraftView } from "@/lib/types";
 
 type DisputePageShellProps = {
@@ -91,7 +92,7 @@ export function DisputePageShell({
         onAction: () => {
           setSubmitMessage(
             dispute.latestPacket
-              ? "Direct submission is not enabled yet. Download the packet and submit it in Shopify Admin."
+              ? "Use the submission center to record the merchant's manual submission after sending the packet in Shopify Admin."
               : "Generate a packet draft before submitting evidence."
           );
         }
@@ -369,6 +370,21 @@ export function DisputePageShell({
                     Add evidence
                   </Text>
                   <EvidenceUploadForm disputeId={dispute.id} />
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="200">
+                  <Text as="h2" variant="headingMd">
+                    Submission center
+                  </Text>
+                  <SubmissionCenter
+                    disputeId={dispute.id}
+                    packetReady={Boolean(dispute.latestPacket)}
+                    packetStatus={dispute.latestPacket?.status ?? null}
+                    submittedAt={dispute.latestPacket?.submittedAt ?? null}
+                    evidenceSentOn={dispute.evidenceSentOn}
+                  />
                 </BlockStack>
               </Card>
 

@@ -34,6 +34,7 @@ export const sampleDisputeDetail: DisputeDetailView = {
   amount: "149.00",
   currencyCode: "USD",
   evidenceDueBy: "2026-03-30T00:00:00.000Z",
+  evidenceSentOn: null,
   orderSummary: {
     orderName: "#1001",
     customerName: "Alex Carter",
@@ -50,6 +51,7 @@ export const sampleDisputeDetail: DisputeDetailView = {
     status: "READY",
     generatedAt: "2026-03-25T08:40:00.000Z",
     pdfUrl: "/packets/local-1/sample-packet.txt",
+    submittedAt: null,
     summaryText: [
       "Shop: xappsdev.myshopify.com",
       "Dispute: gid://shopify/ShopifyPaymentsDispute/1001",

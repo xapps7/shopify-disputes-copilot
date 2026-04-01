@@ -230,6 +230,7 @@ export async function getDisputeDetail(id: string): Promise<DisputeDetailView> {
     amount: dispute.amount?.toString() ?? "0.00",
     currencyCode: dispute.currencyCode ?? null,
     evidenceDueBy: dispute.evidenceDueBy?.toISOString() ?? null,
+    evidenceSentOn: dispute.evidenceSentOn?.toISOString() ?? null,
     orderSummary: orderSnapshot
       ? {
           orderName: orderSnapshot.orderName ?? null,
@@ -245,7 +246,8 @@ export async function getDisputeDetail(id: string): Promise<DisputeDetailView> {
           status: dispute.packets[0].status,
           generatedAt: dispute.packets[0].generatedAt?.toISOString() ?? null,
           pdfUrl: dispute.packets[0].pdfUrl ?? null,
-          summaryText: dispute.packets[0].summaryText ?? null
+          summaryText: dispute.packets[0].summaryText ?? null,
+          submittedAt: dispute.packets[0].submittedAt?.toISOString() ?? null
         }
       : null,
     evidenceItems: dispute.evidenceItems.map((item) => ({
