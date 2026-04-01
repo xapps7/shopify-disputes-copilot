@@ -46,8 +46,16 @@ input[type="file"] {
 }
 
 .app-shell__masthead {
-  padding: 0 20px 8px;
+  padding: 0 16px 8px;
   border-bottom: 1px solid #e1e3e5;
+}
+
+.app-shell :where(.Polaris-Page) {
+  padding-inline: 16px;
+}
+
+.app-shell :where(.Polaris-Page__Content) {
+  width: 100%;
 }
 
 .info-hint {
@@ -121,6 +129,10 @@ input[type="file"] {
 @media (max-width: 768px) {
   .app-shell__masthead {
     padding: 0 12px 8px;
+  }
+
+  .app-shell :where(.Polaris-Page) {
+    padding-inline: 12px;
   }
 
   .packet-preview-grid {

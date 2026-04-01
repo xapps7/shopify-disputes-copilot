@@ -79,33 +79,37 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
       }
     >
       <BlockStack gap="400">
-        <Text as="p" variant="bodyMd">
-          Start with urgent disputes, then complete missing evidence.
-        </Text>
+        <Card>
+          <BlockStack gap="300">
+            <Text as="p" variant="bodyMd">
+              Start with urgent disputes, then complete missing evidence.
+            </Text>
 
-        <InlineStack gap="600" wrap>
-          {[
-            ["Open disputes", String(metrics.openDisputes)],
-            ["Due soon", String(metrics.dueSoon)],
-            ["Evidence ready", String(metrics.evidenceReady)],
-            ["Total disputed", `$${metrics.totalAmount.toFixed(0)}`]
-          ].map(([label, value]) => (
-            <InlineStack gap="100" key={label}>
-              <Text as="span" variant="bodySm" tone="subdued">
-                {`${label}:`}
-              </Text>
-              <Text as="span" variant="bodyMd" fontWeight="medium">
-                {value}
-              </Text>
+            <InlineStack gap="600" wrap>
+              {[
+                ["Open disputes", String(metrics.openDisputes)],
+                ["Due soon", String(metrics.dueSoon)],
+                ["Evidence ready", String(metrics.evidenceReady)],
+                ["Total disputed", `$${metrics.totalAmount.toFixed(0)}`]
+              ].map(([label, value]) => (
+                <InlineStack gap="100" key={label}>
+                  <Text as="span" variant="bodySm" tone="subdued">
+                    {`${label}:`}
+                  </Text>
+                  <Text as="span" variant="bodyMd" fontWeight="medium">
+                    {value}
+                  </Text>
+                </InlineStack>
+              ))}
             </InlineStack>
-          ))}
-        </InlineStack>
+          </BlockStack>
+        </Card>
 
-        <Box>
-          <Text as="p" variant="bodyMd">
-            Attention needed
-          </Text>
+        <Card>
           <BlockStack gap="150">
+            <Text as="h2" variant="headingMd">
+              Attention needed
+            </Text>
             <InlineStack align="space-between">
               <Link className="table-link" href={"/disputes" as never}>
                 Disputes due within 48 hours
@@ -129,7 +133,7 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
               </Badge>
             </InlineStack>
           </BlockStack>
-        </Box>
+        </Card>
 
         <BlockStack gap="200">
           <InlineStack align="space-between">
@@ -203,30 +207,32 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
           </Text>
         ) : null}
 
-        <Box>
-          <Text as="h2" variant="headingMd">
-            Prevention insights
-          </Text>
-          {recommendations.length > 0 ? (
-            recommendations.slice(0, 2).map((item, index) => (
-              <Box key={item.id}>
-                <BlockStack gap="050">
-                  <Text as="p" variant="bodyMd" fontWeight="semibold">
-                    {item.category.replaceAll("_", " ")}
-                  </Text>
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    {item.recommendationText}
-                  </Text>
-                </BlockStack>
-                {index < Math.min(recommendations.length, 2) - 1 ? <Divider /> : null}
-              </Box>
-            ))
-          ) : (
-            <Text as="p" variant="bodySm" tone="subdued">
-              Recommendations appear after dispute outcomes are recorded.
+        <Card>
+          <BlockStack gap="150">
+            <Text as="h2" variant="headingMd">
+              Prevention insights
             </Text>
-          )}
-        </Box>
+            {recommendations.length > 0 ? (
+              recommendations.slice(0, 2).map((item, index) => (
+                <Box key={item.id}>
+                  <BlockStack gap="050">
+                    <Text as="p" variant="bodyMd" fontWeight="semibold">
+                      {item.category.replaceAll("_", " ")}
+                    </Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      {item.recommendationText}
+                    </Text>
+                  </BlockStack>
+                  {index < Math.min(recommendations.length, 2) - 1 ? <Divider /> : null}
+                </Box>
+              ))
+            ) : (
+              <Text as="p" variant="bodySm" tone="subdued">
+                Recommendations appear after dispute outcomes are recorded.
+              </Text>
+            )}
+          </BlockStack>
+        </Card>
       </BlockStack>
     </AdminPageLayout>
   );
