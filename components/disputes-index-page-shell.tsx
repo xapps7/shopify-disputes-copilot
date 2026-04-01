@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   Badge,
   BlockStack,
-  Card,
+  Box,
   EmptyState,
   IndexFilters,
   IndexTable,
@@ -15,6 +15,7 @@ import {
 } from "@shopify/polaris";
 
 import { AdminPageLayout } from "@/components/admin-page-layout";
+import { ResourceSection } from "@/components/resource-section";
 import type { DashboardDispute } from "@/lib/types";
 
 type DisputesIndexPageShellProps = {
@@ -90,7 +91,7 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
             {syncMessage}
           </Text>
         ) : null}
-        <Card padding="0">
+        <ResourceSection title="Dispute queue" flush>
           <IndexFilters
             tabs={[
               { id: "all", content: "All" },
@@ -161,11 +162,13 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
               ))}
             </IndexTable>
           ) : (
-            <EmptyState heading="No disputes available" image="">
-              <p>Sync disputes to populate the operating queue.</p>
-            </EmptyState>
+            <Box padding="400">
+              <EmptyState heading="No disputes available" image="">
+                <p>Sync disputes to populate the operating queue.</p>
+              </EmptyState>
+            </Box>
           )}
-        </Card>
+        </ResourceSection>
       </BlockStack>
     </AdminPageLayout>
   );

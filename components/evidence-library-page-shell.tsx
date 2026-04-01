@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Badge, BlockStack, Card, EmptyState, IndexFilters, IndexTable, Text, useSetIndexFiltersMode } from "@shopify/polaris";
+import { Badge, BlockStack, Box, EmptyState, IndexFilters, IndexTable, Text, useSetIndexFiltersMode } from "@shopify/polaris";
 
 import { AdminPageLayout } from "@/components/admin-page-layout";
+import { ResourceSection } from "@/components/resource-section";
 import type { EvidenceLibraryItemView } from "@/lib/types";
 
 type EvidenceLibraryPageShellProps = {
@@ -20,7 +21,7 @@ export function EvidenceLibraryPageShell({ items }: EvidenceLibraryPageShellProp
       primaryAction={{ content: "View disputes", url: "/disputes" }}
       gap="300"
     >
-      <Card padding="0">
+      <ResourceSection title="Evidence files" flush>
         <IndexFilters
           tabs={[
             { id: "all", content: "All files" },
@@ -79,16 +80,18 @@ export function EvidenceLibraryPageShell({ items }: EvidenceLibraryPageShellProp
             ))}
           </IndexTable>
         ) : (
-          <BlockStack gap="200">
-            <EmptyState heading="No evidence files yet" image="">
-              <p>Files attached to disputes will appear here for cross-case review and auditability.</p>
-            </EmptyState>
-            <Text as="p" variant="bodySm" tone="subdued">
-              Evidence items are organized by category, source, and linked dispute.
-            </Text>
-          </BlockStack>
+          <Box padding="400">
+            <BlockStack gap="200">
+              <EmptyState heading="No evidence files yet" image="">
+                <p>Files attached to disputes will appear here for cross-case review and auditability.</p>
+              </EmptyState>
+              <Text as="p" variant="bodySm" tone="subdued">
+                Evidence items are organized by category, source, and linked dispute.
+              </Text>
+            </BlockStack>
+          </Box>
         )}
-      </Card>
+      </ResourceSection>
     </AdminPageLayout>
   );
 }

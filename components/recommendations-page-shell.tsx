@@ -1,8 +1,9 @@
 "use client";
 
-import { Badge, BlockStack, Card, Divider, EmptyState, InlineStack, Text } from "@shopify/polaris";
+import { Badge, BlockStack, Divider, EmptyState, InlineStack, Text } from "@shopify/polaris";
 
 import { AdminPageLayout } from "@/components/admin-page-layout";
+import { ResourceSection } from "@/components/resource-section";
 import type { PreventionRecommendationView } from "@/lib/types";
 
 type RecommendationsPageShellProps = {
@@ -17,7 +18,7 @@ export function RecommendationsPageShell({ recommendations }: RecommendationsPag
       gap="300"
     >
       {recommendations.length > 0 ? (
-        <Card padding="0">
+        <ResourceSection title="Prevention actions" flush>
           <BlockStack gap="0">
             {recommendations.map((item, index) => (
               <BlockStack gap="150" key={item.id}>
@@ -41,13 +42,13 @@ export function RecommendationsPageShell({ recommendations }: RecommendationsPag
               </BlockStack>
             ))}
           </BlockStack>
-        </Card>
+        </ResourceSection>
       ) : (
-        <Card>
+        <ResourceSection title="Prevention actions">
           <EmptyState heading="No recommendations yet" image="">
             <p>Recommendations appear after dispute outcomes are reviewed and tagged.</p>
           </EmptyState>
-        </Card>
+        </ResourceSection>
       )}
     </AdminPageLayout>
   );

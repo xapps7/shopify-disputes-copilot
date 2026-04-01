@@ -17,6 +17,7 @@ import {
 } from "@shopify/polaris";
 
 import { AdminPageLayout } from "@/components/admin-page-layout";
+import { ResourceSection } from "@/components/resource-section";
 import type { DashboardDispute, OverviewMetricsView, PreventionRecommendationView } from "@/lib/types";
 
 type OverviewPageShellProps = {
@@ -135,71 +136,69 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
           </BlockStack>
         </Card>
 
-        <BlockStack gap="200">
-          <InlineStack align="space-between">
-            <Text as="h2" variant="headingMd">
-              Recent disputes
-            </Text>
+        <ResourceSection
+          title="Recent disputes"
+          action={
             <Link className="table-link" href={"/disputes" as never}>
               View all disputes
             </Link>
-          </InlineStack>
-          <Card padding="0">
-            {recentDisputes.length > 0 ? (
-              <IndexTable
-                headings={[
-                  { title: "Dispute" },
-                  { title: "Order" },
-                  { title: "Reason" },
-                  { title: "Status" },
-                  { title: "Due date" },
-                  { title: "Amount" },
-                  { title: "Readiness" }
-                ]}
-                itemCount={recentDisputes.length}
-                selectable={false}
+          }
+          flush
+        >
+          {recentDisputes.length > 0 ? (
+            <IndexTable
+              headings={[
+                { title: "Dispute" },
+                { title: "Order" },
+                { title: "Reason" },
+                { title: "Status" },
+                { title: "Due date" },
+                { title: "Amount" },
+                { title: "Readiness" }
+              ]}
+              itemCount={recentDisputes.length}
+              selectable={false}
+            >
+              {recentDisputes.slice(0, 6).map((dispute, index) => (
+                <IndexTable.Row id={dispute.id} key={dispute.id} position={index}>
+                  <IndexTable.Cell>
+                    <Link className="table-link" href={`/disputes/${dispute.id}` as never}>
+                      {dispute.shopifyDisputeId.split("/").pop()}
+                    </Link>
+                  </IndexTable.Cell>
+                  <IndexTable.Cell>{dispute.shopifyOrderId?.split("/").pop() ?? "Unavailable"}</IndexTable.Cell>
+                  <IndexTable.Cell>{(dispute.reason ?? "Unknown").replaceAll("_", " ")}</IndexTable.Cell>
+                  <IndexTable.Cell>
+                    <Badge tone={toneForStatus(dispute.status)}>{dispute.status.replaceAll("_", " ")}</Badge>
+                  </IndexTable.Cell>
+                  <IndexTable.Cell>
+                    {dispute.evidenceDueBy ? (
+                      <Badge tone={new Date(dispute.evidenceDueBy).getTime() - Date.now() <= 172800000 ? "critical" : "info"}>
+                        {new Date(dispute.evidenceDueBy).toLocaleDateString()}
+                      </Badge>
+                    ) : (
+                      "No deadline"
+                    )}
+                  </IndexTable.Cell>
+                  <IndexTable.Cell>
+                    {dispute.currencyCode ?? "USD"} {dispute.amount}
+                  </IndexTable.Cell>
+                  <IndexTable.Cell>{`${dispute.completenessScore}%`}</IndexTable.Cell>
+                </IndexTable.Row>
+              ))}
+            </IndexTable>
+          ) : (
+            <Box padding="400" width="100%">
+              <EmptyState
+                heading="No disputes yet"
+                action={{ content: "Sync disputes", onAction: handleSync }}
+                image=""
               >
-                {recentDisputes.slice(0, 6).map((dispute, index) => (
-                  <IndexTable.Row id={dispute.id} key={dispute.id} position={index}>
-                    <IndexTable.Cell>
-                      <Link className="table-link" href={`/disputes/${dispute.id}` as never}>
-                        {dispute.shopifyDisputeId.split("/").pop()}
-                      </Link>
-                    </IndexTable.Cell>
-                    <IndexTable.Cell>{dispute.shopifyOrderId?.split("/").pop() ?? "Unavailable"}</IndexTable.Cell>
-                    <IndexTable.Cell>{(dispute.reason ?? "Unknown").replaceAll("_", " ")}</IndexTable.Cell>
-                    <IndexTable.Cell>
-                      <Badge tone={toneForStatus(dispute.status)}>{dispute.status.replaceAll("_", " ")}</Badge>
-                    </IndexTable.Cell>
-                    <IndexTable.Cell>
-                      {dispute.evidenceDueBy ? (
-                        <Badge tone={new Date(dispute.evidenceDueBy).getTime() - Date.now() <= 172800000 ? "critical" : "info"}>
-                          {new Date(dispute.evidenceDueBy).toLocaleDateString()}
-                        </Badge>
-                      ) : (
-                        "No deadline"
-                      )}
-                    </IndexTable.Cell>
-                    <IndexTable.Cell>
-                      {dispute.currencyCode ?? "USD"} {dispute.amount}
-                    </IndexTable.Cell>
-                    <IndexTable.Cell>{`${dispute.completenessScore}%`}</IndexTable.Cell>
-                  </IndexTable.Row>
-                ))}
-              </IndexTable>
-            ) : (
-              <Box padding="400" width="100%">
-                <EmptyState
-                  heading="No disputes yet"
-                  action={{ content: "Sync disputes", onAction: handleSync }}
-                  image=""
-                >
-                  <p>Once disputes are synced, the overview will highlight what needs attention first.</p>
-                </EmptyState>
-              </Box>
-            )}
-          </Card>
-        </BlockStack>
+                <p>Once disputes are synced, the overview will highlight what needs attention first.</p>
+              </EmptyState>
+            </Box>
+          )}
+        </ResourceSection>
 
         {syncMessage ? (
           <Text as="p" tone="subdued" variant="bodySm">
@@ -207,11 +206,8 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
           </Text>
         ) : null}
 
-        <Card>
+        <ResourceSection title="Prevention insights">
           <BlockStack gap="150">
-            <Text as="h2" variant="headingMd">
-              Prevention insights
-            </Text>
             {recommendations.length > 0 ? (
               recommendations.slice(0, 2).map((item, index) => (
                 <Box key={item.id}>
@@ -232,7 +228,7 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
               </Text>
             )}
           </BlockStack>
-        </Card>
+        </ResourceSection>
       </BlockStack>
     </AdminPageLayout>
   );
