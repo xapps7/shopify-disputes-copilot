@@ -1,0 +1,15 @@
+Shop: xappsdev.myshopify.com
+Dispute: gid://shopify/ShopifyPaymentsDispute/1001
+Status: NEEDS_RESPONSE
+Reason: FRAUD
+Reason details: Customer claims cardholder did not authorize the order.
+Amount: USD 149.00
+Evidence due by: 2026-03-30T00:00:00.000Z
+
+Evidence items:
+1. Delivered via UPS
+   Category: DELIVERY_CONFIRMATION
+   Source: shopify_fulfillment
+2. Customer support exchange
+   Category: CUSTOMER_COMMUNICATION
+   Source: merchant_upload

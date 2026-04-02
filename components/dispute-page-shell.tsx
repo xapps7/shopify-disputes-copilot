@@ -98,11 +98,11 @@ export function DisputePageShell({
         }
       }}
       secondaryActions={[
-        ...(dispute.latestPacket?.pdfUrl
+        ...(dispute.latestPacket
           ? [
               {
                 content: "Download packet",
-                url: dispute.latestPacket.pdfUrl,
+                url: `/api/disputes/${dispute.id}/packet/download`,
                 external: true
               }
             ]
@@ -274,8 +274,8 @@ export function DisputePageShell({
                     <Link className="table-link" href={`/packets/${dispute.id}` as never}>
                       Open packet preview
                     </Link>
-                    {dispute.latestPacket?.pdfUrl ? (
-                      <a className="table-link" href={dispute.latestPacket.pdfUrl} rel="noreferrer" target="_blank">
+                    {dispute.latestPacket ? (
+                      <a className="table-link" href={`/api/disputes/${dispute.id}/packet/download`} rel="noreferrer" target="_blank">
                         Download current packet
                       </a>
                     ) : null}

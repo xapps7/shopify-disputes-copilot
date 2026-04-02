@@ -83,7 +83,7 @@ export const sampleDisputeDetail: DisputeDetailView = {
       title: "Customer support exchange",
       description: "Customer confirmed delayed shipment inquiry before dispute.",
       sourceType: "merchant_upload",
-      fileUrl: "/uploads/local-1/customer-thread.pdf"
+      fileUrl: "/uploads/local-1/customer-thread.txt"
     }
   ],
   timeline: [

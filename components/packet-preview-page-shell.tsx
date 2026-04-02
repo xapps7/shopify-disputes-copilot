@@ -42,10 +42,10 @@ export function PacketPreviewPageShell({ dispute }: PacketPreviewPageShellProps)
       subtitle="Review the compiled evidence narrative before export or submission."
       backAction={{ content: "Back to dispute", url: `/disputes/${dispute.id}` }}
       primaryAction={
-        dispute.latestPacket?.pdfUrl
+        dispute.latestPacket
           ? {
               content: "Open export",
-              url: dispute.latestPacket.pdfUrl,
+              url: `/api/disputes/${dispute.id}/packet/download`,
               external: true
             }
           : undefined
@@ -138,8 +138,8 @@ export function PacketPreviewPageShell({ dispute }: PacketPreviewPageShellProps)
                 </Text>
                 <InlineStack gap="200" wrap>
                   <Button url={`/disputes/${dispute.id}`}>Back to dispute</Button>
-                  {dispute.latestPacket?.pdfUrl ? (
-                    <Button url={dispute.latestPacket.pdfUrl} target="_blank" variant="primary">
+                  {dispute.latestPacket ? (
+                    <Button url={`/api/disputes/${dispute.id}/packet/download`} target="_blank" variant="primary">
                       Download packet
                     </Button>
                   ) : null}
