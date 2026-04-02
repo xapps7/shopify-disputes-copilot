@@ -16,6 +16,7 @@ import {
 } from "@shopify/polaris";
 
 import { PacketQualityPanel } from "@/components/packet-quality-panel";
+import { PacketSummaryEditor } from "@/components/packet-summary-editor";
 import { assessPacketQuality } from "@/lib/disputes/workflow";
 import type { DisputeDetailView } from "@/lib/types";
 
@@ -117,6 +118,12 @@ export function PacketPreviewPageShell({ dispute }: PacketPreviewPageShellProps)
                   Generate a packet draft to review the assembled narrative.
                 </Text>
               )}
+              {dispute.latestPacket?.summaryText ? (
+                <PacketSummaryEditor
+                  disputeId={dispute.id}
+                  initialSummary={dispute.latestPacket.summaryText}
+                />
+              ) : null}
             </BlockStack>
           </Card>
 

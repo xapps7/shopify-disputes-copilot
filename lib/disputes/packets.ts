@@ -53,3 +53,36 @@ export async function generatePacketForDispute(disputeId: string) {
 
   return packet;
 }
+
+export async function updateLatestPacketSummary(disputeId: string, summaryText: string) {
+  const packet = await db.evidencePacket.findFirst({
+    where: { disputeId },
+    orderBy: { version: "desc" }
+  });
+
+  if (!packet) {
+    throw new Error("No packet exists for this dispute yet.");
+  }
+
+  const updatedPacket = await db.evidencePacket.update({
+    where: { id: packet.id },
+    data: {
+      summaryText
+    }
+  });
+
+  await db.disputeTimelineEvent.create({
+    data: {
+      disputeId,
+      eventType: "EVIDENCE_PACKET_EDITED",
+      eventTimestamp: new Date(),
+      source: "merchant",
+      payloadSummaryJson: JSON.stringify({
+        packetId: updatedPacket.id,
+        version: updatedPacket.version
+      })
+    }
+  });
+
+  return updatedPacket;
+}
