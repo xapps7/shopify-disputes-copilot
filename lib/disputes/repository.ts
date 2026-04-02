@@ -3,6 +3,7 @@ import { sampleDashboardDisputes, sampleDisputeDetail } from "@/lib/disputes/sam
 import type {
   AnalyticsSnapshotView,
   DashboardDispute,
+  DisputeOptionView,
   DisputeDetailView,
   EvidenceLibraryItemView,
   OverviewMetricsView,
@@ -179,6 +180,15 @@ export async function listRecommendations(shopDomain?: string | null): Promise<P
     recommendationText: item.recommendationText,
     priority: item.priority,
     state: item.state
+  }));
+}
+
+export async function listDisputeOptions(shopDomain?: string | null): Promise<DisputeOptionView[]> {
+  const disputes = await listDashboardDisputes(shopDomain);
+
+  return disputes.map((dispute) => ({
+    id: dispute.id,
+    label: `${dispute.shopifyDisputeId.split("/").pop()} · ${dispute.currencyCode ?? "USD"} ${dispute.amount}`
   }));
 }
 

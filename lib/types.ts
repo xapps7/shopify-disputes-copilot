@@ -101,6 +101,11 @@ export type EvidenceLibraryItemView = {
   createdAt: string;
 };
 
+export type DisputeOptionView = {
+  id: string;
+  label: string;
+};
+
 export type AnalyticsSnapshotView = {
   openCount: number;
   wonCount: number;

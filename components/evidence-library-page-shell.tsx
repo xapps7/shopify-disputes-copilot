@@ -2,22 +2,26 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Badge, BlockStack, Box, EmptyState, IndexFilters, IndexTable, Text, useSetIndexFiltersMode } from "@shopify/polaris";
+import { Badge, BlockStack, Box, Button, EmptyState, IndexFilters, IndexTable, Text, useSetIndexFiltersMode } from "@shopify/polaris";
 
 import { AdminPageLayout } from "@/components/admin-page-layout";
+import { EvidenceItemEditor } from "@/components/evidence-item-editor";
 import { ResourceSection } from "@/components/resource-section";
 import { filterEvidenceItems } from "@/lib/disputes/workflow";
-import type { EvidenceLibraryItemView } from "@/lib/types";
+import type { DisputeOptionView, EvidenceLibraryItemView } from "@/lib/types";
 
 type EvidenceLibraryPageShellProps = {
   items: EvidenceLibraryItemView[];
+  disputeOptions: DisputeOptionView[];
 };
 
-export function EvidenceLibraryPageShell({ items }: EvidenceLibraryPageShellProps) {
+export function EvidenceLibraryPageShell({ items, disputeOptions }: EvidenceLibraryPageShellProps) {
   const { mode, setMode } = useSetIndexFiltersMode();
   const [selectedTab, setSelectedTab] = useState(0);
   const [queryValue, setQueryValue] = useState("");
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const filteredItems = useMemo(() => filterEvidenceItems(items, selectedTab, queryValue), [items, queryValue, selectedTab]);
+  const editingItem = items.find((item) => item.id === editingItemId) ?? null;
 
   return (
     <AdminPageLayout
@@ -63,13 +67,19 @@ export function EvidenceLibraryPageShell({ items }: EvidenceLibraryPageShellProp
             {filteredItems.map((item, index) => (
               <IndexTable.Row id={item.id} key={item.id} position={index}>
                 <IndexTable.Cell>
-                  {item.fileUrl ? (
-                    <a className="table-link" href={item.fileUrl} target="_blank">
+                  <BlockStack gap="100">
+                    <Text as="p" variant="bodyMd" fontWeight="medium">
                       {item.title}
-                    </a>
-                  ) : (
-                    item.title
-                  )}
+                    </Text>
+                    <Button onClick={() => setEditingItemId(item.id)} size="micro" variant="plain">
+                      Edit
+                    </Button>
+                    {item.fileUrl ? (
+                      <a className="table-link" href={item.fileUrl} target="_blank">
+                        Open file
+                      </a>
+                    ) : null}
+                  </BlockStack>
                 </IndexTable.Cell>
                 <IndexTable.Cell>
                   <Badge>{item.category.replaceAll("_", " ")}</Badge>
@@ -97,6 +107,12 @@ export function EvidenceLibraryPageShell({ items }: EvidenceLibraryPageShellProp
           </Box>
         )}
       </ResourceSection>
+      <EvidenceItemEditor
+        item={editingItem}
+        disputeOptions={disputeOptions}
+        open={Boolean(editingItem)}
+        onClose={() => setEditingItemId(null)}
+      />
     </AdminPageLayout>
   );
 }
