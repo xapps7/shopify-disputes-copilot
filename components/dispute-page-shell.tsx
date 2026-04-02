@@ -17,10 +17,13 @@ import {
 import { useState } from "react";
 
 import { DisputeResponseDraft } from "@/components/dispute-response-draft";
+import { EvidenceGapCoach } from "@/components/evidence-gap-coach";
 import { EvidenceUploadForm } from "@/components/evidence-upload-form";
 import { GeneratePacketButton } from "@/components/generate-packet-button";
 import { OutcomeReviewForm } from "@/components/outcome-review-form";
+import { PacketQualityPanel } from "@/components/packet-quality-panel";
 import { SubmissionCenter } from "@/components/submission-center";
+import { assessPacketQuality, buildEvidenceGapInsights } from "@/lib/disputes/workflow";
 import type { DisputeDetailView, DisputeResponseDraftView } from "@/lib/types";
 
 type DisputePageShellProps = {
@@ -80,6 +83,8 @@ export function DisputePageShell({
     ? new Date(dispute.evidenceDueBy).toLocaleDateString()
     : "No deadline";
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
+  const gapInsights = buildEvidenceGapInsights(dispute);
+  const packetReview = assessPacketQuality(dispute);
 
   return (
     <Page
@@ -223,6 +228,20 @@ export function DisputePageShell({
                       </BlockStack>
                     ))}
                   </BlockStack>
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="300">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text as="h2" variant="headingMd">
+                      Evidence gap guidance
+                    </Text>
+                    <Badge tone={gapInsights.length > 0 ? "warning" : "success"}>
+                      {gapInsights.length > 0 ? `${gapInsights.length} gaps` : "Covered"}
+                    </Badge>
+                  </InlineStack>
+                  <EvidenceGapCoach gaps={gapInsights} />
                 </BlockStack>
               </Card>
 
@@ -378,9 +397,18 @@ export function DisputePageShell({
                   <Text as="h2" variant="headingMd">
                     Submission center
                   </Text>
+                  <PacketQualityPanel review={packetReview} />
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="200">
+                  <Text as="h2" variant="headingMd">
+                    Record submission
+                  </Text>
                   <SubmissionCenter
                     disputeId={dispute.id}
-                    packetReady={Boolean(dispute.latestPacket)}
+                    packetReady={packetReview.status !== "blocked" && Boolean(dispute.latestPacket)}
                     packetStatus={dispute.latestPacket?.status ?? null}
                     submittedAt={dispute.latestPacket?.submittedAt ?? null}
                     evidenceSentOn={dispute.evidenceSentOn}

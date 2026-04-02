@@ -15,6 +15,8 @@ import {
   Text
 } from "@shopify/polaris";
 
+import { PacketQualityPanel } from "@/components/packet-quality-panel";
+import { assessPacketQuality } from "@/lib/disputes/workflow";
 import type { DisputeDetailView } from "@/lib/types";
 
 type PacketPreviewPageShellProps = {
@@ -34,6 +36,7 @@ function splitSections(summaryText: string | null) {
 
 export function PacketPreviewPageShell({ dispute }: PacketPreviewPageShellProps) {
   const sections = splitSections(dispute.latestPacket?.summaryText ?? null);
+  const packetReview = assessPacketQuality(dispute);
 
   return (
     <Page
@@ -118,6 +121,10 @@ export function PacketPreviewPageShell({ dispute }: PacketPreviewPageShellProps)
           </Card>
 
           <BlockStack gap="400">
+            <Card>
+              <PacketQualityPanel review={packetReview} />
+            </Card>
+
             <Card>
               <BlockStack gap="200">
                 <Text as="h2" variant="headingMd">

@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo, useState } from "react";
 import { Badge, BlockStack, Box, EmptyState, IndexFilters, IndexTable, Text, useSetIndexFiltersMode } from "@shopify/polaris";
 
 import { AdminPageLayout } from "@/components/admin-page-layout";
 import { ResourceSection } from "@/components/resource-section";
+import { filterEvidenceItems } from "@/lib/disputes/workflow";
 import type { EvidenceLibraryItemView } from "@/lib/types";
 
 type EvidenceLibraryPageShellProps = {
@@ -13,6 +15,9 @@ type EvidenceLibraryPageShellProps = {
 
 export function EvidenceLibraryPageShell({ items }: EvidenceLibraryPageShellProps) {
   const { mode, setMode } = useSetIndexFiltersMode();
+  const [selectedTab, setSelectedTab] = useState(0);
+  const [queryValue, setQueryValue] = useState("");
+  const filteredItems = useMemo(() => filterEvidenceItems(items, selectedTab, queryValue), [items, queryValue, selectedTab]);
 
   return (
     <AdminPageLayout
@@ -29,8 +34,8 @@ export function EvidenceLibraryPageShell({ items }: EvidenceLibraryPageShellProp
             { id: "refunds", content: "Refund proof" },
             { id: "fulfillment", content: "Fulfillment" }
           ]}
-          selected={0}
-          onSelect={() => {}}
+          selected={selectedTab}
+          onSelect={setSelectedTab}
           canCreateNewView={false}
           cancelAction={{ onAction: () => {}, disabled: true, loading: false }}
           filters={[]}
@@ -38,12 +43,12 @@ export function EvidenceLibraryPageShell({ items }: EvidenceLibraryPageShellProp
           onClearAll={() => {}}
           mode={mode}
           setMode={setMode}
-          queryValue=""
+          queryValue={queryValue}
           queryPlaceholder="Search files"
-          onQueryChange={() => {}}
-          onQueryClear={() => {}}
+          onQueryChange={setQueryValue}
+          onQueryClear={() => setQueryValue("")}
         />
-        {items.length > 0 ? (
+        {filteredItems.length > 0 ? (
           <IndexTable
             headings={[
               { title: "File" },
@@ -52,10 +57,10 @@ export function EvidenceLibraryPageShell({ items }: EvidenceLibraryPageShellProp
               { title: "Source" },
               { title: "Added" }
             ]}
-            itemCount={items.length}
+            itemCount={filteredItems.length}
             selectable={false}
           >
-            {items.map((item, index) => (
+            {filteredItems.map((item, index) => (
               <IndexTable.Row id={item.id} key={item.id} position={index}>
                 <IndexTable.Cell>
                   {item.fileUrl ? (
@@ -82,8 +87,8 @@ export function EvidenceLibraryPageShell({ items }: EvidenceLibraryPageShellProp
         ) : (
           <Box padding="400">
             <BlockStack gap="200">
-              <EmptyState heading="No evidence files yet" image="">
-                <p>Files attached to disputes will appear here for cross-case review and auditability.</p>
+              <EmptyState heading="No evidence files match this view" image="">
+                <p>Adjust the category filter or search query to broaden the evidence shelf.</p>
               </EmptyState>
               <Text as="p" variant="bodySm" tone="subdued">
                 Evidence items are organized by category, source, and linked dispute.
