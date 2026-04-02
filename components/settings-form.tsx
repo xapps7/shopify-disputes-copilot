@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BlockStack, Button, InlineGrid, Text, TextField } from "@shopify/polaris";
+import { BlockStack, Button, Checkbox, InlineGrid, Text, TextField } from "@shopify/polaris";
 
 import type { MerchantSettings } from "@/lib/settings";
 
@@ -18,6 +18,13 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
   const [supportPhone, setSupportPhone] = useState(initialSettings.supportPhone);
   const [statementDescriptor, setStatementDescriptor] = useState(initialSettings.statementDescriptor);
   const [packetFooter, setPacketFooter] = useState(initialSettings.packetFooter);
+  const [alertEmail, setAlertEmail] = useState(initialSettings.alertEmail);
+  const [evidenceRetentionDays, setEvidenceRetentionDays] = useState(initialSettings.evidenceRetentionDays);
+  const [notifyDueSoon, setNotifyDueSoon] = useState(initialSettings.notifyDueSoon);
+  const [notifyMissingEvidence, setNotifyMissingEvidence] = useState(initialSettings.notifyMissingEvidence);
+  const [allowManualSubmissionRecording, setAllowManualSubmissionRecording] = useState(
+    initialSettings.allowManualSubmissionRecording
+  );
 
   async function handleSubmit(formData: FormData) {
     setIsSaving(true);
@@ -34,7 +41,12 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
         supportEmail: String(formData.get("supportEmail") ?? ""),
         supportPhone: String(formData.get("supportPhone") ?? ""),
         statementDescriptor: String(formData.get("statementDescriptor") ?? ""),
-        packetFooter: String(formData.get("packetFooter") ?? "")
+        packetFooter: String(formData.get("packetFooter") ?? ""),
+        alertEmail: String(formData.get("alertEmail") ?? ""),
+        evidenceRetentionDays: String(formData.get("evidenceRetentionDays") ?? ""),
+        notifyDueSoon,
+        notifyMissingEvidence,
+        allowManualSubmissionRecording
       })
     });
 
@@ -90,6 +102,25 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
           value={statementDescriptor}
         />
 
+        <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
+          <TextField
+            autoComplete="email"
+            label="Alert email"
+            name="alertEmail"
+            onChange={setAlertEmail}
+            placeholder="ops@example.com"
+            value={alertEmail}
+          />
+          <TextField
+            autoComplete="off"
+            label="Evidence retention days"
+            name="evidenceRetentionDays"
+            onChange={setEvidenceRetentionDays}
+            placeholder="365"
+            value={evidenceRetentionDays}
+          />
+        </InlineGrid>
+
         <TextField
           autoComplete="off"
           label="Packet footer note"
@@ -99,6 +130,24 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
           placeholder="Add a short merchant note that appears at the end of generated packet drafts."
           value={packetFooter}
         />
+
+        <BlockStack gap="200">
+          <Checkbox
+            label="Alert when disputes are due within 48 hours"
+            checked={notifyDueSoon}
+            onChange={setNotifyDueSoon}
+          />
+          <Checkbox
+            label="Alert when evidence is missing on active cases"
+            checked={notifyMissingEvidence}
+            onChange={setNotifyMissingEvidence}
+          />
+          <Checkbox
+            label="Allow manual submission recording in the dispute workspace"
+            checked={allowManualSubmissionRecording}
+            onChange={setAllowManualSubmissionRecording}
+          />
+        </BlockStack>
 
         <div className="polaris-actions">
           <Button loading={isSaving} submit variant="primary">

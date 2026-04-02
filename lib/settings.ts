@@ -7,6 +7,11 @@ export type MerchantSettings = {
   supportPhone: string;
   statementDescriptor: string;
   packetFooter: string;
+  alertEmail: string;
+  evidenceRetentionDays: string;
+  notifyDueSoon: boolean;
+  notifyMissingEvidence: boolean;
+  allowManualSubmissionRecording: boolean;
 };
 
 export const defaultMerchantSettings: MerchantSettings = {
@@ -15,7 +20,12 @@ export const defaultMerchantSettings: MerchantSettings = {
   supportEmail: "",
   supportPhone: "",
   statementDescriptor: "",
-  packetFooter: ""
+  packetFooter: "",
+  alertEmail: "",
+  evidenceRetentionDays: "365",
+  notifyDueSoon: true,
+  notifyMissingEvidence: true,
+  allowManualSubmissionRecording: true
 };
 
 export async function getMerchantSettings(shopDomain: string | null): Promise<MerchantSettings> {

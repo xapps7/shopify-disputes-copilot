@@ -10,7 +10,12 @@ const settingsSchema = z.object({
   supportEmail: z.string(),
   supportPhone: z.string(),
   statementDescriptor: z.string(),
-  packetFooter: z.string()
+  packetFooter: z.string(),
+  alertEmail: z.string(),
+  evidenceRetentionDays: z.string(),
+  notifyDueSoon: z.boolean(),
+  notifyMissingEvidence: z.boolean(),
+  allowManualSubmissionRecording: z.boolean()
 });
 
 export async function POST(request: Request) {

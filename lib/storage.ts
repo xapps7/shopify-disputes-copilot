@@ -2,6 +2,11 @@ import path from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
 
 const publicRoot = path.join(process.cwd(), "public");
+const storagePublicBaseUrl = process.env.FILE_STORAGE_PUBLIC_BASE_URL?.replace(/\/$/, "") ?? "";
+
+function publicUrl(relativePath: string) {
+  return storagePublicBaseUrl ? `${storagePublicBaseUrl}/${relativePath}` : `/${relativePath}`;
+}
 
 export async function persistUploadedFile(
   disputeId: string,
@@ -20,7 +25,7 @@ export async function persistUploadedFile(
 
   await writeFile(absolutePath, bytes);
 
-  return `/${relativePath}`;
+  return publicUrl(relativePath);
 }
 
 export async function persistPacketDraft(disputeId: string, content: string) {
@@ -35,5 +40,5 @@ export async function persistPacketDraft(disputeId: string, content: string) {
 
   await writeFile(absolutePath, content, "utf8");
 
-  return `/${relativePath}`;
+  return publicUrl(relativePath);
 }
