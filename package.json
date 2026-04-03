@@ -16,6 +16,8 @@
     "node": ">=22.0.0"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1023.0",
+    "@aws-sdk/s3-request-presigner": "^3.1023.0",
     "@prisma/client": "^6.5.0",
     "@shopify/admin-api-client": "^1.0.6",
     "@shopify/app-bridge": "^3.7.10",
