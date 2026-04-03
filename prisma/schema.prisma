@@ -44,6 +44,16 @@ enum PacketStatus {
   ARCHIVED
 }
 
+enum SyncRunType {
+  DISPUTE_PULL
+}
+
+enum SyncRunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
 model Merchant {
   id                    String                 @id @default(cuid())
   shopDomain            String                 @unique
@@ -59,6 +69,7 @@ model Merchant {
   disputes              Dispute[]
   orderSnapshots        OrderSnapshot[]
   recommendations       PreventionRecommendation[]
+  syncRuns              SyncRun[]
 }
 
 model Dispute {
@@ -168,4 +179,22 @@ model PreventionRecommendation {
   merchant              Merchant               @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 
   @@index([merchantId, state])
+}
+
+model SyncRun {
+  id                    String                 @id @default(cuid())
+  merchantId            String
+  type                  SyncRunType            @default(DISPUTE_PULL)
+  status                SyncRunStatus          @default(RUNNING)
+  attemptCount          Int                    @default(1)
+  syncedCount           Int                    @default(0)
+  lastError             String?
+  startedAt             DateTime               @default(now())
+  completedAt           DateTime?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  merchant              Merchant               @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, type, startedAt])
+  @@index([merchantId, status])
 }
