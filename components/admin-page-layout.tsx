@@ -34,7 +34,6 @@ export function AdminPageLayout({
 }: AdminPageLayoutProps) {
   return (
     <Page
-      fullWidth={mode === "resource"}
       title={title}
       subtitle={subtitle}
       primaryAction={primaryAction}

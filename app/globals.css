@@ -113,6 +113,11 @@ input[type="file"] {
   background: #fafbfb;
 }
 
+.recommendation-copy {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .packet-preview-grid {
   display: grid;
   gap: 12px;

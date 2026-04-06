@@ -1,6 +1,6 @@
 "use client";
 
-import { Badge, BlockStack, Divider, EmptyState, InlineStack, Text } from "@shopify/polaris";
+import { Badge, BlockStack, Box, Divider, EmptyState, InlineGrid, Text } from "@shopify/polaris";
 
 import { AdminPageLayout } from "@/components/admin-page-layout";
 import { ResourceSection } from "@/components/resource-section";
@@ -21,25 +21,29 @@ export function RecommendationsPageShell({ recommendations }: RecommendationsPag
         <ResourceSection title="Prevention actions" flush>
           <BlockStack gap="0">
             {recommendations.map((item, index) => (
-              <BlockStack gap="150" key={item.id}>
-                <InlineStack align="space-between" blockAlign="start">
-                  <BlockStack gap="050">
+              <Box key={item.id} padding="400">
+                <InlineGrid columns={{ xs: "1fr", md: "minmax(0,1fr) auto" }} gap="300">
+                  <BlockStack gap="150">
                     <Text as="h2" variant="headingMd">
                       {item.category.replaceAll("_", " ")}
                     </Text>
-                    <Text as="p" variant="bodyMd" tone="subdued">
-                      {item.recommendationText}
+                    <div className="recommendation-copy">
+                      <Text as="p" variant="bodyMd" tone="subdued">
+                        {item.recommendationText}
+                      </Text>
+                    </div>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      {item.state.replaceAll("_", " ")}
                     </Text>
                   </BlockStack>
-                  <Badge tone={item.priority === 1 ? "warning" : item.priority === 2 ? "attention" : "info"}>
-                    {`Priority ${item.priority}`}
-                  </Badge>
-                </InlineStack>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  {item.state.replaceAll("_", " ")}
-                </Text>
+                  <Box>
+                    <Badge tone={item.priority === 1 ? "warning" : item.priority === 2 ? "attention" : "info"}>
+                      {`Priority ${item.priority}`}
+                    </Badge>
+                  </Box>
+                </InlineGrid>
                 {index < recommendations.length - 1 ? <Divider /> : null}
-              </BlockStack>
+              </Box>
             ))}
           </BlockStack>
         </ResourceSection>

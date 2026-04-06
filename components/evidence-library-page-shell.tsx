@@ -2,7 +2,18 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Badge, BlockStack, Box, Button, EmptyState, IndexFilters, IndexTable, Text, useSetIndexFiltersMode } from "@shopify/polaris";
+import {
+  Badge,
+  BlockStack,
+  Box,
+  Button,
+  InlineStack,
+  EmptyState,
+  IndexFilters,
+  IndexTable,
+  Text,
+  useSetIndexFiltersMode
+} from "@shopify/polaris";
 
 import { AdminPageLayout } from "@/components/admin-page-layout";
 import { EvidenceItemEditor } from "@/components/evidence-item-editor";
@@ -71,14 +82,16 @@ export function EvidenceLibraryPageShell({ items, disputeOptions }: EvidenceLibr
                     <Text as="p" variant="bodyMd" fontWeight="medium">
                       {item.title}
                     </Text>
-                    <Button onClick={() => setEditingItemId(item.id)} size="micro" variant="plain">
-                      Edit
-                    </Button>
-                    {item.fileUrl ? (
-                      <a className="table-link" href={item.fileUrl} target="_blank">
-                        Open file
-                      </a>
-                    ) : null}
+                    <InlineStack gap="200" wrap>
+                      <Button onClick={() => setEditingItemId(item.id)} size="micro" variant="plain">
+                        Edit details
+                      </Button>
+                      {item.fileUrl ? (
+                        <Button url={item.fileUrl} target="_blank" size="micro" variant="plain">
+                          Open file
+                        </Button>
+                      ) : null}
+                    </InlineStack>
                   </BlockStack>
                 </IndexTable.Cell>
                 <IndexTable.Cell>
