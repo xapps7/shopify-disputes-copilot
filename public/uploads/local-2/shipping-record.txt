@@ -1,0 +1,9 @@
+Shipment: Order #1002
+Service: FedEx Home Delivery
+Ship date: 2026-03-18
+Label destination: San Jose, CA
+Tracking history:
+- Picked up 2026-03-18 18:07
+- In transit 2026-03-19 05:10
+- Out for delivery 2026-03-21 08:01
+- Delivered 2026-03-21 11:42

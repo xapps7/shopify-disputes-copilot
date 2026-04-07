@@ -1,5 +1,10 @@
 import { db } from "@/lib/db";
-import { sampleDashboardDisputes, sampleDisputeDetail } from "@/lib/disputes/sample-data";
+import {
+  getSampleDisputeDetail,
+  sampleDashboardDisputes,
+  sampleDisputeDetail,
+  sampleDisputeDetails
+} from "@/lib/disputes/sample-data";
 import type {
   AnalyticsSnapshotView,
   DashboardDispute,
@@ -14,23 +19,86 @@ function buildChecklist(reason: string | null, categories: Set<string>) {
   const required =
     reason === "FRAUD"
       ? [
-          ["Delivery confirmation", "DELIVERY_CONFIRMATION"],
-          ["Shipping documentation", "SHIPPING_DOCUMENTATION"],
-          ["Customer communication", "CUSTOMER_COMMUNICATION"]
+          {
+            label: "Delivery confirmation",
+            category: "DELIVERY_CONFIRMATION",
+            whyItMatters:
+              "Delivery proof helps show that the shipment reached the destination tied to the transaction.",
+            howToGet:
+              "Pull the carrier delivery scan, proof-of-delivery page, or Shopify fulfillment tracking details for the exact shipment.",
+            bestSource: "Carrier tracking page or Shopify fulfillment timeline",
+            appSupport: "The app can convert shipment data and uploads into packet-ready delivery evidence."
+          },
+          {
+            label: "Shipping documentation",
+            category: "SHIPPING_DOCUMENTATION",
+            whyItMatters:
+              "Shipment records verify when the order was fulfilled and which address was used for the shipment.",
+            howToGet:
+              "Export the carrier label, manifest, or fulfillment confirmation showing the recipient address and ship date.",
+            bestSource: "Shipping label PDF, carrier receipt, or fulfillment export",
+            appSupport: "The app can organize carrier records and explain how they support the reply."
+          },
+          {
+            label: "Customer communication",
+            category: "CUSTOMER_COMMUNICATION",
+            whyItMatters:
+              "Customer messages can show purchase recognition, delivery follow-up, or prior engagement after the order.",
+            howToGet:
+              "Collect support tickets, order emails, chat transcripts, or delivery follow-up messages connected to the same customer.",
+            bestSource: "Helpdesk thread, order confirmation email, or chat transcript",
+            appSupport: "The app can summarize the thread and place the strongest excerpts into the packet narrative."
+          }
         ]
       : reason === "PRODUCT_NOT_RECEIVED"
         ? [
-            ["Delivery confirmation", "DELIVERY_CONFIRMATION"],
-            ["Shipping documentation", "SHIPPING_DOCUMENTATION"]
+            {
+              label: "Delivery confirmation",
+              category: "DELIVERY_CONFIRMATION",
+              whyItMatters:
+                "Delivery confirmation is the strongest proof that the shipment was completed successfully.",
+              howToGet:
+                "Download the proof-of-delivery scan or tracking event showing delivered status and timestamp.",
+              bestSource: "Carrier proof-of-delivery page",
+              appSupport: "The app can surface the delivery proof as the lead evidence in the packet."
+            },
+            {
+              label: "Shipping documentation",
+              category: "SHIPPING_DOCUMENTATION",
+              whyItMatters:
+                "Shipment records establish when the parcel moved through the carrier network and where it was addressed.",
+              howToGet:
+                "Gather the label, tracking history, and any carrier exception or final-mile notes for the shipment.",
+              bestSource: "Carrier tracking history and shipping label",
+              appSupport: "The app can combine the tracking sequence with the merchant narrative."
+            }
           ]
         : [
-            ["Product proof", "PRODUCT_PROOF"],
-            ["Customer communication", "CUSTOMER_COMMUNICATION"]
+            {
+              label: "Product proof",
+              category: "PRODUCT_PROOF",
+              whyItMatters:
+                "Product proof shows what was sold and how the item matched the seller's listing or policy disclosure.",
+              howToGet:
+                "Export the product page, order line item, and any policy or listing screenshot tied to the order.",
+              bestSource: "Product admin, storefront capture, or order snapshot",
+              appSupport: "The app can turn order and catalog data into packet-ready factual summaries."
+            },
+            {
+              label: "Customer communication",
+              category: "CUSTOMER_COMMUNICATION",
+              whyItMatters:
+                "Customer messages help show expectations, acknowledgement, and merchant support handling.",
+              howToGet:
+                "Collect support emails, chat threads, and any message where the customer discussed the order or requested help.",
+              bestSource: "Helpdesk thread or email conversation",
+              appSupport: "The app can summarize the communication and highlight the strongest supporting points."
+            }
           ];
 
-  return required.map(([label, category]) => ({
-    label,
-    state: (categories.has(category) ? "ready" : "missing") as "ready" | "missing"
+  return required.map((item) => ({
+    ...item,
+    state: (categories.has(item.category) ? "ready" : "missing") as "ready" | "missing"
   }));
 }
 
@@ -88,17 +156,19 @@ export async function getOverviewMetrics(shopDomain?: string | null): Promise<Ov
 
 export async function listEvidenceLibrary(shopDomain?: string | null): Promise<EvidenceLibraryItemView[]> {
   if (!shopDomain) {
-    return sampleDisputeDetail.evidenceItems.map((item, index) => ({
-      id: item.id,
-      disputeId: sampleDisputeDetail.id,
-      disputeReference: sampleDisputeDetail.shopifyDisputeId.split("/").pop() ?? "1001",
-      title: item.title,
-      category: item.category,
-      sourceType: item.sourceType,
-      description: item.description,
-      fileUrl: item.fileUrl,
-      createdAt: sampleDisputeDetail.timeline[index]?.eventTimestamp ?? new Date().toISOString()
-    }));
+    return sampleDisputeDetails.flatMap((detail) =>
+      detail.evidenceItems.map((item, index) => ({
+        id: item.id,
+        disputeId: detail.id,
+        disputeReference: detail.shopifyDisputeId.split("/").pop() ?? detail.id,
+        title: item.title,
+        category: item.category,
+        sourceType: item.sourceType,
+        description: item.description,
+        fileUrl: item.fileUrl,
+        createdAt: detail.timeline[index]?.eventTimestamp ?? new Date().toISOString()
+      }))
+    );
   }
 
   const merchant = await db.merchant.findUnique({
@@ -157,7 +227,7 @@ export async function getAnalyticsSnapshot(shopDomain?: string | null): Promise<
 
 export async function listRecommendations(shopDomain?: string | null): Promise<PreventionRecommendationView[]> {
   if (!shopDomain) {
-    return sampleDisputeDetail.recommendations;
+    return sampleDisputeDetails.flatMap((item) => item.recommendations);
   }
 
   const merchant = await db.merchant.findUnique({
@@ -221,7 +291,7 @@ export async function getDisputeDetail(id: string): Promise<DisputeDetailView> {
   });
 
   if (!dispute) {
-    return sampleDisputeDetail;
+    return getSampleDisputeDetail(id);
   }
 
   const orderSnapshot = dispute.shopifyOrderId

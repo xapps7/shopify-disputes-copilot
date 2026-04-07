@@ -1,0 +1,6 @@
+Carrier: UPS
+Tracking: 1Z999AA10123456784
+Status: Delivered
+Delivered at: 2026-03-22 14:11 local time
+Destination city: Austin, TX
+Recipient note: Left at front door

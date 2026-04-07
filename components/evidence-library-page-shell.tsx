@@ -41,6 +41,9 @@ export function EvidenceLibraryPageShell({ items, disputeOptions }: EvidenceLibr
       primaryAction={{ content: "View disputes", url: "/disputes" }}
       gap="300"
     >
+      <Text as="p" variant="bodySm" tone="subdued">
+        Use this library when the same carrier proof, support thread, policy capture, or refund record may need to support more than one dispute. For work on a single case, start in <strong>Disputes</strong>.
+      </Text>
       <ResourceSection title="Evidence files" flush>
         <IndexFilters
           tabs={[
@@ -83,14 +86,14 @@ export function EvidenceLibraryPageShell({ items, disputeOptions }: EvidenceLibr
                       {item.title}
                     </Text>
                     <InlineStack gap="200" wrap>
-                      <Button onClick={() => setEditingItemId(item.id)} size="micro" variant="plain">
-                        Edit details
-                      </Button>
                       {item.fileUrl ? (
                         <Button url={item.fileUrl} target="_blank" size="micro" variant="plain">
                           Open file
                         </Button>
                       ) : null}
+                      <Button onClick={() => setEditingItemId(item.id)} size="micro" variant="plain">
+                        Edit details
+                      </Button>
                     </InlineStack>
                   </BlockStack>
                 </IndexTable.Cell>

@@ -22,6 +22,15 @@ export function EvidenceGapCoach({ gaps }: EvidenceGapCoachProps) {
                 <Text as="p" variant="bodySm" tone="subdued">
                   {gap.whyItMatters}
                 </Text>
+                <Text as="p" variant="bodySm">
+                  <strong>How to get it:</strong> {gap.howToGet}
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  <strong>Best source:</strong> {gap.bestSource}
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  <strong>App help:</strong> {gap.appSupport}
+                </Text>
               </BlockStack>
               <Badge tone={gap.severity}>{gap.severity === "critical" ? "Needed now" : "Missing"}</Badge>
             </InlineStack>

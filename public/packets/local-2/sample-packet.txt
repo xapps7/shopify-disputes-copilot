@@ -1,0 +1,13 @@
+Shop: xappsdev.myshopify.com
+Dispute: gid://shopify/ShopifyPaymentsDispute/1002
+Status: UNDER_REVIEW
+Reason: PRODUCT_NOT_RECEIVED
+Reason details: Customer claims the parcel never arrived at the delivery address.
+
+Evidence items:
+1. FedEx proof of delivery
+   Category: DELIVERY_CONFIRMATION
+   Source: shopify_fulfillment
+2. Shipping label and tracking history
+   Category: SHIPPING_DOCUMENTATION
+   Source: merchant_upload

@@ -43,7 +43,12 @@ export type DisputeDetailView = {
   } | null;
   evidenceChecklist: Array<{
     label: string;
+    category: string;
     state: "ready" | "missing";
+    whyItMatters: string;
+    howToGet: string;
+    bestSource: string;
+    appSupport: string;
   }>;
   latestPacket: {
     version: number;

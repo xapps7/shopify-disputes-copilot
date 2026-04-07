@@ -2,7 +2,11 @@ import type { DisputeDetailView, EvidenceLibraryItemView } from "@/lib/types";
 
 export type EvidenceGapInsight = {
   label: string;
+  category: string;
   whyItMatters: string;
+  howToGet: string;
+  bestSource: string;
+  appSupport: string;
   severity: "critical" | "warning";
 };
 
@@ -15,45 +19,16 @@ export type PacketQualityReview = {
   nextActions: string[];
 };
 
-function reasonSpecificGuidance(reason: string | null, label: string) {
-  if (reason === "FRAUD") {
-    if (label === "Delivery confirmation") {
-      return "Delivery proof helps show that the order reached the shipping destination tied to the transaction.";
-    }
-    if (label === "Shipping documentation") {
-      return "Carrier scans and shipment records help verify fulfillment history for cardholder misuse claims.";
-    }
-    if (label === "Customer communication") {
-      return "Support messages can show purchase recognition, delivery follow-up, or post-order engagement from the customer.";
-    }
-  }
-
-  if (reason === "PRODUCT_NOT_RECEIVED") {
-    if (label === "Delivery confirmation") {
-      return "Delivery confirmation is the main evidence that the shipment completed successfully.";
-    }
-    if (label === "Shipping documentation") {
-      return "Carrier tracking and shipment records establish the delivery timeline and address used for fulfillment.";
-    }
-  }
-
-  if (label === "Product proof") {
-    return "Product proof helps show what was sold and how it matched the seller's listing or policy disclosure.";
-  }
-
-  if (label === "Customer communication") {
-    return "Customer messages help show expectations, acknowledgements, and merchant support handling.";
-  }
-
-  return "This evidence helps fill a checklist gap that weakens the dispute packet.";
-}
-
 export function buildEvidenceGapInsights(dispute: DisputeDetailView): EvidenceGapInsight[] {
   return dispute.evidenceChecklist
     .filter((item) => item.state === "missing")
     .map((item) => ({
       label: item.label,
-      whyItMatters: reasonSpecificGuidance(dispute.reason, item.label),
+      category: item.category,
+      whyItMatters: item.whyItMatters,
+      howToGet: item.howToGet,
+      bestSource: item.bestSource,
+      appSupport: item.appSupport,
       severity: dispute.evidenceDueBy ? "critical" : "warning"
     }));
 }

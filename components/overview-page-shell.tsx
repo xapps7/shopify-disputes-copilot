@@ -13,6 +13,7 @@ import {
   EmptyState,
   IndexTable,
   InlineStack,
+  List,
   Text
 } from "@shopify/polaris";
 
@@ -85,6 +86,9 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
             <Text as="p" variant="bodyMd">
               Start with urgent disputes, then complete missing evidence.
             </Text>
+            <Text as="p" variant="bodySm" tone="subdued">
+              Disputes Co-Pilot exists to save merchants from hunting through email threads, carrier portals, and order notes manually. It keeps the checklist, evidence shelf, packet drafting, and submission tracking in one place.
+            </Text>
 
             <InlineStack gap="600" wrap>
               {[
@@ -103,6 +107,22 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
                 </InlineStack>
               ))}
             </InlineStack>
+          </BlockStack>
+        </Card>
+
+        <Card>
+          <BlockStack gap="200">
+            <Text as="h2" variant="headingMd">
+              Why merchants use it
+            </Text>
+            <List type="bullet">
+              <List.Item>See which disputes are urgent before the deadline gets missed.</List.Item>
+              <List.Item>Get guided evidence collection steps instead of figuring out the packet manually.</List.Item>
+              <List.Item>Store files once, reuse them across disputes, and track what was submitted.</List.Item>
+            </List>
+            <Text as="p" variant="bodySm" tone="subdued">
+              Work a live case in <strong>Disputes</strong>. Use <strong>Evidence library</strong> to organize files that may support more than one case.
+            </Text>
           </BlockStack>
         </Card>
 

@@ -171,6 +171,63 @@ export function DisputePageShell({
 
               <Card>
                 <BlockStack gap="300">
+                  <InlineStack align="space-between">
+                    <Text as="h2" variant="headingMd">
+                      Evidence checklist
+                    </Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Make this the first stop. Close missing rows before refining the final response.
+                    </Text>
+                  </InlineStack>
+
+                  <BlockStack gap="200">
+                    {dispute.evidenceChecklist.map((item, index) => (
+                      <BlockStack gap="200" key={item.label}>
+                        <InlineStack align="space-between" blockAlign="center">
+                          <BlockStack gap="050">
+                            <Text as="p" variant="bodyMd" fontWeight="medium">
+                              {item.label}
+                            </Text>
+                            <Text as="p" variant="bodySm">
+                              {item.whyItMatters}
+                            </Text>
+                            <Text as="p" variant="bodySm" tone="subdued">
+                              <strong>How to get it:</strong> {item.howToGet}
+                            </Text>
+                            <Text as="p" variant="bodySm" tone="subdued">
+                              <strong>Best source:</strong> {item.bestSource}
+                            </Text>
+                            <Text as="p" variant="bodySm" tone="subdued">
+                              <strong>App help:</strong> {item.appSupport}
+                            </Text>
+                          </BlockStack>
+                          <Badge tone={item.state === "ready" ? "success" : "warning"}>
+                            {item.state === "ready" ? "Ready" : "Missing"}
+                          </Badge>
+                        </InlineStack>
+                        {index < dispute.evidenceChecklist.length - 1 ? <Divider /> : null}
+                      </BlockStack>
+                    ))}
+                  </BlockStack>
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="300">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text as="h2" variant="headingMd">
+                      Evidence collection playbook
+                    </Text>
+                    <Badge tone={gapInsights.length > 0 ? "warning" : "success"}>
+                      {gapInsights.length > 0 ? `${gapInsights.length} gaps` : "Covered"}
+                    </Badge>
+                  </InlineStack>
+                  <EvidenceGapCoach gaps={gapInsights} />
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
                     Timeline
                   </Text>
@@ -197,56 +254,6 @@ export function DisputePageShell({
 
               <Card>
                 <BlockStack gap="300">
-                  <InlineStack align="space-between">
-                    <Text as="h2" variant="headingMd">
-                      Evidence checklist
-                    </Text>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      Complete the missing rows before refining the final response.
-                    </Text>
-                  </InlineStack>
-
-                  <BlockStack gap="200">
-                    {dispute.evidenceChecklist.map((item, index) => (
-                      <BlockStack gap="200" key={item.label}>
-                        <InlineStack align="space-between" blockAlign="center">
-                          <BlockStack gap="050">
-                            <Text as="p" variant="bodyMd" fontWeight="medium">
-                              {item.label}
-                            </Text>
-                            <Text as="p" variant="bodySm" tone="subdued">
-                              {item.state === "ready"
-                                ? "Included in the current evidence shelf."
-                                : "Still missing from the dispute record."}
-                            </Text>
-                          </BlockStack>
-                          <Badge tone={item.state === "ready" ? "success" : "warning"}>
-                            {item.state === "ready" ? "Ready" : "Missing"}
-                          </Badge>
-                        </InlineStack>
-                        {index < dispute.evidenceChecklist.length - 1 ? <Divider /> : null}
-                      </BlockStack>
-                    ))}
-                  </BlockStack>
-                </BlockStack>
-              </Card>
-
-              <Card>
-                <BlockStack gap="300">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <Text as="h2" variant="headingMd">
-                      Evidence gap guidance
-                    </Text>
-                    <Badge tone={gapInsights.length > 0 ? "warning" : "success"}>
-                      {gapInsights.length > 0 ? `${gapInsights.length} gaps` : "Covered"}
-                    </Badge>
-                  </InlineStack>
-                  <EvidenceGapCoach gaps={gapInsights} />
-                </BlockStack>
-              </Card>
-
-              <Card>
-                <BlockStack gap="300">
                   <InlineStack align="space-between" blockAlign="center">
                     <BlockStack gap="050">
                       <Text as="h2" variant="headingMd">
@@ -254,6 +261,9 @@ export function DisputePageShell({
                       </Text>
                       <Text as="p" variant="bodySm" tone="subdued">
                         Review source files linked to this dispute.
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Use <strong>Disputes</strong> to work one case. Use <strong>Evidence library</strong> to reuse files across multiple disputes and keep an audit trail.
                       </Text>
                     </BlockStack>
                     <Link className="table-link" href={"/evidence" as never}>

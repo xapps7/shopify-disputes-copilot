@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { db } from "@/lib/db";
+import { getSampleDisputeDetail } from "@/lib/disputes/sample-data";
 import { buildPacketSummary } from "@/lib/disputes/packet-content";
 
 type RouteContext = {
@@ -20,12 +21,30 @@ export async function GET(_request: Request, { params }: RouteContext) {
       }
     });
 
-    if (!dispute) {
-      return NextResponse.json({ message: "Dispute not found." }, { status: 404 });
-    }
+    const sourceDispute = dispute
+      ? dispute
+      : (() => {
+          const sample = getSampleDisputeDetail(id);
 
-    const content = buildPacketSummary(dispute);
-    const disputeRef = dispute.shopifyDisputeId.split("/").pop() ?? dispute.id;
+          return {
+            id: sample.id,
+            shopifyDisputeId: sample.shopifyDisputeId,
+            status: sample.status,
+            reason: sample.reason,
+            reasonDetails: sample.reasonDetails,
+            amount: { toString: () => sample.amount },
+            currencyCode: sample.currencyCode,
+            evidenceDueBy: sample.evidenceDueBy ? new Date(sample.evidenceDueBy) : null,
+            evidenceItems: sample.evidenceItems,
+            merchant: {
+              shopDomain: "xappsdev.myshopify.com",
+              settingsJson: null
+            }
+          };
+        })();
+
+    const content = buildPacketSummary(sourceDispute);
+    const disputeRef = sourceDispute.shopifyDisputeId.split("/").pop() ?? id;
 
     return new NextResponse(content, {
       status: 200,
