@@ -72,6 +72,10 @@ function nextStep(readinessScore: number) {
   };
 }
 
+function categoryLabel(category: string) {
+  return category.replaceAll("_", " ").toLowerCase();
+}
+
 export function DisputePageShell({
   dispute,
   readinessScore,
@@ -85,6 +89,13 @@ export function DisputePageShell({
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
   const gapInsights = buildEvidenceGapInsights(dispute);
   const packetReview = assessPacketQuality(dispute);
+  const evidenceByCategory = dispute.evidenceItems.reduce<Record<string, DisputeDetailView["evidenceItems"]>>(
+    (acc, item) => {
+      acc[item.category] = [...(acc[item.category] ?? []), item];
+      return acc;
+    },
+    {}
+  );
 
   return (
     <Page
@@ -200,6 +211,44 @@ export function DisputePageShell({
                             <Text as="p" variant="bodySm" tone="subdued">
                               <strong>App help:</strong> {item.appSupport}
                             </Text>
+                            {item.state === "ready" ? (
+                              <BlockStack gap="050">
+                                <Text as="p" variant="bodySm" tone="subdued">
+                                  <strong>Attached evidence:</strong>
+                                </Text>
+                                {(evidenceByCategory[item.category] ?? []).length > 0 ? (
+                                  <InlineStack gap="200" wrap>
+                                    {(evidenceByCategory[item.category] ?? []).map((evidence) =>
+                                      evidence.fileUrl ? (
+                                        <a
+                                          className="table-link"
+                                          href={evidence.fileUrl}
+                                          key={evidence.id}
+                                          rel="noreferrer"
+                                          target="_blank"
+                                        >
+                                          {evidence.title}
+                                        </a>
+                                      ) : (
+                                        <Text as="span" key={evidence.id} variant="bodySm">
+                                          {evidence.title}
+                                        </Text>
+                                      )
+                                    )}
+                                  </InlineStack>
+                                ) : (
+                                  <Text as="p" variant="bodySm" tone="subdued">
+                                    This row is marked ready from the case record, but no standalone file is linked yet.
+                                  </Text>
+                                )}
+                              </BlockStack>
+                            ) : (
+                              <Text as="p" variant="bodySm">
+                                <strong>Next step:</strong> Upload this as <strong>{categoryLabel(item.category)}</strong> in
+                                the <strong>Add evidence</strong> panel below, or link an existing file from the evidence
+                                library.
+                              </Text>
+                            )}
                           </BlockStack>
                           <Badge tone={item.state === "ready" ? "success" : "warning"}>
                             {item.state === "ready" ? "Ready" : "Missing"}
@@ -397,6 +446,10 @@ export function DisputePageShell({
                 <BlockStack gap="200">
                   <Text as="h2" variant="headingMd">
                     Add evidence
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Upload the file that closes the checklist gap. Choose the category that matches the missing checklist
+                    row so the packet can place it correctly.
                   </Text>
                   <EvidenceUploadForm disputeId={dispute.id} />
                 </BlockStack>

@@ -45,10 +45,13 @@ export function EvidenceUploadForm({ disputeId }: EvidenceUploadFormProps) {
           value={category}
           onChange={setCategory}
           options={[
+            { label: "Delivery confirmation", value: "DELIVERY_CONFIRMATION" },
+            { label: "Shipping documentation", value: "SHIPPING_DOCUMENTATION" },
             { label: "Customer communication", value: "CUSTOMER_COMMUNICATION" },
             { label: "Refund proof", value: "REFUND_PROOF" },
             { label: "Service documentation", value: "SERVICE_DOCUMENTATION" },
             { label: "Policy disclosure", value: "POLICY_DISCLOSURE" },
+            { label: "Product proof", value: "PRODUCT_PROOF" },
             { label: "Other", value: "OTHER" }
           ]}
         />
@@ -63,8 +66,14 @@ export function EvidenceUploadForm({ disputeId }: EvidenceUploadFormProps) {
           <Text as="p" variant="bodyMd">
             Attach file
           </Text>
-          <input name="file" required type="file" />
+          <Text as="p" variant="bodySm" tone="subdued">
+            Accepted formats: PDF, PNG, JPG, TXT, and CSV. Use the category that matches the checklist row you are trying to satisfy.
+          </Text>
+          <input accept=".pdf,.png,.jpg,.jpeg,.txt,.csv" name="file" required type="file" />
         </BlockStack>
+        <Text as="p" variant="bodySm" tone="subdued">
+          Example: upload carrier labels or tracking exports as <strong>Shipping documentation</strong>, and proof-of-delivery scans as <strong>Delivery confirmation</strong>.
+        </Text>
         <Button loading={isSubmitting} submit variant="primary">
           {isSubmitting ? "Uploading..." : "Upload evidence"}
         </Button>
