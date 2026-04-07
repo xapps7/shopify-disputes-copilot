@@ -61,7 +61,7 @@ export function OutcomeReviewForm({
           Outcome and prevention
         </Text>
         <Text as="p" variant="bodySm" tone="subdued">
-          Record the result of this dispute and generate prevention actions for the merchant team.
+          Final dispute status should normally sync from Shopify automatically. Use this section to add prevention context or to backfill the outcome only if the sync has not updated the case yet.
         </Text>
 
         <InlineStack gap="300" align="space-between">
@@ -100,7 +100,7 @@ export function OutcomeReviewForm({
         />
 
         <Button loading={isSaving} onClick={handleSave} variant="primary">
-          Save outcome
+          Save fallback outcome
         </Button>
 
         {message ? (

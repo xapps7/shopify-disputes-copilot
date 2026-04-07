@@ -136,6 +136,15 @@ export function DisputePageShell({
           </Banner>
         ) : null}
 
+        {dispute.evidenceSentOn || dispute.latestPacket?.submittedAt ? (
+          <Banner tone="success">
+            <p>
+              Submission has been detected on this dispute. The workspace is now tracking review and outcome updates from
+              synced Shopify status changes.
+            </p>
+          </Banner>
+        ) : null}
+
         <Layout>
           <Layout.Section>
             <BlockStack gap="400">

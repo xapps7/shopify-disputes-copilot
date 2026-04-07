@@ -1,6 +1,7 @@
 import { DisputeStatus } from "@prisma/client";
 
 import { db } from "@/lib/db";
+import { syncDerivedDisputeState } from "@/lib/disputes/auto-sync";
 
 export type DisputeWebhookPayload = {
   admin_graphql_api_id?: string;
@@ -47,6 +48,15 @@ export async function upsertDisputeFromWebhook(shopDomain: string, payload: Disp
     payload.admin_graphql_api_id ??
     `gid://shopify/ShopifyPaymentsDispute/${payload.dispute_id ?? "unknown"}`;
 
+  const previousDispute = await db.dispute.findUnique({
+    where: { shopifyDisputeId },
+    select: {
+      id: true,
+      status: true,
+      evidenceSentOn: true
+    }
+  });
+
   const dispute = await db.dispute.upsert({
     where: { shopifyDisputeId },
     update: {
@@ -87,6 +97,16 @@ export async function upsertDisputeFromWebhook(shopDomain: string, payload: Disp
         reason: payload.reason
       })
     }
+  });
+
+  await syncDerivedDisputeState({
+    disputeId: dispute.id,
+    merchantId: merchant.id,
+    currentStatus: dispute.status,
+    previousStatus: previousDispute?.status ?? null,
+    evidenceSentOn: dispute.evidenceSentOn,
+    previousEvidenceSentOn: previousDispute?.evidenceSentOn ?? null,
+    source: "shopify_webhook"
   });
 
   return dispute;

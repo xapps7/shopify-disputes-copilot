@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { syncDerivedDisputeState } from "@/lib/disputes/auto-sync";
 import { decryptString } from "@/lib/crypto";
 import { createShopifyAdminClient } from "@/lib/shopify/client";
 import { DISPUTES_LIST_QUERY } from "@/lib/shopify/queries";
@@ -194,6 +195,15 @@ export async function syncRecentDisputesForMerchant(shopDomain: string) {
   }
 
   for (const dispute of data.disputes.nodes) {
+    const previousDispute = await db.dispute.findUnique({
+      where: { shopifyDisputeId: dispute.id },
+      select: {
+        id: true,
+        status: true,
+        evidenceSentOn: true
+      }
+    });
+
     const dbDispute = await db.dispute.upsert({
       where: { shopifyDisputeId: dispute.id },
       update: {
@@ -231,6 +241,16 @@ export async function syncRecentDisputesForMerchant(shopDomain: string) {
         eventTimestamp: new Date(),
         source: "shopify_graphql"
       }
+    });
+
+    await syncDerivedDisputeState({
+      disputeId: dbDispute.id,
+      merchantId: merchant.id,
+      currentStatus: dbDispute.status,
+      previousStatus: previousDispute?.status ?? null,
+      evidenceSentOn: dbDispute.evidenceSentOn,
+      previousEvidenceSentOn: previousDispute?.evidenceSentOn ?? null,
+      source: "shopify_graphql"
     });
   }
 

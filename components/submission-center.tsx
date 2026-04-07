@@ -71,7 +71,7 @@ export function SubmissionCenter({
       </BlockStack>
 
       <Text as="p" variant="bodySm" tone="subdued">
-        Direct API submission is not enabled yet. Record the merchant's manual submission in Shopify Admin so the dispute timeline stays accurate.
+        When Shopify sends a dispute status update, this section updates automatically. Use the action below only as a fallback if the merchant already submitted in Shopify Admin and the sync has not reflected it yet.
       </Text>
 
       <Select
@@ -95,7 +95,7 @@ export function SubmissionCenter({
       />
 
       <Button disabled={!packetReady} loading={isSubmitting} onClick={handleSubmit} variant="primary">
-        Record submission
+        Mark as submitted (fallback)
       </Button>
 
       {!packetReady ? (
