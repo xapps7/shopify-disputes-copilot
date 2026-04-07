@@ -15,8 +15,10 @@ import {
   Text
 } from "@shopify/polaris";
 
+import { AIPackageAssessment } from "@/components/ai-package-assessment";
 import { PacketQualityPanel } from "@/components/packet-quality-panel";
 import { PacketSummaryEditor } from "@/components/packet-summary-editor";
+import { generatePackageAssessment } from "@/lib/ai/package-assessment";
 import { assessPacketQuality } from "@/lib/disputes/workflow";
 import type { DisputeDetailView } from "@/lib/types";
 
@@ -38,6 +40,7 @@ function splitSections(summaryText: string | null) {
 export function PacketPreviewPageShell({ dispute }: PacketPreviewPageShellProps) {
   const sections = splitSections(dispute.latestPacket?.summaryText ?? null);
   const packetReview = assessPacketQuality(dispute);
+  const aiAssessment = generatePackageAssessment(dispute);
 
   return (
     <Page
@@ -130,6 +133,10 @@ export function PacketPreviewPageShell({ dispute }: PacketPreviewPageShellProps)
           <BlockStack gap="400">
             <Card>
               <PacketQualityPanel review={packetReview} />
+            </Card>
+
+            <Card>
+              <AIPackageAssessment assessment={aiAssessment} />
             </Card>
 
             <Card>

@@ -1,6 +1,7 @@
 import { getDisputeDetail } from "@/lib/disputes/repository";
 import { DisputePageShell } from "@/components/dispute-page-shell";
 import { generateDisputeResponseDraft } from "@/lib/ai/dispute-drafts";
+import { generatePackageAssessment } from "@/lib/ai/package-assessment";
 
 type DisputePageProps = {
   params: Promise<{ id: string }>;
@@ -10,6 +11,7 @@ export default async function DisputeDetailPage({ params }: DisputePageProps) {
   const { id } = await params;
   const dispute = await getDisputeDetail(id);
   const responseDraft = generateDisputeResponseDraft(dispute);
+  const packageAssessment = generatePackageAssessment(dispute);
   const readyEvidence = dispute.evidenceChecklist.filter((item) => item.state === "ready").length;
   const readinessScore =
     dispute.evidenceChecklist.length > 0
@@ -22,6 +24,7 @@ export default async function DisputeDetailPage({ params }: DisputePageProps) {
       readinessScore={readinessScore}
       readyEvidence={readyEvidence}
       responseDraft={responseDraft}
+      packageAssessment={packageAssessment}
     />
   );
 }

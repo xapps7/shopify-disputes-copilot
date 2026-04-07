@@ -16,16 +16,24 @@ import {
   TextField
 } from "@shopify/polaris";
 
+import { AIPackageAssessment } from "@/components/ai-package-assessment";
 import type { DisputeResponseDraftView } from "@/lib/types";
+import type { AIPackageAssessmentView } from "@/lib/types";
 
 type DisputeResponseDraftProps = {
   disputeId: string;
   initialDraft: DisputeResponseDraftView;
+  initialAssessment: AIPackageAssessmentView;
 };
 
-export function DisputeResponseDraft({ disputeId, initialDraft }: DisputeResponseDraftProps) {
+export function DisputeResponseDraft({
+  disputeId,
+  initialDraft,
+  initialAssessment
+}: DisputeResponseDraftProps) {
   const router = useRouter();
   const [draft, setDraft] = useState(initialDraft);
+  const [assessment, setAssessment] = useState(initialAssessment);
   const [merchantReply, setMerchantReply] = useState(initialDraft.merchantReply);
   const [message, setMessage] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -39,12 +47,15 @@ export function DisputeResponseDraft({ disputeId, initialDraft }: DisputeRespons
     });
 
     const payload = (await response.json().catch(() => null)) as
-      | { draft?: DisputeResponseDraftView; message?: string }
+      | { draft?: DisputeResponseDraftView; assessment?: AIPackageAssessmentView; message?: string }
       | null;
 
     if (response.ok && payload?.draft) {
       setDraft(payload.draft);
       setMerchantReply(payload.draft.merchantReply);
+      if (payload.assessment) {
+        setAssessment(payload.assessment);
+      }
       setMessage("Draft refreshed from the current dispute record.");
       startTransition(() => {
         router.refresh();
@@ -86,17 +97,8 @@ export function DisputeResponseDraft({ disputeId, initialDraft }: DisputeRespons
             </BlockStack>
           </Box>
 
-          <Box background="bg-fill-success-secondary" borderRadius="300" padding="400">
-            <BlockStack gap="200">
-              <Text as="h4" variant="headingSm">
-                Current strengths
-              </Text>
-              <List type="bullet">
-                {draft.strengths.map((item) => (
-                  <List.Item key={item}>{item}</List.Item>
-                ))}
-              </List>
-            </BlockStack>
+          <Box background="bg-surface-secondary" borderRadius="300" padding="400">
+            <AIPackageAssessment assessment={assessment} />
           </Box>
         </InlineGrid>
 
@@ -112,6 +114,27 @@ export function DisputeResponseDraft({ disputeId, initialDraft }: DisputeRespons
         />
 
         <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
+          <Box background="bg-surface-secondary" borderRadius="300" padding="400">
+            <BlockStack gap="200">
+              <InlineStack align="space-between">
+                <Text as="h4" variant="headingSm">
+                  Current strengths
+                </Text>
+              </InlineStack>
+              {draft.strengths.length > 0 ? (
+                <List type="bullet">
+                  {draft.strengths.map((item) => (
+                    <List.Item key={item}>{item}</List.Item>
+                  ))}
+                </List>
+              ) : (
+                <Text as="p" variant="bodyMd">
+                  No explicit strengths have been identified yet.
+                </Text>
+              )}
+            </BlockStack>
+          </Box>
+
           <Box background="bg-surface-secondary" borderRadius="300" padding="400">
             <BlockStack gap="200">
               <InlineStack align="space-between">
@@ -135,23 +158,19 @@ export function DisputeResponseDraft({ disputeId, initialDraft }: DisputeRespons
               )}
             </BlockStack>
           </Box>
-
-          <Box background="bg-surface-secondary" borderRadius="300" padding="400">
-            <BlockStack gap="200">
-              <Text as="h4" variant="headingSm">
-                Operator guidance
-              </Text>
-              <List type="bullet">
-                {draft.internalGuidance.map((item) => (
-                  <List.Item key={item}>{item}</List.Item>
-                ))}
-              </List>
-            </BlockStack>
-          </Box>
         </InlineGrid>
 
         <Box background="bg-fill-secondary" borderRadius="300" padding="400">
           <BlockStack gap="200">
+            <Text as="h4" variant="headingSm">
+              Operator guidance
+            </Text>
+            <List type="bullet">
+              {draft.internalGuidance.map((item) => (
+                <List.Item key={item}>{item}</List.Item>
+              ))}
+            </List>
+            <Divider />
             <Text as="h4" variant="headingSm">
               Next actions
             </Text>

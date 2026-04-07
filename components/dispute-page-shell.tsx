@@ -24,13 +24,14 @@ import { OutcomeReviewForm } from "@/components/outcome-review-form";
 import { PacketQualityPanel } from "@/components/packet-quality-panel";
 import { SubmissionCenter } from "@/components/submission-center";
 import { assessPacketQuality, buildEvidenceGapInsights } from "@/lib/disputes/workflow";
-import type { DisputeDetailView, DisputeResponseDraftView } from "@/lib/types";
+import type { AIPackageAssessmentView, DisputeDetailView, DisputeResponseDraftView } from "@/lib/types";
 
 type DisputePageShellProps = {
   dispute: DisputeDetailView;
   readinessScore: number;
   readyEvidence: number;
   responseDraft: DisputeResponseDraftView;
+  packageAssessment: AIPackageAssessmentView;
 };
 
 function statusTone(status: string) {
@@ -80,7 +81,8 @@ export function DisputePageShell({
   dispute,
   readinessScore,
   readyEvidence,
-  responseDraft
+  responseDraft,
+  packageAssessment
 }: DisputePageShellProps) {
   const actionGuidance = nextStep(readinessScore);
   const dueDateLabel = dispute.evidenceDueBy
@@ -347,7 +349,11 @@ export function DisputePageShell({
                 </BlockStack>
               </Card>
 
-              <DisputeResponseDraft disputeId={dispute.id} initialDraft={responseDraft} />
+              <DisputeResponseDraft
+                disputeId={dispute.id}
+                initialDraft={responseDraft}
+                initialAssessment={packageAssessment}
+              />
 
               <Card>
                 <BlockStack gap="300">

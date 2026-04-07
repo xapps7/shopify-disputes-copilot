@@ -86,6 +86,17 @@ export type DisputeResponseDraftView = {
   nextActions: string[];
 };
 
+export type AIPackageAssessmentView = {
+  generatedAt: string;
+  score: number;
+  verdict: "weak" | "improving" | "strong";
+  summary: string;
+  confidenceNote: string;
+  strengths: string[];
+  risks: string[];
+  improvements: string[];
+};
+
 export type PreventionRecommendationView = {
   id: string;
   category: string;

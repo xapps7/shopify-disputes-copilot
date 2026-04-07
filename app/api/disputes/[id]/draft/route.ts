@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
 import { generateDisputeResponseDraft } from "@/lib/ai/dispute-drafts";
+import { generateOpenAIPackageAssessment } from "@/lib/ai/openai-package-assessment";
 import { generateOpenAIDisputeDraft, isOpenAIDraftEnabled } from "@/lib/ai/openai-dispute-drafts";
+import { generatePackageAssessment } from "@/lib/ai/package-assessment";
 import { getDisputeDetail } from "@/lib/disputes/repository";
 
 type RouteContext = {
@@ -13,6 +15,7 @@ export async function POST(_: Request, { params }: RouteContext) {
     const { id } = await params;
     const dispute = await getDisputeDetail(id);
     let draft = generateDisputeResponseDraft(dispute);
+    let assessment = generatePackageAssessment(dispute);
 
     if (isOpenAIDraftEnabled()) {
       try {
@@ -23,10 +26,20 @@ export async function POST(_: Request, { params }: RouteContext) {
       } catch (error) {
         console.error("OpenAI draft fallback triggered", error);
       }
+
+      try {
+        const aiAssessment = await generateOpenAIPackageAssessment(dispute);
+        if (aiAssessment) {
+          assessment = aiAssessment;
+        }
+      } catch (error) {
+        console.error("OpenAI package assessment fallback triggered", error);
+      }
     }
 
     return NextResponse.json({
-      draft
+      draft,
+      assessment
     });
   } catch (error) {
     console.error("Draft generation failed", error);
