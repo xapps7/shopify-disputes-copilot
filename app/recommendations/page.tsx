@@ -1,9 +1,14 @@
 import { RecommendationsPageShell } from "@/components/recommendations-page-shell";
-import { getCurrentShopDomain } from "@/lib/shopify/auth";
+import { resolveShopDomain } from "@/lib/shopify/auth";
 import { listRecommendations } from "@/lib/disputes/repository";
 
-export default async function RecommendationsPage() {
-  const shopDomain = await getCurrentShopDomain();
+type RecommendationsPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function RecommendationsPage({ searchParams }: RecommendationsPageProps) {
+  const params = (await searchParams) ?? {};
+  const shopDomain = await resolveShopDomain(params);
   const recommendations = await listRecommendations(shopDomain);
 
   return <RecommendationsPageShell recommendations={recommendations} />;

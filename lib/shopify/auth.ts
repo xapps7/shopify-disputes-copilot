@@ -24,6 +24,19 @@ export async function getCurrentShopDomain() {
   return store.get(SHOP_COOKIE)?.value ?? null;
 }
 
+export function getSingleSearchParam(
+  value: string | string[] | undefined
+) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export async function resolveShopDomain(
+  searchParams?: Record<string, string | string[] | undefined>
+) {
+  const fromParams = getSingleSearchParam(searchParams?.shop);
+  return fromParams ?? (await getCurrentShopDomain());
+}
+
 export async function getCurrentHost() {
   const store = await cookies();
   return store.get(HOST_COOKIE)?.value ?? null;

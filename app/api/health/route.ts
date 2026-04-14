@@ -2,16 +2,18 @@ import { NextResponse } from "next/server";
 
 import { isOpenAIDraftEnabled } from "@/lib/ai/openai-dispute-drafts";
 import { getLatestDisputeSyncRun } from "@/lib/disputes/sync-runs";
+import { resolveShopDomain } from "@/lib/shopify/auth";
 import { APP_COMMIT, APP_RELEASE } from "@/lib/version";
-import { getCurrentShopDomain } from "@/lib/shopify/auth";
 
-export async function GET() {
-  const shopDomain = await getCurrentShopDomain();
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const shopDomain = await resolveShopDomain({ shop: url.searchParams.get("shop") ?? undefined });
   const latestSyncRun = await getLatestDisputeSyncRun(shopDomain);
 
   return NextResponse.json({
     ok: true,
     service: "shopify-disputes-copilot",
+    shopDomain,
     release: APP_RELEASE,
     commit: APP_COMMIT,
     aiDraftsEnabled: isOpenAIDraftEnabled(),

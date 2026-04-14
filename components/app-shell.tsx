@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Tabs } from "@shopify/polaris";
 
 type AppShellProps = {
@@ -22,6 +23,7 @@ export function AppShell({ children, release, commit }: AppShellProps) {
   void commit;
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const selectedTabIndex = navItems.findIndex((item) =>
     item.href === "/"
       ? pathname === "/"
@@ -41,7 +43,10 @@ export function AppShell({ children, release, commit }: AppShellProps) {
           }))}
           selected={selectedTabIndex >= 0 ? selectedTabIndex : 0}
           onSelect={(selectedTab) => {
-            router.push(navItems[selectedTab]?.href ?? "/");
+            const target = navItems[selectedTab]?.href ?? "/";
+            const params = new URLSearchParams(searchParams.toString());
+            const query = params.toString();
+            router.push(query ? `${target}?${query}` : target);
           }}
           fitted={false}
         />

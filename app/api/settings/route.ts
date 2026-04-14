@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getCurrentShopDomain } from "@/lib/shopify/auth";
+import { resolveShopDomain } from "@/lib/shopify/auth";
 import { saveMerchantSettings } from "@/lib/settings";
 
 const settingsSchema = z.object({
@@ -20,7 +20,8 @@ const settingsSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const shopDomain = await getCurrentShopDomain();
+    const url = new URL(request.url);
+    const shopDomain = await resolveShopDomain({ shop: url.searchParams.get("shop") ?? undefined });
 
     if (!shopDomain) {
       return NextResponse.json({ message: "No active shop session found." }, { status: 400 });

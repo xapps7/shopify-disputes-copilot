@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { startTransition, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Banner,
   Badge,
@@ -37,6 +37,7 @@ function toneForStatus(status: string) {
 
 export function OverviewPageShell({ metrics, recentDisputes, recommendations }: OverviewPageShellProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
@@ -44,7 +45,15 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
     setIsSyncing(true);
     setSyncMessage(null);
 
-    const response = await fetch("/api/sync/disputes", { method: "POST" });
+    const params = new URLSearchParams();
+    const shop = searchParams.get("shop");
+    if (shop) {
+      params.set("shop", shop);
+    }
+
+    const response = await fetch(`/api/sync/disputes${params.toString() ? `?${params.toString()}` : ""}`, {
+      method: "POST"
+    });
     const payload = (await response.json().catch(() => null)) as
       | { synced?: number; message?: string }
       | null;

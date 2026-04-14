@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 
 import { runDisputeSyncWithRetry } from "@/lib/disputes/sync-runs";
-import { getCurrentShopDomain } from "@/lib/shopify/auth";
+import { resolveShopDomain } from "@/lib/shopify/auth";
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
-    const shopDomain = await getCurrentShopDomain();
+    const url = new URL(request.url);
+    const shopDomain = await resolveShopDomain({ shop: url.searchParams.get("shop") ?? undefined });
 
     if (!shopDomain) {
       return NextResponse.json({ ok: false, message: "No active shop session found." }, { status: 400 });
