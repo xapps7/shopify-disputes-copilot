@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { startTransition, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Badge,
   BlockStack,
@@ -33,6 +33,7 @@ function toneForStatus(status: string) {
 export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps) {
   const { mode, setMode } = useSetIndexFiltersMode();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [selectedTab, setSelectedTab] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
@@ -41,7 +42,15 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
     setIsSyncing(true);
     setSyncMessage(null);
 
-    const response = await fetch("/api/sync/disputes", { method: "POST" });
+    const params = new URLSearchParams();
+    const shop = searchParams.get("shop");
+    if (shop) {
+      params.set("shop", shop);
+    }
+
+    const response = await fetch(`/api/sync/disputes${params.toString() ? `?${params.toString()}` : ""}`, {
+      method: "POST"
+    });
     const payload = (await response.json().catch(() => null)) as
       | { synced?: number; message?: string }
       | null;
@@ -130,7 +139,10 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
               {filteredDisputes.map((dispute, index) => (
                 <IndexTable.Row id={dispute.id} key={dispute.id} position={index}>
                   <IndexTable.Cell>
-                    <Link className="table-link" href={`/disputes/${dispute.id}` as never}>
+                    <Link
+                      className="table-link"
+                      href={`${`/disputes/${dispute.id}`}${searchParams.toString() ? `?${searchParams.toString()}` : ""}` as never}
+                    >
                       {dispute.shopifyDisputeId.split("/").pop()}
                     </Link>
                   </IndexTable.Cell>
