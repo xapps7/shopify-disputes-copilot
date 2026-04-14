@@ -121,7 +121,7 @@ export async function listDashboardDisputes(shopDomain?: string | null): Promise
   });
 
   if (!merchant) {
-    return sampleDashboardDisputes;
+    return [];
   }
 
   return merchant.disputes.map((dispute) => ({
@@ -291,6 +291,9 @@ export async function getDisputeDetail(id: string): Promise<DisputeDetailView> {
   });
 
   if (!dispute) {
+    if (!id.startsWith("local-")) {
+      throw new Error("Dispute not found.");
+    }
     return getSampleDisputeDetail(id);
   }
 
