@@ -4,15 +4,19 @@ client_id = "a1a4e4368181a1f98c5add6e1805e0aa"
 name = "Disputes Co-Pilot"
 application_url = "https://x7wttmvp3i.us-east-1.awsapprunner.com"
 embedded = true
+handle = "disputes-co-pilot"
+
+[build]
+automatically_update_urls_on_dev = false
 
 [webhooks]
 api_version = "2026-01"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_orders,read_shopify_payments_disputes"
+scopes = "read_orders,read_shopify_payments_disputes,read_shopify_payments_dispute_evidences"
 optional_scopes = [ ]
-use_legacy_install_flow = false
+use_legacy_install_flow = true
 
 [auth]
 redirect_urls = [
