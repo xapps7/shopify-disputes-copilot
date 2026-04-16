@@ -2,15 +2,19 @@ export const DISPUTE_SYNC_QUERY = `#graphql
   query DisputeSync($id: ID!) {
     dispute(id: $id) {
       id
-      amount
-      currencyCode
-      reason
-      reasonDetails
+      amount {
+        amount
+        currencyCode
+      }
+      reasonDetails {
+        reason
+        networkReasonCode
+      }
       status
       evidenceDueBy
       evidenceSentOn
-      initiatedAs
       initiatedAt
+      type
       order {
         id
         name
@@ -38,13 +42,18 @@ export const DISPUTES_LIST_QUERY = `#graphql
     disputes(first: 25) {
       nodes {
         id
-        amount
-        currencyCode
-        reason
-        reasonDetails
+        amount {
+          amount
+          currencyCode
+        }
+        reasonDetails {
+          reason
+          networkReasonCode
+        }
         status
         evidenceDueBy
         evidenceSentOn
+        type
         order {
           id
           name

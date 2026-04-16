@@ -6,13 +6,18 @@ import { DISPUTES_LIST_QUERY } from "@/lib/shopify/queries";
 
 type ShopifyDisputeNode = {
   id: string;
-  amount?: string | null;
-  currencyCode?: string | null;
-  reason?: string | null;
-  reasonDetails?: string | null;
+  amount?: {
+    amount?: string | null;
+    currencyCode?: string | null;
+  } | null;
+  reasonDetails?: {
+    reason?: string | null;
+    networkReasonCode?: string | null;
+  } | null;
   status?: string | null;
   evidenceDueBy?: string | null;
   evidenceSentOn?: string | null;
+  type?: string | null;
   order?: {
     id: string;
     name?: string | null;
@@ -51,6 +56,10 @@ type DisputesQueryResponse = {
   disputes: {
     nodes: ShopifyDisputeNode[];
   };
+};
+
+type ShopifyGraphqlError = {
+  message?: string;
 };
 
 function normalizeStatus(status?: string | null) {
@@ -188,7 +197,19 @@ export async function syncRecentDisputesForMerchant(shopDomain: string) {
   });
 
   const response = await client.request(DISPUTES_LIST_QUERY);
+  const responseErrors = (
+    "errors" in response && Array.isArray(response.errors) ? response.errors : []
+  ) as ShopifyGraphqlError[];
   const data = response.data as DisputesQueryResponse | undefined;
+
+  if (responseErrors.length > 0) {
+    throw new Error(
+      `Shopify dispute query failed: ${responseErrors
+        .map((error) => error.message)
+        .filter(Boolean)
+        .join("; ")}`
+    );
+  }
 
   if (!data?.disputes?.nodes) {
     return { synced: 0 };
@@ -210,10 +231,10 @@ export async function syncRecentDisputesForMerchant(shopDomain: string) {
         merchantId: merchant.id,
         shopifyOrderId: dispute.order?.id ?? null,
         status: normalizeStatus(dispute.status) as never,
-        reason: dispute.reason ?? null,
-        reasonDetails: dispute.reasonDetails ?? null,
-        amount: dispute.amount ?? undefined,
-        currencyCode: dispute.currencyCode ?? null,
+        reason: dispute.reasonDetails?.reason ?? dispute.type ?? null,
+        reasonDetails: dispute.reasonDetails?.networkReasonCode ?? dispute.type ?? null,
+        amount: dispute.amount?.amount ?? undefined,
+        currencyCode: dispute.amount?.currencyCode ?? null,
         evidenceDueBy: dispute.evidenceDueBy ? new Date(dispute.evidenceDueBy) : null,
         evidenceSentOn: dispute.evidenceSentOn ? new Date(dispute.evidenceSentOn) : null
       },
@@ -222,10 +243,10 @@ export async function syncRecentDisputesForMerchant(shopDomain: string) {
         shopifyDisputeId: dispute.id,
         shopifyOrderId: dispute.order?.id ?? null,
         status: normalizeStatus(dispute.status) as never,
-        reason: dispute.reason ?? null,
-        reasonDetails: dispute.reasonDetails ?? null,
-        amount: dispute.amount ?? undefined,
-        currencyCode: dispute.currencyCode ?? null,
+        reason: dispute.reasonDetails?.reason ?? dispute.type ?? null,
+        reasonDetails: dispute.reasonDetails?.networkReasonCode ?? dispute.type ?? null,
+        amount: dispute.amount?.amount ?? undefined,
+        currencyCode: dispute.amount?.currencyCode ?? null,
         evidenceDueBy: dispute.evidenceDueBy ? new Date(dispute.evidenceDueBy) : null,
         evidenceSentOn: dispute.evidenceSentOn ? new Date(dispute.evidenceSentOn) : null
       }
