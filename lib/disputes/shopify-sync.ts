@@ -2,7 +2,10 @@ import { db } from "@/lib/db";
 import { syncDerivedDisputeState } from "@/lib/disputes/auto-sync";
 import { decryptString } from "@/lib/crypto";
 import { createShopifyAdminClient } from "@/lib/shopify/client";
-import { DISPUTES_LIST_QUERY } from "@/lib/shopify/queries";
+import {
+  DISPUTES_LIST_QUERY,
+  SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY
+} from "@/lib/shopify/queries";
 
 type ShopifyDisputeNode = {
   id: string;
@@ -56,6 +59,14 @@ type DisputesQueryResponse = {
   disputes: {
     nodes: ShopifyDisputeNode[];
   };
+};
+
+type ShopifyPaymentsAccountDisputesQueryResponse = {
+  shopifyPaymentsAccount?: {
+    disputes?: {
+      nodes: ShopifyDisputeNode[];
+    } | null;
+  } | null;
 };
 
 type ShopifyGraphqlError = {
@@ -200,7 +211,7 @@ export async function syncRecentDisputesForMerchant(shopDomain: string) {
   const responseErrors = (
     "errors" in response && Array.isArray(response.errors) ? response.errors : []
   ) as ShopifyGraphqlError[];
-  const data = response.data as DisputesQueryResponse | undefined;
+  let data = response.data as DisputesQueryResponse | undefined;
 
   if (responseErrors.length > 0) {
     throw new Error(
@@ -211,11 +222,35 @@ export async function syncRecentDisputesForMerchant(shopDomain: string) {
     );
   }
 
-  if (!data?.disputes?.nodes) {
+  let disputes = data?.disputes?.nodes ?? [];
+
+  if (disputes.length === 0) {
+    const accountResponse = await client.request(SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY);
+    const accountErrors = (
+      "errors" in accountResponse && Array.isArray(accountResponse.errors) ? accountResponse.errors : []
+    ) as ShopifyGraphqlError[];
+    const accountData = accountResponse.data as ShopifyPaymentsAccountDisputesQueryResponse | undefined;
+
+    if (
+      accountErrors.length > 0 &&
+      accountErrors.some((error) => error.message && !error.message.includes("Access denied"))
+    ) {
+      throw new Error(
+        `Shopify payments account dispute query failed: ${accountErrors
+          .map((error) => error.message)
+          .filter(Boolean)
+          .join("; ")}`
+      );
+    }
+
+    disputes = accountData?.shopifyPaymentsAccount?.disputes?.nodes ?? [];
+  }
+
+  if (disputes.length === 0) {
     return { synced: 0 };
   }
 
-  for (const dispute of data.disputes.nodes) {
+  for (const dispute of disputes) {
     const previousDispute = await db.dispute.findUnique({
       where: { shopifyDisputeId: dispute.id },
       select: {
@@ -275,5 +310,5 @@ export async function syncRecentDisputesForMerchant(shopDomain: string) {
     });
   }
 
-  return { synced: data.disputes.nodes.length };
+  return { synced: disputes.length };
 }
