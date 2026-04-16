@@ -13,7 +13,7 @@ function decodeEmbeddedHost(host: string | null | undefined) {
 export function buildEmbeddedAdminUrl(
   apiKey: string,
   shopDomain: string,
-  _pathname = "/",
+  pathname = "/",
   host?: string | null,
   _redirectTo?: string | null
 ) {
@@ -29,8 +29,13 @@ export function buildEmbeddedAdminUrl(
   const decodedHost = decodeEmbeddedHost(host);
   const adminBase =
     decodedHost && decodedHost.startsWith("admin.shopify.com/")
-      ? `https://${decodedHost}/apps/${appHandle}/app`
+      ? `https://${decodedHost}/apps/${appHandle}`
       : `https://${shopDomain}/admin/apps/${appHandle}`;
 
-  return `${adminBase}?${query.toString()}`;
+  const normalizedPath =
+    pathname && pathname !== "/"
+      ? `/${pathname.replace(/^\/+/, "")}`
+      : "";
+
+  return `${adminBase}${normalizedPath}?${query.toString()}`;
 }
