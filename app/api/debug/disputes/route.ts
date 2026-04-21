@@ -5,6 +5,8 @@ import { decryptString } from "@/lib/crypto";
 import { resolveShopDomain } from "@/lib/shopify/auth";
 import { createShopifyAdminClient } from "@/lib/shopify/client";
 import {
+  ACCESS_SCOPES_DEBUG_QUERY,
+  BASIC_ORDERS_DEBUG_QUERY,
   DISPUTES_LIST_QUERY,
   ORDERS_WITH_DISPUTES_QUERY,
   SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY
@@ -49,6 +51,44 @@ export async function GET(request: Request) {
       storeDomain: shopDomain,
       accessToken: decryptString(merchant.accessTokenEncrypted)
     });
+
+    const scopesResponse = await client.request(ACCESS_SCOPES_DEBUG_QUERY);
+    const scopeErrors = (
+      "errors" in scopesResponse && Array.isArray(scopesResponse.errors) ? scopesResponse.errors : []
+    ) as ShopifyGraphqlError[];
+    const scopeData = scopesResponse.data as
+      | {
+          currentAppInstallation?: {
+            accessScopes?: Array<{
+              handle?: string | null;
+            }>;
+          } | null;
+          shop?: {
+            id?: string | null;
+            myshopifyDomain?: string | null;
+          } | null;
+        }
+      | undefined;
+
+    const basicOrdersResponse = await client.request(BASIC_ORDERS_DEBUG_QUERY);
+    const basicOrderErrors = (
+      "errors" in basicOrdersResponse && Array.isArray(basicOrdersResponse.errors)
+        ? basicOrdersResponse.errors
+        : []
+    ) as ShopifyGraphqlError[];
+    const basicOrderData = basicOrdersResponse.data as
+      | {
+          orders?: {
+            nodes?: Array<{
+              id?: string | null;
+              name?: string | null;
+              createdAt?: string | null;
+              displayFinancialStatus?: string | null;
+              displayFulfillmentStatus?: string | null;
+            }>;
+          };
+        }
+      | undefined;
 
     const rootResponse = await client.request(DISPUTES_LIST_QUERY);
     const rootErrors = (
@@ -124,6 +164,18 @@ export async function GET(request: Request) {
         id: merchant.id,
         installedAt: merchant.installedAt,
         updatedAt: merchant.updatedAt
+      },
+      installation: {
+        shop: scopeData?.shop ?? null,
+        grantedScopes: (scopeData?.currentAppInstallation?.accessScopes ?? [])
+          .map((scope) => scope.handle)
+          .filter(Boolean),
+        errors: scopeErrors.map((error) => error.message).filter(Boolean)
+      },
+      basicOrders: {
+        count: basicOrderData?.orders?.nodes?.length ?? 0,
+        errors: basicOrderErrors.map((error) => error.message).filter(Boolean),
+        sample: (basicOrderData?.orders?.nodes ?? []).slice(0, 10)
       },
       rootDisputes: {
         count: rootData?.disputes?.nodes?.length ?? 0,

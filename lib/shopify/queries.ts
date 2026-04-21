@@ -149,7 +149,7 @@ export const SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY = `#graphql
 
 export const ORDERS_WITH_DISPUTES_QUERY = `#graphql
   query OrdersWithDisputes {
-    orders(first: 50, reverse: true, query: "status:any") {
+    orders(first: 50, reverse: true, sortKey: CREATED_AT, query: "status:any") {
       nodes {
         id
         name
@@ -187,6 +187,34 @@ export const ORDERS_WITH_DISPUTES_QUERY = `#graphql
           initiatedAs
         }
       }
+    }
+  }
+`;
+
+export const BASIC_ORDERS_DEBUG_QUERY = `#graphql
+  query BasicOrdersDebug {
+    orders(first: 10, reverse: true, sortKey: CREATED_AT, query: "status:any") {
+      nodes {
+        id
+        name
+        createdAt
+        displayFinancialStatus
+        displayFulfillmentStatus
+      }
+    }
+  }
+`;
+
+export const ACCESS_SCOPES_DEBUG_QUERY = `#graphql
+  query AccessScopesDebug {
+    currentAppInstallation {
+      accessScopes {
+        handle
+      }
+    }
+    shop {
+      id
+      myshopifyDomain
     }
   }
 `;
