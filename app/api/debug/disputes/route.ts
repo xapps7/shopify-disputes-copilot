@@ -8,7 +8,9 @@ import {
   ACCESS_SCOPES_DEBUG_QUERY,
   BASIC_ORDERS_DEBUG_QUERY,
   DISPUTES_LIST_QUERY,
+  ORDER_BY_ID_DEBUG_QUERY,
   ORDERS_WITH_DISPUTES_QUERY,
+  ORDERS_BY_SEARCH_DEBUG_QUERY,
   SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY
 } from "@/lib/shopify/queries";
 
@@ -20,6 +22,8 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const shopDomain = await resolveShopDomain({ shop: url.searchParams.get("shop") ?? undefined });
+    const orderId = url.searchParams.get("orderId");
+    const orderName = url.searchParams.get("orderName");
 
     if (!shopDomain) {
       return NextResponse.json({ ok: false, message: "No active shop session found." }, { status: 400 });
@@ -85,6 +89,68 @@ export async function GET(request: Request) {
               createdAt?: string | null;
               displayFinancialStatus?: string | null;
               displayFulfillmentStatus?: string | null;
+            }>;
+          };
+        }
+      | undefined;
+    const orderGid = orderId
+      ? orderId.startsWith("gid://shopify/Order/")
+        ? orderId
+        : `gid://shopify/Order/${orderId}`
+      : null;
+    const orderByIdResponse = orderGid
+      ? await client.request(ORDER_BY_ID_DEBUG_QUERY, {
+          variables: { id: orderGid }
+        })
+      : null;
+    const orderByIdErrors = (
+      orderByIdResponse && "errors" in orderByIdResponse && Array.isArray(orderByIdResponse.errors)
+        ? orderByIdResponse.errors
+        : []
+    ) as ShopifyGraphqlError[];
+    const orderByIdData = orderByIdResponse?.data as
+      | {
+          node?: {
+            id?: string | null;
+            name?: string | null;
+            createdAt?: string | null;
+            displayFinancialStatus?: string | null;
+            displayFulfillmentStatus?: string | null;
+            disputes?: Array<{
+              id?: string | null;
+              status?: string | null;
+              initiatedAs?: string | null;
+            }> | null;
+          } | null;
+        }
+      | undefined;
+    const orderSearchQuery = orderName ? `name:${orderName}` : null;
+    const orderBySearchResponse = orderSearchQuery
+      ? await client.request(ORDERS_BY_SEARCH_DEBUG_QUERY, {
+          variables: { query: orderSearchQuery }
+        })
+      : null;
+    const orderBySearchErrors = (
+      orderBySearchResponse &&
+      "errors" in orderBySearchResponse &&
+      Array.isArray(orderBySearchResponse.errors)
+        ? orderBySearchResponse.errors
+        : []
+    ) as ShopifyGraphqlError[];
+    const orderBySearchData = orderBySearchResponse?.data as
+      | {
+          orders?: {
+            nodes?: Array<{
+              id?: string | null;
+              name?: string | null;
+              createdAt?: string | null;
+              displayFinancialStatus?: string | null;
+              displayFulfillmentStatus?: string | null;
+              disputes?: Array<{
+                id?: string | null;
+                status?: string | null;
+                initiatedAs?: string | null;
+              }> | null;
             }>;
           };
         }
@@ -176,6 +242,21 @@ export async function GET(request: Request) {
         count: basicOrderData?.orders?.nodes?.length ?? 0,
         errors: basicOrderErrors.map((error) => error.message).filter(Boolean),
         sample: (basicOrderData?.orders?.nodes ?? []).slice(0, 10)
+      },
+      targetedOrder: {
+        orderId: orderGid,
+        orderName,
+        byId: {
+          found: Boolean(orderByIdData?.node),
+          errors: orderByIdErrors.map((error) => error.message).filter(Boolean),
+          order: orderByIdData?.node ?? null
+        },
+        byName: {
+          query: orderSearchQuery,
+          count: orderBySearchData?.orders?.nodes?.length ?? 0,
+          errors: orderBySearchErrors.map((error) => error.message).filter(Boolean),
+          sample: (orderBySearchData?.orders?.nodes ?? []).slice(0, 10)
+        }
       },
       rootDisputes: {
         count: rootData?.disputes?.nodes?.length ?? 0,

@@ -218,3 +218,41 @@ export const ACCESS_SCOPES_DEBUG_QUERY = `#graphql
     }
   }
 `;
+
+export const ORDER_BY_ID_DEBUG_QUERY = `#graphql
+  query OrderByIdDebug($id: ID!) {
+    node(id: $id) {
+      ... on Order {
+        id
+        name
+        createdAt
+        displayFinancialStatus
+        displayFulfillmentStatus
+        disputes {
+          id
+          status
+          initiatedAs
+        }
+      }
+    }
+  }
+`;
+
+export const ORDERS_BY_SEARCH_DEBUG_QUERY = `#graphql
+  query OrdersBySearchDebug($query: String!) {
+    orders(first: 10, reverse: true, sortKey: CREATED_AT, query: $query) {
+      nodes {
+        id
+        name
+        createdAt
+        displayFinancialStatus
+        displayFulfillmentStatus
+        disputes {
+          id
+          status
+          initiatedAs
+        }
+      }
+    }
+  }
+`;
