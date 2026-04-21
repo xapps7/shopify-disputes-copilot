@@ -149,7 +149,7 @@ export const SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY = `#graphql
 
 export const ORDERS_WITH_DISPUTES_QUERY = `#graphql
   query OrdersWithDisputes {
-    orders(first: 50, reverse: true) {
+    orders(first: 50, reverse: true, query: "status:any") {
       nodes {
         id
         name
