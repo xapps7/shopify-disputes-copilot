@@ -146,3 +146,47 @@ export const SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY = `#graphql
     }
   }
 `;
+
+export const ORDERS_WITH_DISPUTES_QUERY = `#graphql
+  query OrdersWithDisputes {
+    orders(first: 50, reverse: true) {
+      nodes {
+        id
+        name
+        displayFulfillmentStatus
+        currentTotalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        customer {
+          firstName
+          lastName
+          email
+        }
+        lineItems(first: 10) {
+          nodes {
+            name
+            quantity
+            sku
+          }
+        }
+        fulfillments(first: 10) {
+          nodes {
+            trackingInfo {
+              company
+              number
+              url
+            }
+          }
+        }
+        disputes {
+          id
+          status
+          initiatedAs
+        }
+      }
+    }
+  }
+`;

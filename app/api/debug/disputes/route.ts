@@ -6,6 +6,7 @@ import { resolveShopDomain } from "@/lib/shopify/auth";
 import { createShopifyAdminClient } from "@/lib/shopify/client";
 import {
   DISPUTES_LIST_QUERY,
+  ORDERS_WITH_DISPUTES_QUERY,
   SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY
 } from "@/lib/shopify/queries";
 
@@ -89,6 +90,33 @@ export async function GET(request: Request) {
         }
       | undefined;
 
+    const ordersResponse = await client.request(ORDERS_WITH_DISPUTES_QUERY);
+    const orderErrors = (
+      "errors" in ordersResponse && Array.isArray(ordersResponse.errors) ? ordersResponse.errors : []
+    ) as ShopifyGraphqlError[];
+    const orderData = ordersResponse.data as
+      | {
+          orders?: {
+            nodes?: Array<{
+              id?: string | null;
+              name?: string | null;
+              disputes?: Array<{
+                id?: string | null;
+                status?: string | null;
+                initiatedAs?: string | null;
+              }> | null;
+            }>;
+          };
+        }
+      | undefined;
+    const ordersWithDisputes = (orderData?.orders?.nodes ?? [])
+      .filter((order) => (order.disputes ?? []).length > 0)
+      .map((order) => ({
+        id: order.id,
+        name: order.name,
+        disputes: order.disputes
+      }));
+
     return NextResponse.json({
       ok: true,
       shopDomain,
@@ -106,6 +134,12 @@ export async function GET(request: Request) {
         count: accountData?.shopifyPaymentsAccount?.disputes?.nodes?.length ?? 0,
         errors: accountErrors.map((error) => error.message).filter(Boolean),
         sample: (accountData?.shopifyPaymentsAccount?.disputes?.nodes ?? []).slice(0, 5)
+      },
+      orderDisputeSummaries: {
+        scannedOrders: orderData?.orders?.nodes?.length ?? 0,
+        count: ordersWithDisputes.reduce((total, order) => total + (order.disputes?.length ?? 0), 0),
+        errors: orderErrors.map((error) => error.message).filter(Boolean),
+        sample: ordersWithDisputes.slice(0, 5)
       }
     });
   } catch (error) {
