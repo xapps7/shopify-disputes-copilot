@@ -1,11 +1,12 @@
 "use client";
 
 import { startTransition, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button, InlineStack, Text } from "@shopify/polaris";
 
 export function SyncDisputesButton() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isSyncing, setIsSyncing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -13,7 +14,13 @@ export function SyncDisputesButton() {
     setIsSyncing(true);
     setMessage(null);
 
-    const response = await fetch("/api/sync/disputes", {
+    const params = new URLSearchParams();
+    const shop = searchParams.get("shop");
+    if (shop) {
+      params.set("shop", shop);
+    }
+
+    const response = await fetch(`/api/sync/disputes${params.toString() ? `?${params.toString()}` : ""}`, {
       method: "POST"
     });
 
