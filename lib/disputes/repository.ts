@@ -12,23 +12,35 @@ import type {
   PreventionRecommendationView
 } from "@/lib/types";
 
-type StoredOrderSnapshot = {
-  order?: {
-    id?: string | null;
-    name?: string | null;
-    displayFulfillmentStatus?: string | null;
-    currentTotalPriceSet?: {
-      shopMoney?: {
-        amount?: string | null;
-        currencyCode?: string | null;
-      } | null;
-    } | null;
-    customer?: {
-      firstName?: string | null;
-      lastName?: string | null;
-      email?: string | null;
+type StoredOrderNode = {
+  id?: string | null;
+  name?: string | null;
+  displayFulfillmentStatus?: string | null;
+  currentTotalPriceSet?: {
+    shopMoney?: {
+      amount?: string | null;
+      currencyCode?: string | null;
     } | null;
   } | null;
+  customer?: {
+    firstName?: string | null;
+    lastName?: string | null;
+    email?: string | null;
+  } | null;
+} | null;
+
+type StoredOrderSnapshot = {
+  order?: StoredOrderNode;
+} | null;
+
+type StoredOrderSnapshotRecord = {
+  orderName?: string | null;
+  customerEmail?: string | null;
+  customerName?: string | null;
+  orderTotal?: { toString(): string } | string | null;
+  currencyCode?: string | null;
+  fulfillmentStatus?: string | null;
+  orderJson?: string | null;
 } | null;
 
 function buildName(firstName?: string | null, lastName?: string | null) {
@@ -60,6 +72,53 @@ function extractFallbackOrderSummary(sourceSnapshotJson: string | null) {
   } catch {
     return null;
   }
+}
+
+function extractOrderSummaryFromOrderJson(orderJson: string | null) {
+  if (!orderJson) {
+    return null;
+  }
+
+  try {
+    const order = JSON.parse(orderJson) as StoredOrderNode;
+    if (!order) {
+      return null;
+    }
+
+    return {
+      orderName: order.name ?? null,
+      customerName: buildName(order.customer?.firstName, order.customer?.lastName),
+      customerEmail: order.customer?.email ?? null,
+      orderTotal: order.currentTotalPriceSet?.shopMoney?.amount ?? null,
+      currencyCode: order.currentTotalPriceSet?.shopMoney?.currencyCode ?? null,
+      fulfillmentStatus: order.displayFulfillmentStatus ?? null
+    };
+  } catch {
+    return null;
+  }
+}
+
+function mergeOrderSummary(
+  orderSnapshot: StoredOrderSnapshotRecord | undefined,
+  sourceSummary: ReturnType<typeof extractFallbackOrderSummary>
+) {
+  const orderJsonSummary = extractOrderSummaryFromOrderJson(orderSnapshot?.orderJson ?? null);
+
+  return {
+    orderName: orderSnapshot?.orderName ?? orderJsonSummary?.orderName ?? sourceSummary?.orderName ?? null,
+    customerName: orderSnapshot?.customerName ?? orderJsonSummary?.customerName ?? sourceSummary?.customerName ?? null,
+    customerEmail: orderSnapshot?.customerEmail ?? orderJsonSummary?.customerEmail ?? sourceSummary?.customerEmail ?? null,
+    orderTotal:
+      (typeof orderSnapshot?.orderTotal === "string"
+        ? orderSnapshot.orderTotal
+        : orderSnapshot?.orderTotal?.toString?.()) ??
+      orderJsonSummary?.orderTotal ??
+      sourceSummary?.orderTotal ??
+      null,
+    currencyCode: orderSnapshot?.currencyCode ?? orderJsonSummary?.currencyCode ?? sourceSummary?.currencyCode ?? null,
+    fulfillmentStatus:
+      orderSnapshot?.fulfillmentStatus ?? orderJsonSummary?.fulfillmentStatus ?? sourceSummary?.fulfillmentStatus ?? null
+  };
 }
 
 function buildChecklist(reason: string | null, categories: Set<string>) {
@@ -179,15 +238,14 @@ export async function listDashboardDisputes(shopDomain?: string | null): Promise
   return merchant.disputes.map((dispute) => {
     const orderSnapshot = dispute.shopifyOrderId ? orderSnapshots.get(dispute.shopifyOrderId) : null;
     const fallbackOrderSummary = extractFallbackOrderSummary(dispute.sourceSnapshotJson ?? null);
+    const mergedOrderSummary = mergeOrderSummary(orderSnapshot, fallbackOrderSummary);
     const amount =
       dispute.amount?.toString() ??
-      orderSnapshot?.orderTotal?.toString() ??
-      fallbackOrderSummary?.orderTotal ??
+      mergedOrderSummary.orderTotal ??
       "0.00";
     const currencyCode =
       dispute.currencyCode ??
-      orderSnapshot?.currencyCode ??
-      fallbackOrderSummary?.currencyCode ??
+      mergedOrderSummary.currencyCode ??
       null;
 
     return {
@@ -358,6 +416,7 @@ export async function getDisputeDetail(id: string): Promise<DisputeDetailView> {
       })
     : null;
   const fallbackOrderSummary = extractFallbackOrderSummary(dispute.sourceSnapshotJson ?? null);
+  const mergedOrderSummary = mergeOrderSummary(orderSnapshot, fallbackOrderSummary);
   const evidenceCategories = new Set(dispute.evidenceItems.map((item) => item.category));
 
   return {
@@ -368,25 +427,16 @@ export async function getDisputeDetail(id: string): Promise<DisputeDetailView> {
     reasonDetails: dispute.reasonDetails ?? null,
     amount:
       dispute.amount?.toString() ??
-      orderSnapshot?.orderTotal?.toString() ??
-      fallbackOrderSummary?.orderTotal ??
+      mergedOrderSummary.orderTotal ??
       "0.00",
     currencyCode:
       dispute.currencyCode ??
-      orderSnapshot?.currencyCode ??
-      fallbackOrderSummary?.currencyCode ??
+      mergedOrderSummary.currencyCode ??
       null,
     evidenceDueBy: dispute.evidenceDueBy?.toISOString() ?? null,
     evidenceSentOn: dispute.evidenceSentOn?.toISOString() ?? null,
     orderSummary: orderSnapshot || fallbackOrderSummary
-      ? {
-          orderName: orderSnapshot?.orderName ?? fallbackOrderSummary?.orderName ?? null,
-          customerName: orderSnapshot?.customerName ?? fallbackOrderSummary?.customerName ?? null,
-          customerEmail: orderSnapshot?.customerEmail ?? fallbackOrderSummary?.customerEmail ?? null,
-          orderTotal: orderSnapshot?.orderTotal?.toString() ?? fallbackOrderSummary?.orderTotal ?? null,
-          currencyCode: orderSnapshot?.currencyCode ?? fallbackOrderSummary?.currencyCode ?? null,
-          fulfillmentStatus: orderSnapshot?.fulfillmentStatus ?? fallbackOrderSummary?.fulfillmentStatus ?? null
-        }
+      ? mergedOrderSummary
       : null,
     evidenceChecklist: buildChecklist(dispute.reason ?? null, evidenceCategories),
     latestPacket: dispute.packets[0]

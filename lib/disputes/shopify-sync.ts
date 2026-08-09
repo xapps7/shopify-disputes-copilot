@@ -152,6 +152,19 @@ function buildCustomerName(customer?: {
   return fullName || null;
 }
 
+function shouldReplaceStoredAmount(currentAmount: { toString(): string } | null, fallbackAmount: string | null) {
+  if (!fallbackAmount) {
+    return false;
+  }
+
+  if (!currentAmount) {
+    return true;
+  }
+
+  const normalized = Number(currentAmount.toString());
+  return Number.isFinite(normalized) && normalized === 0;
+}
+
 async function upsertOrderSnapshot(dispute: ShopifyDisputeNode, merchantId: string) {
   if (!dispute.order) {
     return null;
@@ -417,14 +430,14 @@ async function backfillExistingDisputeOrderData(
     await db.dispute.update({
       where: { id: dispute.id },
       data: {
-        amount: dispute.amount ?? fallbackAmount ?? undefined,
+        amount: shouldReplaceStoredAmount(dispute.amount, fallbackAmount)
+          ? fallbackAmount ?? undefined
+          : dispute.amount ?? fallbackAmount ?? undefined,
         currencyCode: dispute.currencyCode ?? fallbackCurrencyCode ?? null,
-        sourceSnapshotJson:
-          dispute.sourceSnapshotJson ??
-          JSON.stringify({
-            id: dispute.id,
-            order
-          })
+        sourceSnapshotJson: JSON.stringify({
+          id: dispute.id,
+          order
+        })
       }
     });
   }
