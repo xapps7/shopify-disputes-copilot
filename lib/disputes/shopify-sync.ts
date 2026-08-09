@@ -277,6 +277,29 @@ async function enrichOrderDetails(
   };
 }
 
+async function fetchOrderDetailsById(
+  client: ReturnType<typeof createShopifyAdminClient>,
+  orderId: string
+) {
+  const detailsResponse = await client.request(ORDER_DETAILS_BY_ID_QUERY, {
+    variables: { id: orderId }
+  });
+  const detailErrors = (
+    "errors" in detailsResponse && Array.isArray(detailsResponse.errors) ? detailsResponse.errors : []
+  ) as ShopifyGraphqlError[];
+  const detailData = detailsResponse.data as
+    | {
+        node?: ShopifyDisputeNode["order"] | null;
+      }
+    | undefined;
+
+  if (detailErrors.length > 0 || !detailData?.node) {
+    return null;
+  }
+
+  return detailData.node;
+}
+
 function buildDisputeFromOrderSummary(order: OrderWithDisputesNode, summary: OrderDisputeSummary): ShopifyDisputeNode {
   return {
     id: summary.id,
@@ -353,6 +376,58 @@ async function importDisputeNode(
     previousEvidenceSentOn: previousDispute?.evidenceSentOn ?? null,
     source: "shopify_graphql"
   });
+}
+
+async function backfillExistingDisputeOrderData(
+  client: ReturnType<typeof createShopifyAdminClient>,
+  merchantId: string
+) {
+  const disputes = await db.dispute.findMany({
+    where: { merchantId },
+    select: {
+      id: true,
+      shopifyOrderId: true,
+      amount: true,
+      currencyCode: true,
+      sourceSnapshotJson: true
+    }
+  });
+
+  for (const dispute of disputes) {
+    if (!dispute.shopifyOrderId) {
+      continue;
+    }
+
+    const order = await fetchOrderDetailsById(client, dispute.shopifyOrderId);
+    if (!order) {
+      continue;
+    }
+
+    await upsertOrderSnapshot(
+      {
+        id: dispute.id,
+        order
+      },
+      merchantId
+    );
+
+    const fallbackAmount = order.currentTotalPriceSet?.shopMoney?.amount ?? null;
+    const fallbackCurrencyCode = order.currentTotalPriceSet?.shopMoney?.currencyCode ?? null;
+
+    await db.dispute.update({
+      where: { id: dispute.id },
+      data: {
+        amount: dispute.amount ?? fallbackAmount ?? undefined,
+        currencyCode: dispute.currencyCode ?? fallbackCurrencyCode ?? null,
+        sourceSnapshotJson:
+          dispute.sourceSnapshotJson ??
+          JSON.stringify({
+            id: dispute.id,
+            order
+          })
+      }
+    });
+  }
 }
 
 async function listOrderDisputeFallbacks(
@@ -521,6 +596,8 @@ export async function syncRecentDisputesForMerchant(shopDomain: string) {
   for (const dispute of disputes) {
     await importDisputeNode(dispute, merchant.id);
   }
+
+  await backfillExistingDisputeOrderData(client, merchant.id);
 
   return { synced: disputes.length };
 }
