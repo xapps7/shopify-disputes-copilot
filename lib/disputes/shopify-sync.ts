@@ -7,6 +7,7 @@ import {
   DISPUTES_LIST_QUERY,
   ORDERS_WITH_DISPUTES_QUERY,
   ORDER_DETAILS_BY_ID_QUERY,
+  RECENT_ORDERS_WITH_DETAILS_QUERY,
   SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY
 } from "@/lib/shopify/queries";
 
@@ -306,11 +307,28 @@ async function fetchOrderDetailsById(
       }
     | undefined;
 
-  if (detailErrors.length > 0 || !detailData?.node) {
+  if (detailErrors.length === 0 && detailData?.node) {
+    return detailData.node;
+  }
+
+  const fallbackResponse = await client.request(RECENT_ORDERS_WITH_DETAILS_QUERY);
+  const fallbackErrors = (
+    "errors" in fallbackResponse && Array.isArray(fallbackResponse.errors) ? fallbackResponse.errors : []
+  ) as ShopifyGraphqlError[];
+  const fallbackData = fallbackResponse.data as
+    | {
+        orders?: {
+          nodes?: Array<ShopifyDisputeNode["order"]>;
+        };
+      }
+    | undefined;
+
+  if (fallbackErrors.length > 0) {
     return null;
   }
 
-  return detailData.node;
+  const fallbackOrder = (fallbackData?.orders?.nodes ?? []).find((order) => order?.id === orderId) ?? null;
+  return fallbackOrder;
 }
 
 function buildDisputeFromOrderSummary(order: OrderWithDisputesNode, summary: OrderDisputeSummary): ShopifyDisputeNode {

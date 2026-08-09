@@ -217,6 +217,47 @@ export const BASIC_ORDERS_DEBUG_QUERY = `#graphql
   }
 `;
 
+export const RECENT_ORDERS_WITH_DETAILS_QUERY = `#graphql
+  query RecentOrdersWithDetails {
+    orders(first: 100, reverse: true, sortKey: CREATED_AT, query: "status:any") {
+      nodes {
+        id
+        name
+        createdAt
+        displayFinancialStatus
+        displayFulfillmentStatus
+        currentTotalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        customer {
+          firstName
+          lastName
+          email
+        }
+        lineItems(first: 10) {
+          nodes {
+            name
+            quantity
+            sku
+          }
+        }
+        fulfillments(first: 10) {
+          nodes {
+            trackingInfo {
+              company
+              number
+              url
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
 export const ACCESS_SCOPES_DEBUG_QUERY = `#graphql
   query AccessScopesDebug {
     currentAppInstallation {
