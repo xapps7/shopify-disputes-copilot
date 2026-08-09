@@ -5,7 +5,8 @@ import { createShopifyAdminClient } from "@/lib/shopify/client";
 import {
   DISPUTE_SYNC_QUERY,
   DISPUTES_LIST_QUERY,
-  ORDERS_WITH_DISPUTES_QUERY,
+  BASIC_ORDERS_DEBUG_QUERY,
+  ORDER_BY_ID_DEBUG_QUERY,
   SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY
 } from "@/lib/shopify/queries";
 
@@ -83,11 +84,19 @@ type OrderDisputeSummary = {
 
 type OrderWithDisputesNode = NonNullable<ShopifyDisputeNode["order"]> & {
   disputes?: OrderDisputeSummary[] | null;
+  createdAt?: string | null;
+  displayFinancialStatus?: string | null;
 };
 
-type OrdersWithDisputesQueryResponse = {
+type RecentOrdersQueryResponse = {
   orders?: {
-    nodes?: OrderWithDisputesNode[];
+    nodes?: Array<{
+      id: string;
+      name?: string | null;
+      createdAt?: string | null;
+      displayFinancialStatus?: string | null;
+      displayFulfillmentStatus?: string | null;
+    }>;
   };
 };
 
@@ -293,45 +302,73 @@ async function importDisputeNode(
 async function listOrderDisputeFallbacks(
   client: ReturnType<typeof createShopifyAdminClient>
 ) {
-  const ordersResponse = await client.request(ORDERS_WITH_DISPUTES_QUERY);
-  const orderErrors = (
-    "errors" in ordersResponse && Array.isArray(ordersResponse.errors) ? ordersResponse.errors : []
+  const recentOrdersResponse = await client.request(BASIC_ORDERS_DEBUG_QUERY);
+  const recentOrderErrors = (
+    "errors" in recentOrdersResponse && Array.isArray(recentOrdersResponse.errors)
+      ? recentOrdersResponse.errors
+      : []
   ) as ShopifyGraphqlError[];
 
-  if (orderErrors.length > 0) {
+  if (recentOrderErrors.length > 0) {
     throw new Error(
-      `Shopify order dispute summary query failed: ${orderErrors
+      `Shopify recent order query failed: ${recentOrderErrors
         .map((error) => error.message)
         .filter(Boolean)
         .join("; ")}`
     );
   }
 
-  const orderData = ordersResponse.data as OrdersWithDisputesQueryResponse | undefined;
-  const disputeSummaries = (orderData?.orders?.nodes ?? []).flatMap((order) =>
-    (order.disputes ?? []).map((summary) => ({ order, summary }))
-  );
+  const recentOrderData = recentOrdersResponse.data as RecentOrdersQueryResponse | undefined;
+  const recentOrders = recentOrderData?.orders?.nodes ?? [];
 
   const disputes: ShopifyDisputeNode[] = [];
 
-  for (const { order, summary } of disputeSummaries) {
-    const disputeResponse = await client.request(DISPUTE_SYNC_QUERY, {
-      variables: { id: summary.id }
+  for (const recentOrder of recentOrders) {
+    const orderResponse = await client.request(ORDER_BY_ID_DEBUG_QUERY, {
+      variables: { id: recentOrder.id }
     });
-    const disputeErrors = (
-      "errors" in disputeResponse && Array.isArray(disputeResponse.errors) ? disputeResponse.errors : []
+    const orderErrors = (
+      "errors" in orderResponse && Array.isArray(orderResponse.errors) ? orderResponse.errors : []
     ) as ShopifyGraphqlError[];
-    const disputeData = disputeResponse.data as SingleDisputeQueryResponse | undefined;
+    const orderData = orderResponse.data as
+      | {
+          node?: OrderWithDisputesNode | null;
+        }
+      | undefined;
 
-    if (disputeErrors.length === 0 && disputeData?.dispute) {
-      disputes.push({
-        ...disputeData.dispute,
-        order: disputeData.dispute.order ?? order
-      });
+    if (orderErrors.length > 0) {
+      throw new Error(
+        `Shopify order dispute lookup failed: ${orderErrors
+          .map((error) => error.message)
+          .filter(Boolean)
+          .join("; ")}`
+      );
+    }
+
+    const order = orderData?.node;
+    if (!order || !order.disputes || order.disputes.length === 0) {
       continue;
     }
 
-    disputes.push(buildDisputeFromOrderSummary(order, summary));
+    for (const summary of order.disputes) {
+      const disputeResponse = await client.request(DISPUTE_SYNC_QUERY, {
+        variables: { id: summary.id }
+      });
+      const disputeErrors = (
+        "errors" in disputeResponse && Array.isArray(disputeResponse.errors) ? disputeResponse.errors : []
+      ) as ShopifyGraphqlError[];
+      const disputeData = disputeResponse.data as SingleDisputeQueryResponse | undefined;
+
+      if (disputeErrors.length === 0 && disputeData?.dispute) {
+        disputes.push({
+          ...disputeData.dispute,
+          order: disputeData.dispute.order ?? order
+        });
+        continue;
+      }
+
+      disputes.push(buildDisputeFromOrderSummary(order, summary));
+    }
   }
 
   return disputes;

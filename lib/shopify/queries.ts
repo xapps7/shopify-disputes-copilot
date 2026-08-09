@@ -228,6 +228,33 @@ export const ORDER_BY_ID_DEBUG_QUERY = `#graphql
         createdAt
         displayFinancialStatus
         displayFulfillmentStatus
+        currentTotalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        customer {
+          firstName
+          lastName
+          email
+        }
+        lineItems(first: 10) {
+          nodes {
+            name
+            quantity
+            sku
+          }
+        }
+        fulfillments(first: 10) {
+          nodes {
+            trackingInfo {
+              company
+              number
+              url
+            }
+          }
+        }
         disputes {
           id
           status
