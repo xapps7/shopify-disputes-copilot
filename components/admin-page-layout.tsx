@@ -1,5 +1,7 @@
 "use client";
 
+import { useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { BlockStack, Page } from "@shopify/polaris";
 
 type PageAction = {
@@ -32,12 +34,38 @@ export function AdminPageLayout({
   gap = "500",
   children
 }: AdminPageLayoutProps) {
+  const searchParams = useSearchParams();
+
+  const withEmbeddedParams = useMemo(() => {
+    const query = searchParams.toString();
+
+    return (url?: string) => {
+      if (!url || !query || url.startsWith("http://") || url.startsWith("https://")) {
+        return url;
+      }
+
+      return `${url}${url.includes("?") ? "&" : "?"}${query}`;
+    };
+  }, [searchParams]);
+
+  const resolvedPrimaryAction = primaryAction
+    ? {
+        ...primaryAction,
+        url: withEmbeddedParams(primaryAction.url)
+      }
+    : undefined;
+
+  const resolvedSecondaryActions = secondaryActions?.map((action) => ({
+    ...action,
+    url: withEmbeddedParams(action.url)
+  }));
+
   return (
     <Page
       title={title}
       subtitle={subtitle}
-      primaryAction={primaryAction}
-      secondaryActions={secondaryActions}
+      primaryAction={resolvedPrimaryAction}
+      secondaryActions={resolvedSecondaryActions}
     >
       <BlockStack gap={gap}>
         {banner}

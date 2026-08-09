@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Badge,
   BlockStack,
@@ -28,11 +29,13 @@ type EvidenceLibraryPageShellProps = {
 
 export function EvidenceLibraryPageShell({ items, disputeOptions }: EvidenceLibraryPageShellProps) {
   const { mode, setMode } = useSetIndexFiltersMode();
+  const searchParams = useSearchParams();
   const [selectedTab, setSelectedTab] = useState(0);
   const [queryValue, setQueryValue] = useState("");
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const filteredItems = useMemo(() => filterEvidenceItems(items, selectedTab, queryValue), [items, queryValue, selectedTab]);
   const editingItem = items.find((item) => item.id === editingItemId) ?? null;
+  const embeddedQuery = searchParams.toString();
 
   return (
     <AdminPageLayout
@@ -101,7 +104,10 @@ export function EvidenceLibraryPageShell({ items, disputeOptions }: EvidenceLibr
                   <Badge>{item.category.replaceAll("_", " ")}</Badge>
                 </IndexTable.Cell>
                 <IndexTable.Cell>
-                  <Link className="table-link" href={`/disputes/${item.disputeId}` as never}>
+                  <Link
+                    className="table-link"
+                    href={`/disputes/${item.disputeId}${embeddedQuery ? `?${embeddedQuery}` : ""}` as never}
+                  >
                     {item.disputeReference}
                   </Link>
                 </IndexTable.Cell>

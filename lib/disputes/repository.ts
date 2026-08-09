@@ -1,9 +1,6 @@
 import { db } from "@/lib/db";
 import {
-  getSampleDisputeDetail,
-  sampleDashboardDisputes,
-  sampleDisputeDetail,
-  sampleDisputeDetails
+  getSampleDisputeDetail
 } from "@/lib/disputes/sample-data";
 import type {
   AnalyticsSnapshotView,
@@ -104,7 +101,7 @@ function buildChecklist(reason: string | null, categories: Set<string>) {
 
 export async function listDashboardDisputes(shopDomain?: string | null): Promise<DashboardDispute[]> {
   if (!shopDomain) {
-    return sampleDashboardDisputes;
+    return [];
   }
 
   const merchant = await db.merchant.findUnique({
@@ -156,19 +153,7 @@ export async function getOverviewMetrics(shopDomain?: string | null): Promise<Ov
 
 export async function listEvidenceLibrary(shopDomain?: string | null): Promise<EvidenceLibraryItemView[]> {
   if (!shopDomain) {
-    return sampleDisputeDetails.flatMap((detail) =>
-      detail.evidenceItems.map((item, index) => ({
-        id: item.id,
-        disputeId: detail.id,
-        disputeReference: detail.shopifyDisputeId.split("/").pop() ?? detail.id,
-        title: item.title,
-        category: item.category,
-        sourceType: item.sourceType,
-        description: item.description,
-        fileUrl: item.fileUrl,
-        createdAt: detail.timeline[index]?.eventTimestamp ?? new Date().toISOString()
-      }))
-    );
+    return [];
   }
 
   const merchant = await db.merchant.findUnique({
@@ -227,7 +212,7 @@ export async function getAnalyticsSnapshot(shopDomain?: string | null): Promise<
 
 export async function listRecommendations(shopDomain?: string | null): Promise<PreventionRecommendationView[]> {
   if (!shopDomain) {
-    return sampleDisputeDetails.flatMap((item) => item.recommendations);
+    return [];
   }
 
   const merchant = await db.merchant.findUnique({

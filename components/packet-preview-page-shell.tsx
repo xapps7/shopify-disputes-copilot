@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Banner,
   BlockStack,
@@ -38,16 +39,19 @@ function splitSections(summaryText: string | null) {
 }
 
 export function PacketPreviewPageShell({ dispute }: PacketPreviewPageShellProps) {
+  const searchParams = useSearchParams();
   const sections = splitSections(dispute.latestPacket?.summaryText ?? null);
   const packetReview = assessPacketQuality(dispute);
   const aiAssessment = generatePackageAssessment(dispute);
+  const embeddedQuery = searchParams.toString();
+  const disputeUrl = `/disputes/${dispute.id}${embeddedQuery ? `?${embeddedQuery}` : ""}`;
 
   return (
     <Page
       fullWidth
       title="Packet preview"
       subtitle="Review the compiled evidence narrative before export or submission."
-      backAction={{ content: "Back to dispute", url: `/disputes/${dispute.id}` }}
+      backAction={{ content: "Back to dispute", url: disputeUrl }}
       primaryAction={
         dispute.latestPacket
           ? {
@@ -158,7 +162,7 @@ export function PacketPreviewPageShell({ dispute }: PacketPreviewPageShellProps)
                   Actions
                 </Text>
                 <InlineStack gap="200" wrap>
-                  <Button url={`/disputes/${dispute.id}`}>Back to dispute</Button>
+                  <Button url={disputeUrl}>Back to dispute</Button>
                   {dispute.latestPacket ? (
                     <Button url={`/api/disputes/${dispute.id}/packet/download`} target="_blank" variant="primary">
                       Download packet
@@ -166,7 +170,7 @@ export function PacketPreviewPageShell({ dispute }: PacketPreviewPageShellProps)
                   ) : null}
                 </InlineStack>
                 <Box>
-                  <Link className="table-link" href={`/disputes/${dispute.id}` as never}>
+                  <Link className="table-link" href={disputeUrl as never}>
                     Return to evidence and submission workflow
                   </Link>
                 </Box>

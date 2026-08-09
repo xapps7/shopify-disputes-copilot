@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Banner,
   Badge,
@@ -84,7 +85,12 @@ export function DisputePageShell({
   responseDraft,
   packageAssessment
 }: DisputePageShellProps) {
+  const searchParams = useSearchParams();
   const actionGuidance = nextStep(readinessScore);
+  const embeddedQuery = searchParams.toString();
+  const disputesUrl = `/disputes${embeddedQuery ? `?${embeddedQuery}` : ""}`;
+  const evidenceUrl = `/evidence${embeddedQuery ? `?${embeddedQuery}` : ""}`;
+  const packetUrl = `/packets/${dispute.id}${embeddedQuery ? `?${embeddedQuery}` : ""}`;
   const dueDateLabel = dispute.evidenceDueBy
     ? new Date(dispute.evidenceDueBy).toLocaleDateString()
     : "No deadline";
@@ -104,7 +110,7 @@ export function DisputePageShell({
       fullWidth
       title={`Dispute ${dispute.shopifyDisputeId.split("/").pop()}`}
       subtitle={`${(dispute.reason ?? "Unknown").replaceAll("_", " ")} · ${dispute.currencyCode ?? "USD"} ${dispute.amount}`}
-      backAction={{ content: "Disputes", url: "/disputes" }}
+      backAction={{ content: "Disputes", url: disputesUrl }}
       primaryAction={{
         content: "Submit evidence",
         onAction: () => {
@@ -326,7 +332,7 @@ export function DisputePageShell({
                         Use <strong>Disputes</strong> to work one case. Use <strong>Evidence library</strong> to reuse files across multiple disputes and keep an audit trail.
                       </Text>
                     </BlockStack>
-                    <Link className="table-link" href={"/evidence" as never}>
+                    <Link className="table-link" href={evidenceUrl as never}>
                       Open evidence library
                     </Link>
                   </InlineStack>
@@ -364,7 +370,7 @@ export function DisputePageShell({
                     Review the packet before export. If direct submission is unavailable, download the packet and submit it manually in Shopify Admin.
                   </Text>
                   <InlineStack gap="300" wrap>
-                    <Link className="table-link" href={`/packets/${dispute.id}` as never}>
+                    <Link className="table-link" href={packetUrl as never}>
                       Open packet preview
                     </Link>
                     {dispute.latestPacket ? (

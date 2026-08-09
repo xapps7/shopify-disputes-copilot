@@ -40,6 +40,9 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
   const searchParams = useSearchParams();
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const embeddedQuery = searchParams.toString();
+  const disputesUrl = `/disputes${embeddedQuery ? `?${embeddedQuery}` : ""}`;
+  const evidenceUrl = `/evidence${embeddedQuery ? `?${embeddedQuery}` : ""}`;
 
   async function handleSync() {
     setIsSyncing(true);
@@ -75,9 +78,9 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
     <AdminPageLayout
       title="Disputes Co-Pilot"
       subtitle="Workflow entry point for active Shopify Payments disputes."
-      primaryAction={{ content: "View disputes", url: "/disputes" }}
+      primaryAction={{ content: "View disputes", url: disputesUrl }}
       secondaryActions={[
-        { content: "Open evidence library", url: "/evidence" },
+        { content: "Open evidence library", url: evidenceUrl },
         { content: isSyncing ? "Syncing disputes..." : "Sync disputes", onAction: handleSync, disabled: isSyncing }
       ]}
       gap="400"
@@ -141,21 +144,21 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
               Attention needed
             </Text>
             <InlineStack align="space-between">
-              <Link className="table-link" href={"/disputes" as never}>
+              <Link className="table-link" href={disputesUrl as never}>
                 Disputes due within 48 hours
               </Link>
               <Badge tone={metrics.dueSoon > 0 ? "critical" : "success"}>{String(metrics.dueSoon)}</Badge>
             </InlineStack>
             <Divider />
             <InlineStack align="space-between">
-              <Link className="table-link" href={"/disputes" as never}>
+              <Link className="table-link" href={disputesUrl as never}>
                 Evidence-ready cases
               </Link>
               <Badge tone="info">{String(metrics.evidenceReady)}</Badge>
             </InlineStack>
             <Divider />
             <InlineStack align="space-between">
-              <Link className="table-link" href={"/disputes" as never}>
+              <Link className="table-link" href={disputesUrl as never}>
                 Missing evidence cases
               </Link>
               <Badge tone={metrics.openDisputes - metrics.evidenceReady > 0 ? "warning" : "success"}>
@@ -168,7 +171,7 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
         <ResourceSection
           title="Recent disputes"
           action={
-            <Link className="table-link" href={"/disputes" as never}>
+            <Link className="table-link" href={disputesUrl as never}>
               View all disputes
             </Link>
           }
@@ -191,7 +194,10 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
               {recentDisputes.slice(0, 6).map((dispute, index) => (
                 <IndexTable.Row id={dispute.id} key={dispute.id} position={index}>
                   <IndexTable.Cell>
-                    <Link className="table-link" href={`/disputes/${dispute.id}` as never}>
+                    <Link
+                      className="table-link"
+                      href={`/disputes/${dispute.id}${embeddedQuery ? `?${embeddedQuery}` : ""}` as never}
+                    >
                       {dispute.shopifyDisputeId.split("/").pop()}
                     </Link>
                   </IndexTable.Cell>
