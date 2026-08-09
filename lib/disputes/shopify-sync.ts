@@ -587,6 +587,8 @@ export async function syncRecentDisputesForMerchant(shopDomain: string) {
     disputesById.set(dispute.id, mergeDisputeNode(disputesById.get(dispute.id), dispute));
   }
 
+  await backfillExistingDisputeOrderData(client, merchant.id);
+
   const disputes = [...disputesById.values()];
 
   if (disputes.length === 0) {
@@ -596,8 +598,6 @@ export async function syncRecentDisputesForMerchant(shopDomain: string) {
   for (const dispute of disputes) {
     await importDisputeNode(dispute, merchant.id);
   }
-
-  await backfillExistingDisputeOrderData(client, merchant.id);
 
   return { synced: disputes.length };
 }
