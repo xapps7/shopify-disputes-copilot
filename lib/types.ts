@@ -39,6 +39,8 @@ export type DisputeDetailView = {
     orderName: string | null;
     customerName: string | null;
     customerEmail: string | null;
+    orderTotal: string | null;
+    currencyCode: string | null;
     fulfillmentStatus: string | null;
   } | null;
   evidenceChecklist: Array<{

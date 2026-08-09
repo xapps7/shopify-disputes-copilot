@@ -397,6 +397,12 @@ export function DisputePageShell({
                     headings={["Field", "Value"]}
                     rows={[
                       ["Order", dispute.orderSummary?.orderName ?? "Unavailable"],
+                      [
+                        "Order amount",
+                        dispute.orderSummary?.orderTotal
+                          ? `${dispute.orderSummary.currencyCode ?? dispute.currencyCode ?? "USD"} ${dispute.orderSummary.orderTotal}`
+                          : "Unavailable"
+                      ],
                       ["Customer", dispute.orderSummary?.customerName ?? "Unavailable"],
                       ["Email", dispute.orderSummary?.customerEmail ?? "Unavailable"]
                     ]}

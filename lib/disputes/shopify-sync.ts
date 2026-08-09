@@ -308,7 +308,8 @@ async function importDisputeNode(
       amount: dispute.amount?.amount ?? undefined,
       currencyCode: dispute.amount?.currencyCode ?? null,
       evidenceDueBy: dispute.evidenceDueBy ? new Date(dispute.evidenceDueBy) : null,
-      evidenceSentOn: dispute.evidenceSentOn ? new Date(dispute.evidenceSentOn) : null
+      evidenceSentOn: dispute.evidenceSentOn ? new Date(dispute.evidenceSentOn) : null,
+      sourceSnapshotJson: JSON.stringify(dispute)
     },
     create: {
       merchantId,
@@ -321,7 +322,8 @@ async function importDisputeNode(
       amount: dispute.amount?.amount ?? undefined,
       currencyCode: dispute.amount?.currencyCode ?? null,
       evidenceDueBy: dispute.evidenceDueBy ? new Date(dispute.evidenceDueBy) : null,
-      evidenceSentOn: dispute.evidenceSentOn ? new Date(dispute.evidenceSentOn) : null
+      evidenceSentOn: dispute.evidenceSentOn ? new Date(dispute.evidenceSentOn) : null,
+      sourceSnapshotJson: JSON.stringify(dispute)
     }
   });
 

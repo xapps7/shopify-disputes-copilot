@@ -12,6 +12,56 @@ import type {
   PreventionRecommendationView
 } from "@/lib/types";
 
+type StoredOrderSnapshot = {
+  order?: {
+    id?: string | null;
+    name?: string | null;
+    displayFulfillmentStatus?: string | null;
+    currentTotalPriceSet?: {
+      shopMoney?: {
+        amount?: string | null;
+        currencyCode?: string | null;
+      } | null;
+    } | null;
+    customer?: {
+      firstName?: string | null;
+      lastName?: string | null;
+      email?: string | null;
+    } | null;
+  } | null;
+} | null;
+
+function buildName(firstName?: string | null, lastName?: string | null) {
+  const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
+  return fullName || null;
+}
+
+function extractFallbackOrderSummary(sourceSnapshotJson: string | null) {
+  if (!sourceSnapshotJson) {
+    return null;
+  }
+
+  try {
+    const snapshot = JSON.parse(sourceSnapshotJson) as StoredOrderSnapshot;
+    const order = snapshot?.order;
+
+    if (!order) {
+      return null;
+    }
+
+    return {
+      orderName: order.name ?? null,
+      customerName: buildName(order.customer?.firstName, order.customer?.lastName),
+      customerEmail: order.customer?.email ?? null,
+      orderTotal: order.currentTotalPriceSet?.shopMoney?.amount ?? null,
+      currencyCode: order.currentTotalPriceSet?.shopMoney?.currencyCode ?? null,
+      fulfillmentStatus: order.displayFulfillmentStatus ?? null
+    };
+  } catch {
+    return null;
+  }
+}
+
 function buildChecklist(reason: string | null, categories: Set<string>) {
   const required =
     reason === "FRAUD"
@@ -287,6 +337,7 @@ export async function getDisputeDetail(id: string): Promise<DisputeDetailView> {
         where: { shopifyOrderId: dispute.shopifyOrderId }
       })
     : null;
+  const fallbackOrderSummary = extractFallbackOrderSummary(dispute.sourceSnapshotJson ?? null);
   const evidenceCategories = new Set(dispute.evidenceItems.map((item) => item.category));
 
   return {
@@ -299,12 +350,14 @@ export async function getDisputeDetail(id: string): Promise<DisputeDetailView> {
     currencyCode: dispute.currencyCode ?? null,
     evidenceDueBy: dispute.evidenceDueBy?.toISOString() ?? null,
     evidenceSentOn: dispute.evidenceSentOn?.toISOString() ?? null,
-    orderSummary: orderSnapshot
+    orderSummary: orderSnapshot || fallbackOrderSummary
       ? {
-          orderName: orderSnapshot.orderName ?? null,
-          customerName: orderSnapshot.customerName ?? null,
-          customerEmail: orderSnapshot.customerEmail ?? null,
-          fulfillmentStatus: orderSnapshot.fulfillmentStatus ?? null
+          orderName: orderSnapshot?.orderName ?? fallbackOrderSummary?.orderName ?? null,
+          customerName: orderSnapshot?.customerName ?? fallbackOrderSummary?.customerName ?? null,
+          customerEmail: orderSnapshot?.customerEmail ?? fallbackOrderSummary?.customerEmail ?? null,
+          orderTotal: orderSnapshot?.orderTotal?.toString() ?? fallbackOrderSummary?.orderTotal ?? null,
+          currencyCode: orderSnapshot?.currencyCode ?? fallbackOrderSummary?.currencyCode ?? null,
+          fulfillmentStatus: orderSnapshot?.fulfillmentStatus ?? fallbackOrderSummary?.fulfillmentStatus ?? null
         }
       : null,
     evidenceChecklist: buildChecklist(dispute.reason ?? null, evidenceCategories),

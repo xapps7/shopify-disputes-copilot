@@ -105,6 +105,8 @@ export const sampleDisputeDetails: DisputeDetailView[] = [
       orderName: "#1001",
       customerName: "Alex Carter",
       customerEmail: "alex@example.com",
+      orderTotal: "149.00",
+      currencyCode: "USD",
       fulfillmentStatus: "FULFILLED"
     },
     evidenceChecklist: fraudChecklist(),
@@ -186,6 +188,8 @@ export const sampleDisputeDetails: DisputeDetailView[] = [
       orderName: "#1002",
       customerName: "Priya Mehta",
       customerEmail: "priya@example.com",
+      orderTotal: "89.00",
+      currencyCode: "USD",
       fulfillmentStatus: "FULFILLED"
     },
     evidenceChecklist: productNotReceivedChecklist(),
