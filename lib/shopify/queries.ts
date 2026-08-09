@@ -228,6 +228,23 @@ export const ORDER_BY_ID_DEBUG_QUERY = `#graphql
         createdAt
         displayFinancialStatus
         displayFulfillmentStatus
+        disputes {
+          id
+          status
+          initiatedAs
+        }
+      }
+    }
+  }
+`;
+
+export const ORDER_DETAILS_BY_ID_QUERY = `#graphql
+  query OrderDetailsById($id: ID!) {
+    node(id: $id) {
+      ... on Order {
+        id
+        name
+        displayFulfillmentStatus
         currentTotalPriceSet {
           shopMoney {
             amount
@@ -254,11 +271,6 @@ export const ORDER_BY_ID_DEBUG_QUERY = `#graphql
               url
             }
           }
-        }
-        disputes {
-          id
-          status
-          initiatedAs
         }
       }
     }

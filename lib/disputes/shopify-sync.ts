@@ -6,6 +6,7 @@ import {
   DISPUTE_SYNC_QUERY,
   DISPUTES_LIST_QUERY,
   BASIC_ORDERS_DEBUG_QUERY,
+  ORDER_DETAILS_BY_ID_QUERY,
   ORDER_BY_ID_DEBUG_QUERY,
   SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY
 } from "@/lib/shopify/queries";
@@ -223,6 +224,36 @@ async function replaceSystemEvidence(disputeId: string, dispute: ShopifyDisputeN
   }
 }
 
+async function enrichOrderDetails(
+  client: ReturnType<typeof createShopifyAdminClient>,
+  dispute: ShopifyDisputeNode
+) {
+  if (!dispute.order?.id) {
+    return dispute;
+  }
+
+  const detailsResponse = await client.request(ORDER_DETAILS_BY_ID_QUERY, {
+    variables: { id: dispute.order.id }
+  });
+  const detailErrors = (
+    "errors" in detailsResponse && Array.isArray(detailsResponse.errors) ? detailsResponse.errors : []
+  ) as ShopifyGraphqlError[];
+  const detailData = detailsResponse.data as
+    | {
+        node?: ShopifyDisputeNode["order"] | null;
+      }
+    | undefined;
+
+  if (detailErrors.length > 0 || !detailData?.node) {
+    return dispute;
+  }
+
+  return {
+    ...dispute,
+    order: detailData.node
+  };
+}
+
 function buildDisputeFromOrderSummary(order: OrderWithDisputesNode, summary: OrderDisputeSummary): ShopifyDisputeNode {
   return {
     id: summary.id,
@@ -360,14 +391,14 @@ async function listOrderDisputeFallbacks(
       const disputeData = disputeResponse.data as SingleDisputeQueryResponse | undefined;
 
       if (disputeErrors.length === 0 && disputeData?.dispute) {
-        disputes.push({
+        disputes.push(await enrichOrderDetails(client, {
           ...disputeData.dispute,
           order: disputeData.dispute.order ?? order
-        });
+        }));
         continue;
       }
 
-      disputes.push(buildDisputeFromOrderSummary(order, summary));
+      disputes.push(await enrichOrderDetails(client, buildDisputeFromOrderSummary(order, summary)));
     }
   }
 
