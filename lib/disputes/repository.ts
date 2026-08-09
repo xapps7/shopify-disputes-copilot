@@ -157,6 +157,7 @@ export async function listDashboardDisputes(shopDomain?: string | null): Promise
   const merchant = await db.merchant.findUnique({
     where: { shopDomain },
     include: {
+      orderSnapshots: true,
       disputes: {
         orderBy: [{ evidenceDueBy: "asc" }, { createdAt: "desc" }],
         include: {
@@ -171,17 +172,36 @@ export async function listDashboardDisputes(shopDomain?: string | null): Promise
     return [];
   }
 
-  return merchant.disputes.map((dispute) => ({
-    id: dispute.id,
-    shopifyDisputeId: dispute.shopifyDisputeId,
-    shopifyOrderId: dispute.shopifyOrderId ?? null,
-    status: dispute.status,
-    reason: dispute.reason ?? null,
-    amount: dispute.amount?.toString() ?? "0.00",
-    currencyCode: dispute.currencyCode ?? null,
-    evidenceDueBy: dispute.evidenceDueBy?.toISOString() ?? null,
-    completenessScore: Math.min(100, dispute.evidenceItems.length * 25)
-  }));
+  const orderSnapshots = new Map(
+    merchant.orderSnapshots.map((snapshot) => [snapshot.shopifyOrderId, snapshot])
+  );
+
+  return merchant.disputes.map((dispute) => {
+    const orderSnapshot = dispute.shopifyOrderId ? orderSnapshots.get(dispute.shopifyOrderId) : null;
+    const fallbackOrderSummary = extractFallbackOrderSummary(dispute.sourceSnapshotJson ?? null);
+    const amount =
+      dispute.amount?.toString() ??
+      orderSnapshot?.orderTotal?.toString() ??
+      fallbackOrderSummary?.orderTotal ??
+      "0.00";
+    const currencyCode =
+      dispute.currencyCode ??
+      orderSnapshot?.currencyCode ??
+      fallbackOrderSummary?.currencyCode ??
+      null;
+
+    return {
+      id: dispute.id,
+      shopifyDisputeId: dispute.shopifyDisputeId,
+      shopifyOrderId: dispute.shopifyOrderId ?? null,
+      status: dispute.status,
+      reason: dispute.reason ?? null,
+      amount,
+      currencyCode,
+      evidenceDueBy: dispute.evidenceDueBy?.toISOString() ?? null,
+      completenessScore: Math.min(100, dispute.evidenceItems.length * 25)
+    };
+  });
 }
 
 export async function getOverviewMetrics(shopDomain?: string | null): Promise<OverviewMetricsView> {
@@ -346,8 +366,16 @@ export async function getDisputeDetail(id: string): Promise<DisputeDetailView> {
     status: dispute.status,
     reason: dispute.reason ?? null,
     reasonDetails: dispute.reasonDetails ?? null,
-    amount: dispute.amount?.toString() ?? "0.00",
-    currencyCode: dispute.currencyCode ?? null,
+    amount:
+      dispute.amount?.toString() ??
+      orderSnapshot?.orderTotal?.toString() ??
+      fallbackOrderSummary?.orderTotal ??
+      "0.00",
+    currencyCode:
+      dispute.currencyCode ??
+      orderSnapshot?.currencyCode ??
+      fallbackOrderSummary?.currencyCode ??
+      null,
     evidenceDueBy: dispute.evidenceDueBy?.toISOString() ?? null,
     evidenceSentOn: dispute.evidenceSentOn?.toISOString() ?? null,
     orderSummary: orderSnapshot || fallbackOrderSummary

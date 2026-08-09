@@ -5,9 +5,8 @@ import { createShopifyAdminClient } from "@/lib/shopify/client";
 import {
   DISPUTE_SYNC_QUERY,
   DISPUTES_LIST_QUERY,
-  BASIC_ORDERS_DEBUG_QUERY,
+  ORDERS_WITH_DISPUTES_QUERY,
   ORDER_DETAILS_BY_ID_QUERY,
-  ORDER_BY_ID_DEBUG_QUERY,
   SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY
 } from "@/lib/shopify/queries";
 
@@ -61,6 +60,10 @@ type ShopifyDisputeNode = {
 
 type DisputesQueryResponse = {
   disputes: {
+    pageInfo?: {
+      hasNextPage?: boolean;
+      endCursor?: string | null;
+    };
     nodes: ShopifyDisputeNode[];
   };
 };
@@ -72,6 +75,10 @@ type SingleDisputeQueryResponse = {
 type ShopifyPaymentsAccountDisputesQueryResponse = {
   shopifyPaymentsAccount?: {
     disputes?: {
+      pageInfo?: {
+        hasNextPage?: boolean;
+        endCursor?: string | null;
+      };
       nodes: ShopifyDisputeNode[];
     } | null;
   } | null;
@@ -107,15 +114,13 @@ function mergeDisputeNode(existing: ShopifyDisputeNode | undefined, incoming: Sh
   };
 }
 
-type RecentOrdersQueryResponse = {
+type OrdersWithDisputesQueryResponse = {
   orders?: {
-    nodes?: Array<{
-      id: string;
-      name?: string | null;
-      createdAt?: string | null;
-      displayFinancialStatus?: string | null;
-      displayFulfillmentStatus?: string | null;
-    }>;
+    pageInfo?: {
+      hasNextPage?: boolean;
+      endCursor?: string | null;
+    };
+    nodes?: OrderWithDisputesNode[];
   };
 };
 
@@ -353,72 +358,125 @@ async function importDisputeNode(
 async function listOrderDisputeFallbacks(
   client: ReturnType<typeof createShopifyAdminClient>
 ) {
-  const recentOrdersResponse = await client.request(BASIC_ORDERS_DEBUG_QUERY);
-  const recentOrderErrors = (
-    "errors" in recentOrdersResponse && Array.isArray(recentOrdersResponse.errors)
-      ? recentOrdersResponse.errors
-      : []
-  ) as ShopifyGraphqlError[];
-
-  if (recentOrderErrors.length > 0) {
-    throw new Error(
-      `Shopify recent order query failed: ${recentOrderErrors
-        .map((error) => error.message)
-        .filter(Boolean)
-        .join("; ")}`
-    );
-  }
-
-  const recentOrderData = recentOrdersResponse.data as RecentOrdersQueryResponse | undefined;
-  const recentOrders = recentOrderData?.orders?.nodes ?? [];
-
   const disputes: ShopifyDisputeNode[] = [];
+  let after: string | null = null;
 
-  for (const recentOrder of recentOrders) {
-    const orderResponse = await client.request(ORDER_BY_ID_DEBUG_QUERY, {
-      variables: { id: recentOrder.id }
+  for (let page = 0; page < 20; page += 1) {
+    const ordersResponse = await client.request(ORDERS_WITH_DISPUTES_QUERY, {
+      variables: { after }
     });
     const orderErrors = (
-      "errors" in orderResponse && Array.isArray(orderResponse.errors) ? orderResponse.errors : []
+      "errors" in ordersResponse && Array.isArray(ordersResponse.errors) ? ordersResponse.errors : []
     ) as ShopifyGraphqlError[];
-    const orderData = orderResponse.data as
-      | {
-          node?: OrderWithDisputesNode | null;
-        }
-      | undefined;
 
     if (orderErrors.length > 0) {
       throw new Error(
-        `Shopify order dispute lookup failed: ${orderErrors
+        `Shopify orders-with-disputes query failed: ${orderErrors
           .map((error) => error.message)
           .filter(Boolean)
           .join("; ")}`
       );
     }
 
-    const order = orderData?.node;
-    if (!order || !order.disputes || order.disputes.length === 0) {
-      continue;
-    }
+    const ordersData = ordersResponse.data as OrdersWithDisputesQueryResponse | undefined;
+    const orders = ordersData?.orders?.nodes ?? [];
 
-    for (const summary of order.disputes) {
-      const disputeResponse = await client.request(DISPUTE_SYNC_QUERY, {
-        variables: { id: summary.id }
-      });
-      const disputeErrors = (
-        "errors" in disputeResponse && Array.isArray(disputeResponse.errors) ? disputeResponse.errors : []
-      ) as ShopifyGraphqlError[];
-      const disputeData = disputeResponse.data as SingleDisputeQueryResponse | undefined;
-
-      if (disputeErrors.length === 0 && disputeData?.dispute) {
-        disputes.push(await enrichOrderDetails(client, {
-          ...disputeData.dispute,
-          order: disputeData.dispute.order ?? order
-        }));
+    for (const order of orders) {
+      if (!order?.disputes || order.disputes.length === 0) {
         continue;
       }
 
-      disputes.push(await enrichOrderDetails(client, buildDisputeFromOrderSummary(order, summary)));
+      for (const summary of order.disputes) {
+        const disputeResponse = await client.request(DISPUTE_SYNC_QUERY, {
+          variables: { id: summary.id }
+        });
+        const disputeErrors = (
+          "errors" in disputeResponse && Array.isArray(disputeResponse.errors) ? disputeResponse.errors : []
+        ) as ShopifyGraphqlError[];
+        const disputeData = disputeResponse.data as SingleDisputeQueryResponse | undefined;
+
+        if (disputeErrors.length === 0 && disputeData?.dispute) {
+          disputes.push(await enrichOrderDetails(client, {
+            ...disputeData.dispute,
+            order: disputeData.dispute.order ?? order
+          }));
+          continue;
+        }
+
+        disputes.push(await enrichOrderDetails(client, buildDisputeFromOrderSummary(order, summary)));
+      }
+    }
+
+    after = ordersData?.orders?.pageInfo?.endCursor ?? null;
+    if (!ordersData?.orders?.pageInfo?.hasNextPage || !after) {
+      break;
+    }
+  }
+
+  return disputes;
+}
+
+async function collectRootDisputes(client: ReturnType<typeof createShopifyAdminClient>) {
+  const disputes: ShopifyDisputeNode[] = [];
+  let after: string | null = null;
+
+  for (let page = 0; page < 20; page += 1) {
+    const response = await client.request(DISPUTES_LIST_QUERY, {
+      variables: { after }
+    });
+    const responseErrors = (
+      "errors" in response && Array.isArray(response.errors) ? response.errors : []
+    ) as ShopifyGraphqlError[];
+    const data = response.data as DisputesQueryResponse | undefined;
+
+    if (responseErrors.length > 0) {
+      throw new Error(
+        `Shopify dispute query failed: ${responseErrors
+          .map((error) => error.message)
+          .filter(Boolean)
+          .join("; ")}`
+      );
+    }
+
+    disputes.push(...(data?.disputes?.nodes ?? []));
+    after = data?.disputes?.pageInfo?.endCursor ?? null;
+    if (!data?.disputes?.pageInfo?.hasNextPage || !after) {
+      break;
+    }
+  }
+
+  return disputes;
+}
+
+async function collectAccountDisputes(client: ReturnType<typeof createShopifyAdminClient>) {
+  const disputes: ShopifyDisputeNode[] = [];
+  let after: string | null = null;
+
+  for (let page = 0; page < 20; page += 1) {
+    const response = await client.request(SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY, {
+      variables: { after }
+    });
+    const responseErrors = (
+      "errors" in response && Array.isArray(response.errors) ? response.errors : []
+    ) as ShopifyGraphqlError[];
+    const data = response.data as ShopifyPaymentsAccountDisputesQueryResponse | undefined;
+
+    if (
+      responseErrors.length > 0 &&
+      responseErrors.some((error) => error.message && !error.message.includes("Access denied"))
+    ) {
+      throw new Error(
+        `Shopify payments account dispute query failed: ${responseErrors
+          .map((error) => error.message)
+          .filter(Boolean)
+          .join("; ")}`
+      );
+    }
+
+    disputes.push(...(data?.shopifyPaymentsAccount?.disputes?.nodes ?? []));
+    after = data?.shopifyPaymentsAccount?.disputes?.pageInfo?.endCursor ?? null;
+    if (!data?.shopifyPaymentsAccount?.disputes?.pageInfo?.hasNextPage || !after) {
+      break;
     }
   }
 
@@ -440,46 +498,13 @@ export async function syncRecentDisputesForMerchant(shopDomain: string) {
     accessToken
   });
 
-  const response = await client.request(DISPUTES_LIST_QUERY);
-  const responseErrors = (
-    "errors" in response && Array.isArray(response.errors) ? response.errors : []
-  ) as ShopifyGraphqlError[];
-  let data = response.data as DisputesQueryResponse | undefined;
-
-  if (responseErrors.length > 0) {
-    throw new Error(
-      `Shopify dispute query failed: ${responseErrors
-        .map((error) => error.message)
-        .filter(Boolean)
-        .join("; ")}`
-    );
-  }
-
   const disputesById = new Map<string, ShopifyDisputeNode>();
 
-  for (const dispute of data?.disputes?.nodes ?? []) {
+  for (const dispute of await collectRootDisputes(client)) {
     disputesById.set(dispute.id, mergeDisputeNode(disputesById.get(dispute.id), dispute));
   }
 
-  const accountResponse = await client.request(SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY);
-  const accountErrors = (
-    "errors" in accountResponse && Array.isArray(accountResponse.errors) ? accountResponse.errors : []
-  ) as ShopifyGraphqlError[];
-  const accountData = accountResponse.data as ShopifyPaymentsAccountDisputesQueryResponse | undefined;
-
-  if (
-    accountErrors.length > 0 &&
-    accountErrors.some((error) => error.message && !error.message.includes("Access denied"))
-  ) {
-    throw new Error(
-      `Shopify payments account dispute query failed: ${accountErrors
-        .map((error) => error.message)
-        .filter(Boolean)
-        .join("; ")}`
-    );
-  }
-
-  for (const dispute of accountData?.shopifyPaymentsAccount?.disputes?.nodes ?? []) {
+  for (const dispute of await collectAccountDisputes(client)) {
     disputesById.set(dispute.id, mergeDisputeNode(disputesById.get(dispute.id), dispute));
   }
 

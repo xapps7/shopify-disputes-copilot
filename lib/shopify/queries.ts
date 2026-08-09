@@ -38,8 +38,12 @@ export const DISPUTE_SYNC_QUERY = `#graphql
 `;
 
 export const DISPUTES_LIST_QUERY = `#graphql
-  query DisputesList {
-    disputes(first: 100) {
+  query DisputesList($after: String) {
+    disputes(first: 100, after: $after) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
       nodes {
         id
         amount {
@@ -92,9 +96,13 @@ export const DISPUTES_LIST_QUERY = `#graphql
 `;
 
 export const SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY = `#graphql
-  query ShopifyPaymentsAccountDisputes {
+  query ShopifyPaymentsAccountDisputes($after: String) {
     shopifyPaymentsAccount {
-      disputes(first: 100) {
+      disputes(first: 100, after: $after) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
         nodes {
           id
           amount {
@@ -148,8 +156,12 @@ export const SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY = `#graphql
 `;
 
 export const ORDERS_WITH_DISPUTES_QUERY = `#graphql
-  query OrdersWithDisputes {
-    orders(first: 100, reverse: true, sortKey: CREATED_AT, query: "status:any") {
+  query OrdersWithDisputes($after: String) {
+    orders(first: 100, after: $after, reverse: true, sortKey: CREATED_AT, query: "status:any") {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
       nodes {
         id
         name
