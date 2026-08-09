@@ -39,7 +39,7 @@ export const DISPUTE_SYNC_QUERY = `#graphql
 
 export const DISPUTES_LIST_QUERY = `#graphql
   query DisputesList {
-    disputes(first: 25) {
+    disputes(first: 100) {
       nodes {
         id
         amount {
@@ -94,7 +94,7 @@ export const DISPUTES_LIST_QUERY = `#graphql
 export const SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY = `#graphql
   query ShopifyPaymentsAccountDisputes {
     shopifyPaymentsAccount {
-      disputes(first: 25) {
+      disputes(first: 100) {
         nodes {
           id
           amount {
@@ -149,7 +149,7 @@ export const SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY = `#graphql
 
 export const ORDERS_WITH_DISPUTES_QUERY = `#graphql
   query OrdersWithDisputes {
-    orders(first: 50, reverse: true, sortKey: CREATED_AT, query: "status:any") {
+    orders(first: 100, reverse: true, sortKey: CREATED_AT, query: "status:any") {
       nodes {
         id
         name
@@ -193,7 +193,7 @@ export const ORDERS_WITH_DISPUTES_QUERY = `#graphql
 
 export const BASIC_ORDERS_DEBUG_QUERY = `#graphql
   query BasicOrdersDebug {
-    orders(first: 10, reverse: true, sortKey: CREATED_AT, query: "status:any") {
+    orders(first: 100, reverse: true, sortKey: CREATED_AT, query: "status:any") {
       nodes {
         id
         name
@@ -228,6 +228,33 @@ export const ORDER_BY_ID_DEBUG_QUERY = `#graphql
         createdAt
         displayFinancialStatus
         displayFulfillmentStatus
+        currentTotalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        customer {
+          firstName
+          lastName
+          email
+        }
+        lineItems(first: 10) {
+          nodes {
+            name
+            quantity
+            sku
+          }
+        }
+        fulfillments(first: 10) {
+          nodes {
+            trackingInfo {
+              company
+              number
+              url
+            }
+          }
+        }
         disputes {
           id
           status

@@ -1,6 +1,9 @@
 import { PacketPreviewPageShell } from "@/components/packet-preview-page-shell";
 import { getDisputeDetail } from "@/lib/disputes/repository";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type PacketPreviewPageProps = {
   params: Promise<{ id: string }>;
 };

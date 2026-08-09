@@ -2,6 +2,9 @@ import { DisputesIndexPageShell } from "@/components/disputes-index-page-shell";
 import { listDashboardDisputes } from "@/lib/disputes/repository";
 import { resolveShopDomain } from "@/lib/shopify/auth";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type DisputesPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };

@@ -89,6 +89,24 @@ type OrderWithDisputesNode = NonNullable<ShopifyDisputeNode["order"]> & {
   displayFinancialStatus?: string | null;
 };
 
+function mergeDisputeNode(existing: ShopifyDisputeNode | undefined, incoming: ShopifyDisputeNode) {
+  if (!existing) {
+    return incoming;
+  }
+
+  return {
+    ...existing,
+    ...incoming,
+    amount: incoming.amount ?? existing.amount,
+    reasonDetails: incoming.reasonDetails ?? existing.reasonDetails,
+    status: incoming.status ?? existing.status,
+    evidenceDueBy: incoming.evidenceDueBy ?? existing.evidenceDueBy,
+    evidenceSentOn: incoming.evidenceSentOn ?? existing.evidenceSentOn,
+    type: incoming.type ?? existing.type,
+    order: incoming.order ?? existing.order
+  };
+}
+
 type RecentOrdersQueryResponse = {
   orders?: {
     nodes?: Array<{
@@ -435,33 +453,39 @@ export async function syncRecentDisputesForMerchant(shopDomain: string) {
     );
   }
 
-  let disputes = data?.disputes?.nodes ?? [];
+  const disputesById = new Map<string, ShopifyDisputeNode>();
 
-  if (disputes.length === 0) {
-    const accountResponse = await client.request(SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY);
-    const accountErrors = (
-      "errors" in accountResponse && Array.isArray(accountResponse.errors) ? accountResponse.errors : []
-    ) as ShopifyGraphqlError[];
-    const accountData = accountResponse.data as ShopifyPaymentsAccountDisputesQueryResponse | undefined;
-
-    if (
-      accountErrors.length > 0 &&
-      accountErrors.some((error) => error.message && !error.message.includes("Access denied"))
-    ) {
-      throw new Error(
-        `Shopify payments account dispute query failed: ${accountErrors
-          .map((error) => error.message)
-          .filter(Boolean)
-          .join("; ")}`
-      );
-    }
-
-    disputes = accountData?.shopifyPaymentsAccount?.disputes?.nodes ?? [];
+  for (const dispute of data?.disputes?.nodes ?? []) {
+    disputesById.set(dispute.id, mergeDisputeNode(disputesById.get(dispute.id), dispute));
   }
 
-  if (disputes.length === 0) {
-    disputes = await listOrderDisputeFallbacks(client);
+  const accountResponse = await client.request(SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY);
+  const accountErrors = (
+    "errors" in accountResponse && Array.isArray(accountResponse.errors) ? accountResponse.errors : []
+  ) as ShopifyGraphqlError[];
+  const accountData = accountResponse.data as ShopifyPaymentsAccountDisputesQueryResponse | undefined;
+
+  if (
+    accountErrors.length > 0 &&
+    accountErrors.some((error) => error.message && !error.message.includes("Access denied"))
+  ) {
+    throw new Error(
+      `Shopify payments account dispute query failed: ${accountErrors
+        .map((error) => error.message)
+        .filter(Boolean)
+        .join("; ")}`
+    );
   }
+
+  for (const dispute of accountData?.shopifyPaymentsAccount?.disputes?.nodes ?? []) {
+    disputesById.set(dispute.id, mergeDisputeNode(disputesById.get(dispute.id), dispute));
+  }
+
+  for (const dispute of await listOrderDisputeFallbacks(client)) {
+    disputesById.set(dispute.id, mergeDisputeNode(disputesById.get(dispute.id), dispute));
+  }
+
+  const disputes = [...disputesById.values()];
 
   if (disputes.length === 0) {
     return { synced: 0 };

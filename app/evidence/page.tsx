@@ -2,6 +2,9 @@ import { EvidenceLibraryPageShell } from "@/components/evidence-library-page-she
 import { listDisputeOptions, listEvidenceLibrary } from "@/lib/disputes/repository";
 import { resolveShopDomain } from "@/lib/shopify/auth";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type EvidencePageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };

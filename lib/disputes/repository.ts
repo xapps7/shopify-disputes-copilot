@@ -112,7 +112,7 @@ export async function listDashboardDisputes(shopDomain?: string | null): Promise
         include: {
           evidenceItems: true
         },
-        take: 25
+        take: 100
       }
     }
   });

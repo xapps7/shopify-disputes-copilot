@@ -3,6 +3,9 @@ import { DisputePageShell } from "@/components/dispute-page-shell";
 import { generateDisputeResponseDraft } from "@/lib/ai/dispute-drafts";
 import { generatePackageAssessment } from "@/lib/ai/package-assessment";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type DisputePageProps = {
   params: Promise<{ id: string }>;
 };

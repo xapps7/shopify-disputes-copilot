@@ -3,6 +3,9 @@ import { getSetupReadiness } from "@/lib/platform-readiness";
 import { getMerchantSettings } from "@/lib/settings";
 import { resolveShopDomain } from "@/lib/shopify/auth";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type SettingsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };

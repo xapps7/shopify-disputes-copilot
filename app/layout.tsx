@@ -14,6 +14,9 @@ export const metadata: Metadata = {
   description: "Shopify embedded app starter for dispute operations."
 };
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const shopDomain = await getCurrentShopDomain();
   const host = await getCurrentHost();

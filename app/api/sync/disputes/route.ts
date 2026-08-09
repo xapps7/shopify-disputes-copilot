@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 
 import { runDisputeSyncWithRetry } from "@/lib/disputes/sync-runs";
 import { resolveShopDomain } from "@/lib/shopify/auth";
@@ -13,6 +14,10 @@ export async function POST(request: Request) {
     }
 
     const result = await runDisputeSyncWithRetry(shopDomain);
+    revalidatePath("/");
+    revalidatePath("/disputes");
+    revalidatePath("/evidence");
+    revalidatePath("/recommendations");
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
     return NextResponse.json(

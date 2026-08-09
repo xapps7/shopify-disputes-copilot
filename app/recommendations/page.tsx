@@ -2,6 +2,9 @@ import { RecommendationsPageShell } from "@/components/recommendations-page-shel
 import { resolveShopDomain } from "@/lib/shopify/auth";
 import { listRecommendations } from "@/lib/disputes/repository";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type RecommendationsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
