@@ -1,7 +1,10 @@
 import { db } from "@/lib/db";
+import { decryptString } from "@/lib/crypto";
 import {
   getSampleDisputeDetail
 } from "@/lib/disputes/sample-data";
+import { createShopifyAdminClient } from "@/lib/shopify/client";
+import { RECENT_ORDERS_WITH_DETAILS_QUERY } from "@/lib/shopify/queries";
 import type {
   AnalyticsSnapshotView,
   DashboardDispute,
@@ -121,6 +124,49 @@ function mergeOrderSummary(
   };
 }
 
+function hasUsableOrderSummary(summary: ReturnType<typeof mergeOrderSummary>) {
+  return Boolean(
+    summary.orderTotal ||
+    summary.customerEmail ||
+    summary.customerName ||
+    summary.orderName
+  );
+}
+
+async function fetchRecentOrderSummaries(
+  shopDomain: string,
+  accessTokenEncrypted: string
+) {
+  const client = createShopifyAdminClient({
+    storeDomain: shopDomain,
+    accessToken: decryptString(accessTokenEncrypted)
+  });
+  const response = await client.request(RECENT_ORDERS_WITH_DETAILS_QUERY);
+  const data = response.data as
+    | {
+        orders?: {
+          nodes?: Array<StoredOrderNode>;
+        };
+      }
+    | undefined;
+
+  return new Map(
+    (data?.orders?.nodes ?? [])
+      .filter((order): order is NonNullable<typeof order> => Boolean(order?.id))
+      .map((order) => [
+        order.id as string,
+        {
+          orderName: order.name ?? null,
+          customerName: buildName(order.customer?.firstName, order.customer?.lastName),
+          customerEmail: order.customer?.email ?? null,
+          orderTotal: order.currentTotalPriceSet?.shopMoney?.amount ?? null,
+          currencyCode: order.currentTotalPriceSet?.shopMoney?.currencyCode ?? null,
+          fulfillmentStatus: order.displayFulfillmentStatus ?? null
+        }
+      ])
+  );
+}
+
 function buildChecklist(reason: string | null, categories: Set<string>) {
   const required =
     reason === "FRAUD"
@@ -238,7 +284,7 @@ export async function listDashboardDisputes(shopDomain?: string | null): Promise
   return merchant.disputes.map((dispute) => {
     const orderSnapshot = dispute.shopifyOrderId ? orderSnapshots.get(dispute.shopifyOrderId) : null;
     const fallbackOrderSummary = extractFallbackOrderSummary(dispute.sourceSnapshotJson ?? null);
-    const mergedOrderSummary = mergeOrderSummary(orderSnapshot, fallbackOrderSummary);
+    let mergedOrderSummary = mergeOrderSummary(orderSnapshot, fallbackOrderSummary);
     const amount =
       dispute.amount?.toString() ??
       mergedOrderSummary.orderTotal ??
@@ -416,7 +462,31 @@ export async function getDisputeDetail(id: string): Promise<DisputeDetailView> {
       })
     : null;
   const fallbackOrderSummary = extractFallbackOrderSummary(dispute.sourceSnapshotJson ?? null);
-  const mergedOrderSummary = mergeOrderSummary(orderSnapshot, fallbackOrderSummary);
+  let mergedOrderSummary = mergeOrderSummary(orderSnapshot, fallbackOrderSummary);
+
+  if (!hasUsableOrderSummary(mergedOrderSummary) && dispute.shopifyOrderId) {
+    const merchant = await db.merchant.findUnique({
+      where: { id: dispute.merchantId },
+      select: {
+        shopDomain: true,
+        accessTokenEncrypted: true
+      }
+    });
+
+    if (merchant?.accessTokenEncrypted) {
+    const recentOrderSummaries = await fetchRecentOrderSummaries(
+      merchant.shopDomain,
+      merchant.accessTokenEncrypted
+    );
+    const liveOrderSummary = recentOrderSummaries.get(dispute.shopifyOrderId);
+    if (liveOrderSummary) {
+      mergedOrderSummary = {
+        ...mergedOrderSummary,
+        ...liveOrderSummary
+      };
+    }
+    }
+  }
   const evidenceCategories = new Set(dispute.evidenceItems.map((item) => item.category));
 
   return {
