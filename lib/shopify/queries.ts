@@ -253,6 +253,11 @@ export const RECENT_ORDERS_WITH_DETAILS_QUERY = `#graphql
             }
           }
         }
+        disputes {
+          id
+          status
+          initiatedAs
+        }
       }
     }
   }

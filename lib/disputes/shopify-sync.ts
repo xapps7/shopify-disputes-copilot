@@ -288,22 +288,6 @@ async function fetchOrderDetailsById(
   client: ReturnType<typeof createShopifyAdminClient>,
   orderId: string
 ) {
-  const detailsResponse = await client.request(ORDER_DETAILS_BY_ID_QUERY, {
-    variables: { id: orderId }
-  });
-  const detailErrors = (
-    "errors" in detailsResponse && Array.isArray(detailsResponse.errors) ? detailsResponse.errors : []
-  ) as ShopifyGraphqlError[];
-  const detailData = detailsResponse.data as
-    | {
-        order?: ShopifyDisputeNode["order"] | null;
-      }
-    | undefined;
-
-  if (detailErrors.length === 0 && detailData?.order) {
-    return detailData.order;
-  }
-
   const fallbackResponse = await client.request(RECENT_ORDERS_WITH_DETAILS_QUERY);
   const fallbackErrors = (
     "errors" in fallbackResponse && Array.isArray(fallbackResponse.errors) ? fallbackResponse.errors : []
@@ -317,6 +301,22 @@ async function fetchOrderDetailsById(
     | undefined;
 
   if (fallbackErrors.length > 0) {
+    const detailsResponse = await client.request(ORDER_DETAILS_BY_ID_QUERY, {
+      variables: { id: orderId }
+    });
+    const detailErrors = (
+      "errors" in detailsResponse && Array.isArray(detailsResponse.errors) ? detailsResponse.errors : []
+    ) as ShopifyGraphqlError[];
+    const detailData = detailsResponse.data as
+      | {
+          order?: ShopifyDisputeNode["order"] | null;
+        }
+      | undefined;
+
+    if (detailErrors.length === 0 && detailData?.order) {
+      return detailData.order;
+    }
+
     return null;
   }
 
@@ -466,9 +466,7 @@ async function listOrderDisputeFallbacks(
   const recentOrdersData = recentOrdersResponse.data as
     | {
         orders?: {
-          nodes?: Array<{
-            id?: string | null;
-          }>;
+          nodes?: Array<OrderWithDisputesNode>;
         };
       }
     | undefined;
@@ -483,21 +481,10 @@ async function listOrderDisputeFallbacks(
   }
 
   const disputes: ShopifyDisputeNode[] = [];
-  const orderIds = (recentOrdersData?.orders?.nodes ?? [])
-    .map((order) => order?.id)
-    .filter((id): id is string => Boolean(id));
+  const recentOrders = recentOrdersData?.orders?.nodes ?? [];
 
-  for (const orderId of orderIds) {
-    const orderResponse = await client.request(ORDER_DETAILS_BY_ID_QUERY, {
-      variables: { id: orderId }
-    });
-    const orderErrors = (
-      "errors" in orderResponse && Array.isArray(orderResponse.errors) ? orderResponse.errors : []
-    ) as ShopifyGraphqlError[];
-    const orderData = orderResponse.data as SingleOrderQueryResponse | undefined;
-    const order = orderData?.order;
-
-    if (orderErrors.length > 0 || !order?.disputes?.length) {
+  for (const order of recentOrders) {
+    if (!order?.disputes?.length) {
       continue;
     }
 

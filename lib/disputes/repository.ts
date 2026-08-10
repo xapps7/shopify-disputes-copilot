@@ -30,6 +30,11 @@ type StoredOrderNode = {
     lastName?: string | null;
     email?: string | null;
   } | null;
+  disputes?: Array<{
+    id?: string | null;
+    status?: string | null;
+    initiatedAs?: string | null;
+  }> | null;
 } | null;
 
 type StoredOrderSnapshot = {
