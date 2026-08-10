@@ -505,7 +505,7 @@ export async function getDisputeDetail(id: string): Promise<DisputeDetailView> {
       null,
     evidenceDueBy: dispute.evidenceDueBy?.toISOString() ?? null,
     evidenceSentOn: dispute.evidenceSentOn?.toISOString() ?? null,
-    orderSummary: orderSnapshot || fallbackOrderSummary
+    orderSummary: hasUsableOrderSummary(mergedOrderSummary)
       ? mergedOrderSummary
       : null,
     evidenceChecklist: buildChecklist(dispute.reason ?? null, evidenceCategories),

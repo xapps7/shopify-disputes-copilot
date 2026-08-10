@@ -274,45 +274,43 @@ export const ACCESS_SCOPES_DEBUG_QUERY = `#graphql
 
 export const ORDER_BY_ID_DEBUG_QUERY = `#graphql
   query OrderByIdDebug($id: ID!) {
-    node(id: $id) {
-      ... on Order {
+    order(id: $id) {
+      id
+      name
+      createdAt
+      displayFinancialStatus
+      displayFulfillmentStatus
+      currentTotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      customer {
+        firstName
+        lastName
+        email
+      }
+      lineItems(first: 10) {
+        nodes {
+          name
+          quantity
+          sku
+        }
+      }
+      fulfillments(first: 10) {
+        nodes {
+          trackingInfo {
+            company
+            number
+            url
+          }
+        }
+      }
+      disputes {
         id
-        name
-        createdAt
-        displayFinancialStatus
-        displayFulfillmentStatus
-        currentTotalPriceSet {
-          shopMoney {
-            amount
-            currencyCode
-          }
-        }
-        customer {
-          firstName
-          lastName
-          email
-        }
-        lineItems(first: 10) {
-          nodes {
-            name
-            quantity
-            sku
-          }
-        }
-        fulfillments(first: 10) {
-          nodes {
-            trackingInfo {
-              company
-              number
-              url
-            }
-          }
-        }
-        disputes {
-          id
-          status
-          initiatedAs
-        }
+        status
+        initiatedAs
       }
     }
   }
@@ -320,38 +318,41 @@ export const ORDER_BY_ID_DEBUG_QUERY = `#graphql
 
 export const ORDER_DETAILS_BY_ID_QUERY = `#graphql
   query OrderDetailsById($id: ID!) {
-    node(id: $id) {
-      ... on Order {
+    order(id: $id) {
+      id
+      name
+      displayFulfillmentStatus
+      currentTotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      customer {
+        firstName
+        lastName
+        email
+      }
+      lineItems(first: 10) {
+        nodes {
+          name
+          quantity
+          sku
+        }
+      }
+      fulfillments(first: 10) {
+        nodes {
+          trackingInfo {
+            company
+            number
+            url
+          }
+        }
+      }
+      disputes {
         id
-        name
-        displayFulfillmentStatus
-        currentTotalPriceSet {
-          shopMoney {
-            amount
-            currencyCode
-          }
-        }
-        customer {
-          firstName
-          lastName
-          email
-        }
-        lineItems(first: 10) {
-          nodes {
-            name
-            quantity
-            sku
-          }
-        }
-        fulfillments(first: 10) {
-          nodes {
-            trackingInfo {
-              company
-              number
-              url
-            }
-          }
-        }
+        status
+        initiatedAs
       }
     }
   }

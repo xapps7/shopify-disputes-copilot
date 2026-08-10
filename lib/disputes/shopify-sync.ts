@@ -5,7 +5,6 @@ import { createShopifyAdminClient } from "@/lib/shopify/client";
 import {
   DISPUTE_SYNC_QUERY,
   DISPUTES_LIST_QUERY,
-  ORDERS_WITH_DISPUTES_QUERY,
   ORDER_DETAILS_BY_ID_QUERY,
   RECENT_ORDERS_WITH_DETAILS_QUERY,
   SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY
@@ -73,6 +72,10 @@ type SingleDisputeQueryResponse = {
   dispute?: ShopifyDisputeNode | null;
 };
 
+type SingleOrderQueryResponse = {
+  order?: OrderWithDisputesNode | null;
+};
+
 type ShopifyPaymentsAccountDisputesQueryResponse = {
   shopifyPaymentsAccount?: {
     disputes?: {
@@ -114,16 +117,6 @@ function mergeDisputeNode(existing: ShopifyDisputeNode | undefined, incoming: Sh
     order: incoming.order ?? existing.order
   };
 }
-
-type OrdersWithDisputesQueryResponse = {
-  orders?: {
-    pageInfo?: {
-      hasNextPage?: boolean;
-      endCursor?: string | null;
-    };
-    nodes?: OrderWithDisputesNode[];
-  };
-};
 
 type ShopifyGraphqlError = {
   message?: string;
@@ -277,17 +270,17 @@ async function enrichOrderDetails(
   ) as ShopifyGraphqlError[];
   const detailData = detailsResponse.data as
     | {
-        node?: ShopifyDisputeNode["order"] | null;
+        order?: ShopifyDisputeNode["order"] | null;
       }
     | undefined;
 
-  if (detailErrors.length > 0 || !detailData?.node) {
+  if (detailErrors.length > 0 || !detailData?.order) {
     return dispute;
   }
 
   return {
     ...dispute,
-    order: detailData.node
+    order: detailData.order
   };
 }
 
@@ -303,12 +296,12 @@ async function fetchOrderDetailsById(
   ) as ShopifyGraphqlError[];
   const detailData = detailsResponse.data as
     | {
-        node?: ShopifyDisputeNode["order"] | null;
+        order?: ShopifyDisputeNode["order"] | null;
       }
     | undefined;
 
-  if (detailErrors.length === 0 && detailData?.node) {
-    return detailData.node;
+  if (detailErrors.length === 0 && detailData?.order) {
+    return detailData.order;
   }
 
   const fallbackResponse = await client.request(RECENT_ORDERS_WITH_DETAILS_QUERY);
@@ -464,58 +457,68 @@ async function backfillExistingDisputeOrderData(
 async function listOrderDisputeFallbacks(
   client: ReturnType<typeof createShopifyAdminClient>
 ) {
-  const disputes: ShopifyDisputeNode[] = [];
-  let after: string | null = null;
+  const recentOrdersResponse = await client.request(RECENT_ORDERS_WITH_DETAILS_QUERY);
+  const recentOrderErrors = (
+    "errors" in recentOrdersResponse && Array.isArray(recentOrdersResponse.errors)
+      ? recentOrdersResponse.errors
+      : []
+  ) as ShopifyGraphqlError[];
+  const recentOrdersData = recentOrdersResponse.data as
+    | {
+        orders?: {
+          nodes?: Array<{
+            id?: string | null;
+          }>;
+        };
+      }
+    | undefined;
 
-  for (let page = 0; page < 20; page += 1) {
-    const ordersResponse = await client.request(ORDERS_WITH_DISPUTES_QUERY, {
-      variables: { after }
+  if (recentOrderErrors.length > 0) {
+    throw new Error(
+      `Shopify recent-orders query failed: ${recentOrderErrors
+        .map((error) => error.message)
+        .filter(Boolean)
+        .join("; ")}`
+    );
+  }
+
+  const disputes: ShopifyDisputeNode[] = [];
+  const orderIds = (recentOrdersData?.orders?.nodes ?? [])
+    .map((order) => order?.id)
+    .filter((id): id is string => Boolean(id));
+
+  for (const orderId of orderIds) {
+    const orderResponse = await client.request(ORDER_DETAILS_BY_ID_QUERY, {
+      variables: { id: orderId }
     });
     const orderErrors = (
-      "errors" in ordersResponse && Array.isArray(ordersResponse.errors) ? ordersResponse.errors : []
+      "errors" in orderResponse && Array.isArray(orderResponse.errors) ? orderResponse.errors : []
     ) as ShopifyGraphqlError[];
+    const orderData = orderResponse.data as SingleOrderQueryResponse | undefined;
+    const order = orderData?.order;
 
-    if (orderErrors.length > 0) {
-      throw new Error(
-        `Shopify orders-with-disputes query failed: ${orderErrors
-          .map((error) => error.message)
-          .filter(Boolean)
-          .join("; ")}`
-      );
+    if (orderErrors.length > 0 || !order?.disputes?.length) {
+      continue;
     }
 
-    const ordersData = ordersResponse.data as OrdersWithDisputesQueryResponse | undefined;
-    const orders = ordersData?.orders?.nodes ?? [];
+    for (const summary of order.disputes) {
+      const disputeResponse = await client.request(DISPUTE_SYNC_QUERY, {
+        variables: { id: summary.id }
+      });
+      const disputeErrors = (
+        "errors" in disputeResponse && Array.isArray(disputeResponse.errors) ? disputeResponse.errors : []
+      ) as ShopifyGraphqlError[];
+      const disputeData = disputeResponse.data as SingleDisputeQueryResponse | undefined;
 
-    for (const order of orders) {
-      if (!order?.disputes || order.disputes.length === 0) {
+      if (disputeErrors.length === 0 && disputeData?.dispute) {
+        disputes.push(await enrichOrderDetails(client, {
+          ...disputeData.dispute,
+          order: disputeData.dispute.order ?? order
+        }));
         continue;
       }
 
-      for (const summary of order.disputes) {
-        const disputeResponse = await client.request(DISPUTE_SYNC_QUERY, {
-          variables: { id: summary.id }
-        });
-        const disputeErrors = (
-          "errors" in disputeResponse && Array.isArray(disputeResponse.errors) ? disputeResponse.errors : []
-        ) as ShopifyGraphqlError[];
-        const disputeData = disputeResponse.data as SingleDisputeQueryResponse | undefined;
-
-        if (disputeErrors.length === 0 && disputeData?.dispute) {
-          disputes.push(await enrichOrderDetails(client, {
-            ...disputeData.dispute,
-            order: disputeData.dispute.order ?? order
-          }));
-          continue;
-        }
-
-        disputes.push(await enrichOrderDetails(client, buildDisputeFromOrderSummary(order, summary)));
-      }
-    }
-
-    after = ordersData?.orders?.pageInfo?.endCursor ?? null;
-    if (!ordersData?.orders?.pageInfo?.hasNextPage || !after) {
-      break;
+      disputes.push(buildDisputeFromOrderSummary(order, summary));
     }
   }
 

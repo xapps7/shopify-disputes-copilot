@@ -110,7 +110,7 @@ export async function GET(request: Request) {
     ) as ShopifyGraphqlError[];
     const orderByIdData = orderByIdResponse?.data as
       | {
-          node?: {
+          order?: {
             id?: string | null;
             name?: string | null;
             createdAt?: string | null;
@@ -247,9 +247,9 @@ export async function GET(request: Request) {
         orderId: orderGid,
         orderName,
         byId: {
-          found: Boolean(orderByIdData?.node),
+          found: Boolean(orderByIdData?.order),
           errors: orderByIdErrors.map((error) => error.message).filter(Boolean),
-          order: orderByIdData?.node ?? null
+          order: orderByIdData?.order ?? null
         },
         byName: {
           query: orderSearchQuery,
