@@ -165,23 +165,30 @@ export async function GET(request: Request) {
 
     const findings: string[] = [];
 
+    // A schema error (undefinedField) is fatal: Shopify rejects the whole query
+    // at validation time, so `data` comes back null and the sync sees "0 results".
+    const schemaBroken = Object.entries(live)
+      .filter(([, probe]) => probe && probe.errorCodes.includes("undefinedField"))
+      .map(([name]) => name);
+
+    if (schemaBroken.length > 0) {
+      findings.push(
+        `BROKEN QUERY SHAPE in: ${schemaBroken.join(", ")}. Shopify rejected these at validation time, ` +
+          "so the entire data payload is null. This - not scopes - is what makes dispute ingestion return 0."
+      );
+    }
+
     if (!grantedScopes.includes("read_customers")) {
       findings.push(
-        "MISSING SCOPE read_customers - every query that traverses `order { customer { ... } }` " +
-          "will fail with ACCESS_DENIED and Shopify nulls the ENTIRE data payload, not just that field."
+        "MISSING SCOPE read_customers - customer name/email will be null. NOTE: this denial is field-level " +
+          "(data is still returned), so it does NOT block dispute ingestion. Amounts and order data are unaffected."
       );
     }
 
-    if (probes.ordersDisputesOnly.ok && probes.ordersCustomerPii.errors.length > 0) {
-      findings.push(
-        "CONFIRMED: the orders feed works without customer fields but fails with them. " +
-          "Customer traversal is what breaks dispute ingestion."
-      );
-    }
-
-    const disputeNodes = (probes.rootDisputesMinimal.data as { disputes?: { count?: number } } | null)?.disputes
+    const disputeCount = (probes.rootDisputesMinimal.data as { disputes?: { count?: number } } | null)?.disputes
       ?.count;
-    if (probes.rootDisputesMinimal.ok && disputeNodes === 0) {
+
+    if (probes.rootDisputesMinimal.ok && disputeCount === 0) {
       findings.push(
         "Top-level disputes query succeeded but returned 0 rows. If the store shows a chargeback in Admin, " +
           "the store is likely on Bogus Gateway rather than Shopify Payments test mode - Bogus Gateway " +
@@ -189,10 +196,18 @@ export async function GET(request: Request) {
       );
     }
 
+    if (probes.rootDisputesMinimal.ok && (disputeCount ?? 0) > 0) {
+      findings.push(
+        `Shopify has ${disputeCount} dispute(s) available via the top-level disputes query. ` +
+          "If the app shows fewer, the gap is in our ingestion, not in Shopify."
+      );
+    }
+
     if (!probes.shopifyPaymentsAccount.ok) {
       findings.push(
         "shopifyPaymentsAccount is not readable (needs read_shopify_payments_accounts). " +
-          "Prefer the top-level `disputes` query, which only needs read_shopify_payments_disputes."
+          "Non-blocking: the top-level `disputes` query is used instead and needs only " +
+          "read_shopify_payments_disputes."
       );
     }
 

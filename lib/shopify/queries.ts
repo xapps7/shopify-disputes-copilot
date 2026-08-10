@@ -81,12 +81,10 @@ export const DISPUTES_LIST_QUERY = `#graphql
             }
           }
           fulfillments(first: 10) {
-            nodes {
-              trackingInfo {
-                company
-                number
-                url
-              }
+            trackingInfo {
+              company
+              number
+              url
             }
           }
         }
@@ -140,12 +138,10 @@ export const SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY = `#graphql
               }
             }
             fulfillments(first: 10) {
-              nodes {
-                trackingInfo {
-                  company
-                  number
-                  url
-                }
+              trackingInfo {
+                company
+                number
+                url
               }
             }
           }
@@ -185,12 +181,10 @@ export const ORDERS_WITH_DISPUTES_QUERY = `#graphql
           }
         }
         fulfillments(first: 10) {
-          nodes {
-            trackingInfo {
-              company
-              number
-              url
-            }
+          trackingInfo {
+            company
+            number
+            url
           }
         }
         disputes {
@@ -245,12 +239,10 @@ export const RECENT_ORDERS_WITH_DETAILS_QUERY = `#graphql
           }
         }
         fulfillments(first: 10) {
-          nodes {
-            trackingInfo {
-              company
-              number
-              url
-            }
+          trackingInfo {
+            company
+            number
+            url
           }
         }
         disputes {
@@ -304,12 +296,10 @@ export const ORDER_BY_ID_DEBUG_QUERY = `#graphql
         }
       }
       fulfillments(first: 10) {
-        nodes {
-          trackingInfo {
-            company
-            number
-            url
-          }
+        trackingInfo {
+          company
+          number
+          url
         }
       }
       disputes {
@@ -346,12 +336,10 @@ export const ORDER_DETAILS_BY_ID_QUERY = `#graphql
         }
       }
       fulfillments(first: 10) {
-        nodes {
-          trackingInfo {
-            company
-            number
-            url
-          }
+        trackingInfo {
+          company
+          number
+          url
         }
       }
       disputes {
@@ -543,12 +531,10 @@ export const DISPUTES_LIST_NO_CUSTOMER_QUERY = `#graphql
             }
           }
           fulfillments(first: 10) {
-            nodes {
-              trackingInfo {
-                company
-                number
-                url
-              }
+            trackingInfo {
+              company
+              number
+              url
             }
           }
         }
@@ -633,12 +619,10 @@ export const RECENT_ORDERS_NO_CUSTOMER_QUERY = `#graphql
           }
         }
         fulfillments(first: 10) {
-          nodes {
-            trackingInfo {
-              company
-              number
-              url
-            }
+          trackingInfo {
+            company
+            number
+            url
           }
         }
         disputes {
@@ -673,12 +657,10 @@ export const ORDER_DETAILS_NO_CUSTOMER_BY_ID_QUERY = `#graphql
         }
       }
       fulfillments(first: 10) {
-        nodes {
-          trackingInfo {
-            company
-            number
-            url
-          }
+        trackingInfo {
+          company
+          number
+          url
         }
       }
       disputes {

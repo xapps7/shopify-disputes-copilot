@@ -31,11 +31,11 @@ type ShopifyOrderNode = {
   } | null;
   customer?: OrderCustomer | null;
   lineItems?: { nodes: Array<{ name?: string | null; quantity?: number | null; sku?: string | null }> } | null;
-  fulfillments?: {
-    nodes: Array<{
-      trackingInfo?: Array<{ company?: string | null; number?: string | null; url?: string | null }> | null;
-    }>;
-  } | null;
+  // Order.fulfillments is [Fulfillment!]! - a plain list, NOT a connection.
+  // Selecting `nodes` on it is a schema error that nulls the entire query.
+  fulfillments?: Array<{
+    trackingInfo?: Array<{ company?: string | null; number?: string | null; url?: string | null }> | null;
+  }> | null;
   disputes?: Array<OrderDisputeSummary> | null;
 };
 
@@ -380,7 +380,7 @@ async function replaceSystemEvidence(disputeId: string, dispute: ShopifyDisputeN
   }
 
   const trackingInfo =
-    dispute.order?.fulfillments?.nodes.flatMap((fulfillment) => fulfillment.trackingInfo ?? []) ?? [];
+    dispute.order?.fulfillments?.flatMap((fulfillment) => fulfillment.trackingInfo ?? []) ?? [];
 
   if (trackingInfo.length > 0) {
     items.push({
