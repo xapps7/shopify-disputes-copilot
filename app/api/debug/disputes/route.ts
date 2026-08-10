@@ -4,19 +4,85 @@ import { db } from "@/lib/db";
 import { decryptString } from "@/lib/crypto";
 import { resolveShopDomain } from "@/lib/shopify/auth";
 import { createShopifyAdminClient } from "@/lib/shopify/client";
+import { extractGraphqlErrors, graphqlErrorMessages } from "@/lib/shopify/errors";
+import { APP_COMMIT, APP_RELEASE } from "@/lib/version";
 import {
   ACCESS_SCOPES_DEBUG_QUERY,
   BASIC_ORDERS_DEBUG_QUERY,
   DISPUTES_LIST_QUERY,
+  DISPUTES_LIST_NO_CUSTOMER_QUERY,
   ORDER_BY_ID_DEBUG_QUERY,
   ORDERS_WITH_DISPUTES_QUERY,
   ORDERS_BY_SEARCH_DEBUG_QUERY,
+  PROBE_ORDERS_CUSTOMER_ONLY_QUERY,
+  PROBE_ORDERS_CUSTOMER_PII_QUERY,
+  PROBE_ORDERS_DISPUTES_ONLY_QUERY,
+  PROBE_ORDERS_MONEY_ONLY_QUERY,
+  PROBE_ORDER_BY_ID_MINIMAL_QUERY,
+  PROBE_ROOT_DISPUTES_MINIMAL_QUERY,
+  PROBE_SHOPIFY_PAYMENTS_ACCOUNT_QUERY,
+  RECENT_ORDERS_WITH_DETAILS_QUERY,
   SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY
 } from "@/lib/shopify/queries";
 
-type ShopifyGraphqlError = {
-  message?: string;
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+type AdminClient = ReturnType<typeof createShopifyAdminClient>;
+
+type ProbeResult = {
+  ok: boolean;
+  dataPresent: boolean;
+  errors: string[];
+  errorCodes: string[];
+  data: unknown;
 };
+
+async function runProbe(
+  client: AdminClient,
+  query: string,
+  variables?: Record<string, unknown>
+): Promise<ProbeResult> {
+  try {
+    const response = await client.request(query, variables ? { variables } : undefined);
+    const errors = extractGraphqlErrors(response);
+    const data = (response as { data?: unknown }).data ?? null;
+
+    return {
+      ok: errors.length === 0,
+      dataPresent: data !== null && data !== undefined,
+      errors: graphqlErrorMessages(response),
+      errorCodes: errors.map((error) => error.code).filter((code): code is string => Boolean(code)),
+      data
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      dataPresent: false,
+      errors: [error instanceof Error ? error.message : "Unknown request failure"],
+      errorCodes: ["THROWN"],
+      data: null
+    };
+  }
+}
+
+/** Keeps the response readable — probes are for diagnosis, not bulk data. */
+function trim(probe: ProbeResult, limit = 5): ProbeResult {
+  const data = probe.data as Record<string, unknown> | null;
+  if (!data || typeof data !== "object") {
+    return probe;
+  }
+
+  const clone: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data)) {
+    const nodes = (value as { nodes?: unknown[] } | null)?.nodes;
+    clone[key] = Array.isArray(nodes)
+      ? { count: nodes.length, nodes: nodes.slice(0, limit) }
+      : value;
+  }
+
+  return { ...probe, data: clone };
+}
 
 export async function GET(request: Request) {
   try {
@@ -31,12 +97,7 @@ export async function GET(request: Request) {
 
     const merchant = await db.merchant.findUnique({
       where: { shopDomain },
-      select: {
-        id: true,
-        accessTokenEncrypted: true,
-        installedAt: true,
-        updatedAt: true
-      }
+      select: { id: true, accessTokenEncrypted: true, installedAt: true, updatedAt: true }
     });
 
     if (!merchant?.accessTokenEncrypted) {
@@ -56,231 +117,107 @@ export async function GET(request: Request) {
       accessToken: decryptString(merchant.accessTokenEncrypted)
     });
 
-    const scopesResponse = await client.request(ACCESS_SCOPES_DEBUG_QUERY);
-    const scopeErrors = (
-      "errors" in scopesResponse && Array.isArray(scopesResponse.errors) ? scopesResponse.errors : []
-    ) as ShopifyGraphqlError[];
-    const scopeData = scopesResponse.data as
-      | {
-          currentAppInstallation?: {
-            accessScopes?: Array<{
-              handle?: string | null;
-            }>;
-          } | null;
-          shop?: {
-            id?: string | null;
-            myshopifyDomain?: string | null;
-          } | null;
-        }
-      | undefined;
-
-    const basicOrdersResponse = await client.request(BASIC_ORDERS_DEBUG_QUERY);
-    const basicOrderErrors = (
-      "errors" in basicOrdersResponse && Array.isArray(basicOrdersResponse.errors)
-        ? basicOrdersResponse.errors
-        : []
-    ) as ShopifyGraphqlError[];
-    const basicOrderData = basicOrdersResponse.data as
-      | {
-          orders?: {
-            nodes?: Array<{
-              id?: string | null;
-              name?: string | null;
-              createdAt?: string | null;
-              displayFinancialStatus?: string | null;
-              displayFulfillmentStatus?: string | null;
-            }>;
-          };
-        }
-      | undefined;
     const orderGid = orderId
       ? orderId.startsWith("gid://shopify/Order/")
         ? orderId
         : `gid://shopify/Order/${orderId}`
       : null;
-    const orderByIdResponse = orderGid
-      ? await client.request(ORDER_BY_ID_DEBUG_QUERY, {
-          variables: { id: orderGid }
-        })
-      : null;
-    const orderByIdErrors = (
-      orderByIdResponse && "errors" in orderByIdResponse && Array.isArray(orderByIdResponse.errors)
-        ? orderByIdResponse.errors
-        : []
-    ) as ShopifyGraphqlError[];
-    const orderByIdData = orderByIdResponse?.data as
-      | {
-          order?: {
-            id?: string | null;
-            name?: string | null;
-            createdAt?: string | null;
-            displayFinancialStatus?: string | null;
-            displayFulfillmentStatus?: string | null;
-            disputes?: Array<{
-              id?: string | null;
-              status?: string | null;
-              initiatedAs?: string | null;
-            }> | null;
-          } | null;
-        }
-      | undefined;
-    const orderSearchQuery = orderName ? `name:${orderName}` : null;
-    const orderBySearchResponse = orderSearchQuery
-      ? await client.request(ORDERS_BY_SEARCH_DEBUG_QUERY, {
-          variables: { query: orderSearchQuery }
-        })
-      : null;
-    const orderBySearchErrors = (
-      orderBySearchResponse &&
-      "errors" in orderBySearchResponse &&
-      Array.isArray(orderBySearchResponse.errors)
-        ? orderBySearchResponse.errors
-        : []
-    ) as ShopifyGraphqlError[];
-    const orderBySearchData = orderBySearchResponse?.data as
-      | {
-          orders?: {
-            nodes?: Array<{
-              id?: string | null;
-              name?: string | null;
-              createdAt?: string | null;
-              displayFinancialStatus?: string | null;
-              displayFulfillmentStatus?: string | null;
-              disputes?: Array<{
-                id?: string | null;
-                status?: string | null;
-                initiatedAs?: string | null;
-              }> | null;
-            }>;
-          };
-        }
-      | undefined;
 
-    const rootResponse = await client.request(DISPUTES_LIST_QUERY);
-    const rootErrors = (
-      "errors" in rootResponse && Array.isArray(rootResponse.errors) ? rootResponse.errors : []
-    ) as ShopifyGraphqlError[];
-    const rootData = rootResponse.data as
+    const scopes = await runProbe(client, ACCESS_SCOPES_DEBUG_QUERY);
+    const scopeData = scopes.data as
       | {
-          disputes?: {
-            nodes?: Array<{
-              id?: string | null;
-              status?: string | null;
-              type?: string | null;
-              reasonDetails?: {
-                reason?: string | null;
-              } | null;
-            }>;
-          };
+          currentAppInstallation?: { accessScopes?: Array<{ handle?: string | null }> } | null;
+          shop?: { id?: string | null; myshopifyDomain?: string | null } | null;
         }
-      | undefined;
+      | null;
 
-    const accountResponse = await client.request(SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY);
-    const accountErrors = (
-      "errors" in accountResponse && Array.isArray(accountResponse.errors) ? accountResponse.errors : []
-    ) as ShopifyGraphqlError[];
-    const accountData = accountResponse.data as
-      | {
-          shopifyPaymentsAccount?: {
-            disputes?: {
-              nodes?: Array<{
-                id?: string | null;
-                status?: string | null;
-                type?: string | null;
-                reasonDetails?: {
-                  reason?: string | null;
-                } | null;
-              }>;
-            } | null;
-          } | null;
-        }
-      | undefined;
+    // --- Scope-isolating probes: which single field is nulling the payload? ---
+    const probes = {
+      ordersBasic: trim(await runProbe(client, BASIC_ORDERS_DEBUG_QUERY)),
+      ordersDisputesOnly: trim(await runProbe(client, PROBE_ORDERS_DISPUTES_ONLY_QUERY), 20),
+      ordersMoneyOnly: trim(await runProbe(client, PROBE_ORDERS_MONEY_ONLY_QUERY)),
+      ordersCustomerIdOnly: trim(await runProbe(client, PROBE_ORDERS_CUSTOMER_ONLY_QUERY)),
+      ordersCustomerPii: trim(await runProbe(client, PROBE_ORDERS_CUSTOMER_PII_QUERY)),
+      rootDisputesMinimal: trim(await runProbe(client, PROBE_ROOT_DISPUTES_MINIMAL_QUERY), 25),
+      shopifyPaymentsAccount: await runProbe(client, PROBE_SHOPIFY_PAYMENTS_ACCOUNT_QUERY),
+      orderByIdMinimal: orderGid
+        ? await runProbe(client, PROBE_ORDER_BY_ID_MINIMAL_QUERY, { id: orderGid })
+        : null
+    };
 
-    const ordersResponse = await client.request(ORDERS_WITH_DISPUTES_QUERY);
-    const orderErrors = (
-      "errors" in ordersResponse && Array.isArray(ordersResponse.errors) ? ordersResponse.errors : []
-    ) as ShopifyGraphqlError[];
-    const orderData = ordersResponse.data as
-      | {
-          orders?: {
-            nodes?: Array<{
-              id?: string | null;
-              name?: string | null;
-              disputes?: Array<{
-                id?: string | null;
-                status?: string | null;
-                initiatedAs?: string | null;
-              }> | null;
-            }>;
-          };
-        }
-      | undefined;
-    const ordersWithDisputes = (orderData?.orders?.nodes ?? [])
-      .filter((order) => (order.disputes ?? []).length > 0)
-      .map((order) => ({
-        id: order.id,
-        name: order.name,
-        disputes: order.disputes
-      }));
+    // --- The real production queries, now with honest error reporting ---
+    const live = {
+      recentOrdersWithDetails: trim(await runProbe(client, RECENT_ORDERS_WITH_DETAILS_QUERY), 10),
+      disputesListNoCustomer: trim(await runProbe(client, DISPUTES_LIST_NO_CUSTOMER_QUERY), 10),
+      disputesList: trim(await runProbe(client, DISPUTES_LIST_QUERY), 10),
+      shopifyPaymentsAccountDisputes: trim(await runProbe(client, SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY), 10),
+      ordersWithDisputes: trim(await runProbe(client, ORDERS_WITH_DISPUTES_QUERY), 10),
+      orderById: orderGid ? await runProbe(client, ORDER_BY_ID_DEBUG_QUERY, { id: orderGid }) : null,
+      orderByName: orderName
+        ? await runProbe(client, ORDERS_BY_SEARCH_DEBUG_QUERY, { query: `name:${orderName}` })
+        : null
+    };
+
+    // --- Plain-language verdict so nobody has to eyeball the payload ---
+    const grantedScopes = (scopeData?.currentAppInstallation?.accessScopes ?? [])
+      .map((scope) => scope.handle)
+      .filter((handle): handle is string => Boolean(handle));
+
+    const findings: string[] = [];
+
+    if (!grantedScopes.includes("read_customers")) {
+      findings.push(
+        "MISSING SCOPE read_customers - every query that traverses `order { customer { ... } }` " +
+          "will fail with ACCESS_DENIED and Shopify nulls the ENTIRE data payload, not just that field."
+      );
+    }
+
+    if (probes.ordersDisputesOnly.ok && probes.ordersCustomerPii.errors.length > 0) {
+      findings.push(
+        "CONFIRMED: the orders feed works without customer fields but fails with them. " +
+          "Customer traversal is what breaks dispute ingestion."
+      );
+    }
+
+    const disputeNodes = (probes.rootDisputesMinimal.data as { disputes?: { count?: number } } | null)?.disputes
+      ?.count;
+    if (probes.rootDisputesMinimal.ok && disputeNodes === 0) {
+      findings.push(
+        "Top-level disputes query succeeded but returned 0 rows. If the store shows a chargeback in Admin, " +
+          "the store is likely on Bogus Gateway rather than Shopify Payments test mode - Bogus Gateway " +
+          "produces no ShopifyPaymentsDispute records at all."
+      );
+    }
+
+    if (!probes.shopifyPaymentsAccount.ok) {
+      findings.push(
+        "shopifyPaymentsAccount is not readable (needs read_shopify_payments_accounts). " +
+          "Prefer the top-level `disputes` query, which only needs read_shopify_payments_disputes."
+      );
+    }
+
+    if (findings.length === 0) {
+      findings.push("No blocking scope or query-shape problem detected in the probes.");
+    }
 
     return NextResponse.json({
       ok: true,
       shopDomain,
-      merchant: {
-        id: merchant.id,
-        installedAt: merchant.installedAt,
-        updatedAt: merchant.updatedAt
-      },
+      build: { release: APP_RELEASE, commit: APP_COMMIT },
+      merchant: { id: merchant.id, installedAt: merchant.installedAt, updatedAt: merchant.updatedAt },
       installation: {
         shop: scopeData?.shop ?? null,
-        grantedScopes: (scopeData?.currentAppInstallation?.accessScopes ?? [])
-          .map((scope) => scope.handle)
-          .filter(Boolean),
-        errors: scopeErrors.map((error) => error.message).filter(Boolean)
+        grantedScopes,
+        errors: scopes.errors
       },
-      basicOrders: {
-        count: basicOrderData?.orders?.nodes?.length ?? 0,
-        errors: basicOrderErrors.map((error) => error.message).filter(Boolean),
-        sample: (basicOrderData?.orders?.nodes ?? []).slice(0, 10)
-      },
-      targetedOrder: {
-        orderId: orderGid,
-        orderName,
-        byId: {
-          found: Boolean(orderByIdData?.order),
-          errors: orderByIdErrors.map((error) => error.message).filter(Boolean),
-          order: orderByIdData?.order ?? null
-        },
-        byName: {
-          query: orderSearchQuery,
-          count: orderBySearchData?.orders?.nodes?.length ?? 0,
-          errors: orderBySearchErrors.map((error) => error.message).filter(Boolean),
-          sample: (orderBySearchData?.orders?.nodes ?? []).slice(0, 10)
-        }
-      },
-      rootDisputes: {
-        count: rootData?.disputes?.nodes?.length ?? 0,
-        errors: rootErrors.map((error) => error.message).filter(Boolean),
-        sample: (rootData?.disputes?.nodes ?? []).slice(0, 5)
-      },
-      shopifyPaymentsAccountDisputes: {
-        count: accountData?.shopifyPaymentsAccount?.disputes?.nodes?.length ?? 0,
-        errors: accountErrors.map((error) => error.message).filter(Boolean),
-        sample: (accountData?.shopifyPaymentsAccount?.disputes?.nodes ?? []).slice(0, 5)
-      },
-      orderDisputeSummaries: {
-        scannedOrders: orderData?.orders?.nodes?.length ?? 0,
-        count: ordersWithDisputes.reduce((total, order) => total + (order.disputes?.length ?? 0), 0),
-        errors: orderErrors.map((error) => error.message).filter(Boolean),
-        sample: ordersWithDisputes.slice(0, 5)
-      }
+      findings,
+      probes,
+      live,
+      targetedOrder: { orderId: orderGid, orderName }
     });
   } catch (error) {
     return NextResponse.json(
-      {
-        ok: false,
-        message: error instanceof Error ? error.message : "Failed to inspect disputes."
-      },
+      { ok: false, message: error instanceof Error ? error.message : "Failed to inspect disputes." },
       { status: 500 }
     );
   }

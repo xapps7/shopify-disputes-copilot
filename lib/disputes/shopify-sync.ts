@@ -2,90 +2,41 @@ import { db } from "@/lib/db";
 import { syncDerivedDisputeState } from "@/lib/disputes/auto-sync";
 import { decryptString } from "@/lib/crypto";
 import { createShopifyAdminClient } from "@/lib/shopify/client";
+import { extractGraphqlErrors, graphqlErrorMessages, isAccessDeniedError } from "@/lib/shopify/errors";
 import {
-  DISPUTE_SYNC_QUERY,
-  DISPUTES_LIST_QUERY,
-  ORDER_DETAILS_BY_ID_QUERY,
-  RECENT_ORDERS_WITH_DETAILS_QUERY,
+  DISPUTE_SYNC_NO_CUSTOMER_QUERY,
+  DISPUTES_LIST_NO_CUSTOMER_QUERY,
+  ORDER_CUSTOMER_QUERY,
+  ORDER_DETAILS_NO_CUSTOMER_BY_ID_QUERY,
+  RECENT_ORDERS_NO_CUSTOMER_QUERY,
   SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY
 } from "@/lib/shopify/queries";
 
-type ShopifyDisputeNode = {
+type AdminClient = ReturnType<typeof createShopifyAdminClient>;
+
+type OrderCustomer = {
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+};
+
+type ShopifyOrderNode = {
   id: string;
-  amount?: {
-    amount?: string | null;
-    currencyCode?: string | null;
+  name?: string | null;
+  createdAt?: string | null;
+  displayFinancialStatus?: string | null;
+  displayFulfillmentStatus?: string | null;
+  currentTotalPriceSet?: {
+    shopMoney?: { amount?: string | null; currencyCode?: string | null } | null;
   } | null;
-  reasonDetails?: {
-    reason?: string | null;
-    networkReasonCode?: string | null;
+  customer?: OrderCustomer | null;
+  lineItems?: { nodes: Array<{ name?: string | null; quantity?: number | null; sku?: string | null }> } | null;
+  fulfillments?: {
+    nodes: Array<{
+      trackingInfo?: Array<{ company?: string | null; number?: string | null; url?: string | null }> | null;
+    }>;
   } | null;
-  status?: string | null;
-  evidenceDueBy?: string | null;
-  evidenceSentOn?: string | null;
-  type?: string | null;
-  order?: {
-    id: string;
-    name?: string | null;
-    displayFulfillmentStatus?: string | null;
-    currentTotalPriceSet?: {
-      shopMoney?: {
-        amount?: string | null;
-        currencyCode?: string | null;
-      } | null;
-    } | null;
-    customer?: {
-      firstName?: string | null;
-      lastName?: string | null;
-      email?: string | null;
-    } | null;
-    lineItems?: {
-      nodes: Array<{
-        name?: string | null;
-        quantity?: number | null;
-        sku?: string | null;
-      }>;
-    } | null;
-    fulfillments?: {
-      nodes: Array<{
-        trackingInfo?: Array<{
-          company?: string | null;
-          number?: string | null;
-          url?: string | null;
-        }> | null;
-      }>;
-    } | null;
-  } | null;
-};
-
-type DisputesQueryResponse = {
-  disputes: {
-    pageInfo?: {
-      hasNextPage?: boolean;
-      endCursor?: string | null;
-    };
-    nodes: ShopifyDisputeNode[];
-  };
-};
-
-type SingleDisputeQueryResponse = {
-  dispute?: ShopifyDisputeNode | null;
-};
-
-type SingleOrderQueryResponse = {
-  order?: OrderWithDisputesNode | null;
-};
-
-type ShopifyPaymentsAccountDisputesQueryResponse = {
-  shopifyPaymentsAccount?: {
-    disputes?: {
-      pageInfo?: {
-        hasNextPage?: boolean;
-        endCursor?: string | null;
-      };
-      nodes: ShopifyDisputeNode[];
-    } | null;
-  } | null;
+  disputes?: Array<OrderDisputeSummary> | null;
 };
 
 type OrderDisputeSummary = {
@@ -94,13 +45,42 @@ type OrderDisputeSummary = {
   initiatedAs?: string | null;
 };
 
-type OrderWithDisputesNode = NonNullable<ShopifyDisputeNode["order"]> & {
-  disputes?: OrderDisputeSummary[] | null;
-  createdAt?: string | null;
-  displayFinancialStatus?: string | null;
+type ShopifyDisputeNode = {
+  id: string;
+  amount?: { amount?: string | null; currencyCode?: string | null } | null;
+  reasonDetails?: { reason?: string | null; networkReasonCode?: string | null } | null;
+  status?: string | null;
+  evidenceDueBy?: string | null;
+  evidenceSentOn?: string | null;
+  initiatedAt?: string | null;
+  type?: string | null;
+  order?: ShopifyOrderNode | null;
 };
 
-function mergeDisputeNode(existing: ShopifyDisputeNode | undefined, incoming: ShopifyDisputeNode) {
+/**
+ * Collects non-fatal problems so a partial sync still reports WHY it was partial,
+ * instead of silently returning `synced: 0` (the failure mode this app shipped with).
+ */
+class SyncDiagnostics {
+  private readonly messages: string[] = [];
+
+  add(context: string, response: unknown) {
+    const messages = graphqlErrorMessages(response);
+    if (messages.length > 0) {
+      this.messages.push(`${context}: ${messages.join(" | ")}`);
+    }
+  }
+
+  note(message: string) {
+    this.messages.push(message);
+  }
+
+  list() {
+    return [...new Set(this.messages)];
+  }
+}
+
+function mergeDisputeNode(existing: ShopifyDisputeNode | undefined, incoming: ShopifyDisputeNode): ShopifyDisputeNode {
   if (!existing) {
     return incoming;
   }
@@ -113,14 +93,11 @@ function mergeDisputeNode(existing: ShopifyDisputeNode | undefined, incoming: Sh
     status: incoming.status ?? existing.status,
     evidenceDueBy: incoming.evidenceDueBy ?? existing.evidenceDueBy,
     evidenceSentOn: incoming.evidenceSentOn ?? existing.evidenceSentOn,
+    initiatedAt: incoming.initiatedAt ?? existing.initiatedAt,
     type: incoming.type ?? existing.type,
-    order: incoming.order ?? existing.order
+    order: incoming.order ? { ...existing.order, ...incoming.order } : existing.order
   };
 }
-
-type ShopifyGraphqlError = {
-  message?: string;
-};
 
 function normalizeStatus(status?: string | null) {
   switch (status?.toUpperCase()) {
@@ -137,11 +114,7 @@ function normalizeStatus(status?: string | null) {
   }
 }
 
-function buildCustomerName(customer?: {
-  firstName?: string | null;
-  lastName?: string | null;
-  email?: string | null;
-} | null) {
+function buildCustomerName(customer?: OrderCustomer | null) {
   const fullName = [customer?.firstName, customer?.lastName].filter(Boolean).join(" ").trim();
   return fullName || null;
 }
@@ -159,53 +132,235 @@ function shouldReplaceStoredAmount(currentAmount: { toString(): string } | null,
   return Number.isFinite(normalized) && normalized === 0;
 }
 
+/* ------------------------------------------------------------------ *
+ * Shopify reads
+ * ------------------------------------------------------------------ */
+
+/**
+ * Primary source: top-level `disputes` connection.
+ * Needs only `read_shopify_payments_disputes` because it never traverses
+ * `shopifyPaymentsAccount` (which additionally requires
+ * `read_shopify_payments_accounts`) and never traverses `customer`.
+ */
+async function collectTopLevelDisputes(client: AdminClient, diagnostics: SyncDiagnostics) {
+  const disputes: ShopifyDisputeNode[] = [];
+  let after: string | null = null;
+
+  for (let page = 0; page < 20; page += 1) {
+    const response = await client.request(DISPUTES_LIST_NO_CUSTOMER_QUERY, { variables: { after } });
+    const errors = extractGraphqlErrors(response);
+
+    if (errors.length > 0) {
+      diagnostics.add("disputes(first:100)", response);
+      break;
+    }
+
+    const data = response.data as
+      | { disputes?: { pageInfo?: { hasNextPage?: boolean; endCursor?: string | null }; nodes?: ShopifyDisputeNode[] } }
+      | undefined;
+
+    disputes.push(...(data?.disputes?.nodes ?? []));
+    after = data?.disputes?.pageInfo?.endCursor ?? null;
+
+    if (!data?.disputes?.pageInfo?.hasNextPage || !after) {
+      break;
+    }
+  }
+
+  return disputes;
+}
+
+/**
+ * Best-effort secondary source. Requires `read_shopify_payments_accounts` on top
+ * of the dispute scope, so denial here is expected and must never fail the sync.
+ */
+async function collectAccountDisputes(client: AdminClient, diagnostics: SyncDiagnostics) {
+  const response = await client.request(SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY, { variables: { after: null } });
+  const errors = extractGraphqlErrors(response);
+
+  if (errors.length > 0) {
+    if (!errors.every(isAccessDeniedError)) {
+      diagnostics.add("shopifyPaymentsAccount.disputes", response);
+    }
+    return [];
+  }
+
+  const data = response.data as
+    | { shopifyPaymentsAccount?: { disputes?: { nodes?: ShopifyDisputeNode[] } | null } | null }
+    | undefined;
+
+  return data?.shopifyPaymentsAccount?.disputes?.nodes ?? [];
+}
+
+/**
+ * Fallback source: walk recent orders and read their dispute summaries.
+ * This is what catches a brand-new chargeback the moment it lands on an order.
+ */
+async function collectOrderDerivedDisputes(client: AdminClient, diagnostics: SyncDiagnostics) {
+  const response = await client.request(RECENT_ORDERS_NO_CUSTOMER_QUERY);
+  const errors = extractGraphqlErrors(response);
+
+  if (errors.length > 0) {
+    diagnostics.add("orders(first:100).disputes", response);
+    return [];
+  }
+
+  const data = response.data as { orders?: { nodes?: ShopifyOrderNode[] } } | undefined;
+  const orders = data?.orders?.nodes ?? [];
+  const disputes: ShopifyDisputeNode[] = [];
+
+  for (const order of orders) {
+    for (const summary of order.disputes ?? []) {
+      if (!summary?.id) {
+        continue;
+      }
+
+      const detailResponse = await client.request(DISPUTE_SYNC_NO_CUSTOMER_QUERY, {
+        variables: { id: summary.id }
+      });
+      const detailErrors = extractGraphqlErrors(detailResponse);
+      const detail = (detailResponse.data as { dispute?: ShopifyDisputeNode | null } | undefined)?.dispute;
+
+      if (detailErrors.length > 0) {
+        diagnostics.add(`dispute(${summary.id})`, detailResponse);
+      }
+
+      if (detail) {
+        disputes.push({ ...detail, order: { ...order, ...(detail.order ?? {}) } });
+        continue;
+      }
+
+      // Even without full dispute detail, the order summary is enough to make
+      // the dispute visible with a real amount instead of USD 0.00.
+      disputes.push({
+        id: summary.id,
+        status: summary.status,
+        type: summary.initiatedAs,
+        amount: order.currentTotalPriceSet?.shopMoney ?? null,
+        reasonDetails: null,
+        order
+      });
+    }
+  }
+
+  return disputes;
+}
+
+/**
+ * Customer PII is Level 2 protected customer data and needs BOTH the
+ * `read_customers` scope and Partner Dashboard approval. Fetch it in its own
+ * request so a denial costs us the customer name/email only, rather than
+ * nulling every dispute payload.
+ */
+async function enrichCustomers(
+  client: AdminClient,
+  disputes: ShopifyDisputeNode[],
+  diagnostics: SyncDiagnostics
+) {
+  const orderIds = [...new Set(disputes.map((dispute) => dispute.order?.id).filter((id): id is string => Boolean(id)))];
+  const customersByOrderId = new Map<string, OrderCustomer>();
+  let denied = false;
+
+  for (const orderId of orderIds) {
+    if (denied) {
+      break;
+    }
+
+    const response = await client.request(ORDER_CUSTOMER_QUERY, { variables: { id: orderId } });
+    const errors = extractGraphqlErrors(response);
+
+    if (errors.length > 0) {
+      if (errors.every(isAccessDeniedError)) {
+        denied = true;
+        diagnostics.note(
+          "Customer details unavailable: " +
+            errors.map((error) => error.message).join(" | ") +
+            " -- add the read_customers scope and approve protected customer data in the Partner Dashboard."
+        );
+      } else {
+        diagnostics.add(`order(${orderId}).customer`, response);
+      }
+      continue;
+    }
+
+    const customer = (response.data as { order?: { customer?: OrderCustomer | null } | null } | undefined)?.order
+      ?.customer;
+
+    if (customer) {
+      customersByOrderId.set(orderId, customer);
+    }
+  }
+
+  return disputes.map((dispute) => {
+    const customer = dispute.order?.id ? customersByOrderId.get(dispute.order.id) : undefined;
+    if (!dispute.order || !customer) {
+      return dispute;
+    }
+
+    return { ...dispute, order: { ...dispute.order, customer } };
+  });
+}
+
+async function fetchOrderDetailsById(client: AdminClient, orderId: string, diagnostics: SyncDiagnostics) {
+  const response = await client.request(ORDER_DETAILS_NO_CUSTOMER_BY_ID_QUERY, { variables: { id: orderId } });
+  const errors = extractGraphqlErrors(response);
+
+  if (errors.length === 0) {
+    const order = (response.data as { order?: ShopifyOrderNode | null } | undefined)?.order;
+    if (order) {
+      return order;
+    }
+  } else {
+    diagnostics.add(`order(${orderId})`, response);
+  }
+
+  // Single-order lookup has been unreliable in this store; fall back to the
+  // recent-orders feed, which is known to work.
+  const feedResponse = await client.request(RECENT_ORDERS_NO_CUSTOMER_QUERY);
+  if (extractGraphqlErrors(feedResponse).length > 0) {
+    diagnostics.add("orders(first:100) [order backfill]", feedResponse);
+    return null;
+  }
+
+  const feed = (feedResponse.data as { orders?: { nodes?: ShopifyOrderNode[] } } | undefined)?.orders?.nodes ?? [];
+  return feed.find((order) => order?.id === orderId) ?? null;
+}
+
+/* ------------------------------------------------------------------ *
+ * Persistence
+ * ------------------------------------------------------------------ */
+
 async function upsertOrderSnapshot(dispute: ShopifyDisputeNode, merchantId: string) {
   if (!dispute.order) {
     return null;
   }
 
+  const payload = {
+    merchantId,
+    orderName: dispute.order.name ?? null,
+    customerEmail: dispute.order.customer?.email ?? null,
+    customerName: buildCustomerName(dispute.order.customer),
+    orderTotal: dispute.order.currentTotalPriceSet?.shopMoney?.amount ?? undefined,
+    currencyCode: dispute.order.currentTotalPriceSet?.shopMoney?.currencyCode ?? null,
+    fulfillmentStatus: dispute.order.displayFulfillmentStatus ?? null,
+    orderJson: JSON.stringify(dispute.order)
+  };
+
   return db.orderSnapshot.upsert({
     where: { shopifyOrderId: dispute.order.id },
-    update: {
-      merchantId,
-      orderName: dispute.order.name ?? null,
-      customerEmail: dispute.order.customer?.email ?? null,
-      customerName: buildCustomerName(dispute.order.customer),
-      orderTotal: dispute.order.currentTotalPriceSet?.shopMoney?.amount ?? undefined,
-      currencyCode: dispute.order.currentTotalPriceSet?.shopMoney?.currencyCode ?? null,
-      fulfillmentStatus: dispute.order.displayFulfillmentStatus ?? null,
-      orderJson: JSON.stringify(dispute.order)
-    },
-    create: {
-      merchantId,
-      shopifyOrderId: dispute.order.id,
-      orderName: dispute.order.name ?? null,
-      customerEmail: dispute.order.customer?.email ?? null,
-      customerName: buildCustomerName(dispute.order.customer),
-      orderTotal: dispute.order.currentTotalPriceSet?.shopMoney?.amount ?? undefined,
-      currencyCode: dispute.order.currentTotalPriceSet?.shopMoney?.currencyCode ?? null,
-      fulfillmentStatus: dispute.order.displayFulfillmentStatus ?? null,
-      orderJson: JSON.stringify(dispute.order)
-    }
+    update: payload,
+    create: { ...payload, shopifyOrderId: dispute.order.id }
   });
 }
 
 async function replaceSystemEvidence(disputeId: string, dispute: ShopifyDisputeNode) {
   await db.evidenceItem.deleteMany({
-    where: {
-      disputeId,
-      sourceType: {
-        in: ["shopify_order", "shopify_fulfillment"]
-      }
-    }
+    where: { disputeId, sourceType: { in: ["shopify_order", "shopify_fulfillment"] } }
   });
 
   const items: Array<{
     disputeId: string;
-    category:
-      | "PRODUCT_PROOF"
-      | "SHIPPING_DOCUMENTATION"
-      | "DELIVERY_CONFIRMATION";
+    category: "PRODUCT_PROOF" | "SHIPPING_DOCUMENTATION" | "DELIVERY_CONFIRMATION";
     sourceType: string;
     title: string;
     description: string;
@@ -248,135 +403,34 @@ async function replaceSystemEvidence(disputeId: string, dispute: ShopifyDisputeN
   }
 
   if (items.length > 0) {
-    await db.evidenceItem.createMany({
-      data: items
-    });
+    await db.evidenceItem.createMany({ data: items });
   }
 }
 
-async function enrichOrderDetails(
-  client: ReturnType<typeof createShopifyAdminClient>,
-  dispute: ShopifyDisputeNode
-) {
-  if (!dispute.order?.id) {
-    return dispute;
-  }
-
-  const detailsResponse = await client.request(ORDER_DETAILS_BY_ID_QUERY, {
-    variables: { id: dispute.order.id }
-  });
-  const detailErrors = (
-    "errors" in detailsResponse && Array.isArray(detailsResponse.errors) ? detailsResponse.errors : []
-  ) as ShopifyGraphqlError[];
-  const detailData = detailsResponse.data as
-    | {
-        order?: ShopifyDisputeNode["order"] | null;
-      }
-    | undefined;
-
-  if (detailErrors.length > 0 || !detailData?.order) {
-    return dispute;
-  }
-
-  return {
-    ...dispute,
-    order: detailData.order
-  };
-}
-
-async function fetchOrderDetailsById(
-  client: ReturnType<typeof createShopifyAdminClient>,
-  orderId: string
-) {
-  const fallbackResponse = await client.request(RECENT_ORDERS_WITH_DETAILS_QUERY);
-  const fallbackErrors = (
-    "errors" in fallbackResponse && Array.isArray(fallbackResponse.errors) ? fallbackResponse.errors : []
-  ) as ShopifyGraphqlError[];
-  const fallbackData = fallbackResponse.data as
-    | {
-        orders?: {
-          nodes?: Array<ShopifyDisputeNode["order"]>;
-        };
-      }
-    | undefined;
-
-  if (fallbackErrors.length > 0) {
-    const detailsResponse = await client.request(ORDER_DETAILS_BY_ID_QUERY, {
-      variables: { id: orderId }
-    });
-    const detailErrors = (
-      "errors" in detailsResponse && Array.isArray(detailsResponse.errors) ? detailsResponse.errors : []
-    ) as ShopifyGraphqlError[];
-    const detailData = detailsResponse.data as
-      | {
-          order?: ShopifyDisputeNode["order"] | null;
-        }
-      | undefined;
-
-    if (detailErrors.length === 0 && detailData?.order) {
-      return detailData.order;
-    }
-
-    return null;
-  }
-
-  const fallbackOrder = (fallbackData?.orders?.nodes ?? []).find((order) => order?.id === orderId) ?? null;
-  return fallbackOrder;
-}
-
-function buildDisputeFromOrderSummary(order: OrderWithDisputesNode, summary: OrderDisputeSummary): ShopifyDisputeNode {
-  return {
-    id: summary.id,
-    status: summary.status,
-    type: summary.initiatedAs,
-    amount: order.currentTotalPriceSet?.shopMoney ?? null,
-    reasonDetails: null,
-    order
-  };
-}
-
-async function importDisputeNode(
-  dispute: ShopifyDisputeNode,
-  merchantId: string
-) {
+async function importDisputeNode(dispute: ShopifyDisputeNode, merchantId: string) {
   const previousDispute = await db.dispute.findUnique({
     where: { shopifyDisputeId: dispute.id },
-    select: {
-      id: true,
-      status: true,
-      evidenceSentOn: true
-    }
+    select: { id: true, status: true, evidenceSentOn: true }
   });
+
+  const payload = {
+    merchantId,
+    shopifyOrderId: dispute.order?.id ?? null,
+    status: normalizeStatus(dispute.status) as never,
+    disputeType: dispute.type ?? null,
+    reason: dispute.reasonDetails?.reason ?? dispute.type ?? null,
+    reasonDetails: dispute.reasonDetails?.networkReasonCode ?? dispute.type ?? null,
+    amount: dispute.amount?.amount ?? undefined,
+    currencyCode: dispute.amount?.currencyCode ?? null,
+    evidenceDueBy: dispute.evidenceDueBy ? new Date(dispute.evidenceDueBy) : null,
+    evidenceSentOn: dispute.evidenceSentOn ? new Date(dispute.evidenceSentOn) : null,
+    sourceSnapshotJson: JSON.stringify(dispute)
+  };
 
   const dbDispute = await db.dispute.upsert({
     where: { shopifyDisputeId: dispute.id },
-    update: {
-      merchantId,
-      shopifyOrderId: dispute.order?.id ?? null,
-      status: normalizeStatus(dispute.status) as never,
-      disputeType: dispute.type ?? null,
-      reason: dispute.reasonDetails?.reason ?? dispute.type ?? null,
-      reasonDetails: dispute.reasonDetails?.networkReasonCode ?? dispute.type ?? null,
-      amount: dispute.amount?.amount ?? undefined,
-      currencyCode: dispute.amount?.currencyCode ?? null,
-      evidenceDueBy: dispute.evidenceDueBy ? new Date(dispute.evidenceDueBy) : null,
-      evidenceSentOn: dispute.evidenceSentOn ? new Date(dispute.evidenceSentOn) : null,
-      sourceSnapshotJson: JSON.stringify(dispute)
-    },
-    create: {
-      merchantId,
-      shopifyDisputeId: dispute.id,
-      shopifyOrderId: dispute.order?.id ?? null,
-      status: normalizeStatus(dispute.status) as never,
-      disputeType: dispute.type ?? null,
-      reason: dispute.reasonDetails?.reason ?? dispute.type ?? null,
-      reasonDetails: dispute.reasonDetails?.networkReasonCode ?? dispute.type ?? null,
-      amount: dispute.amount?.amount ?? undefined,
-      currencyCode: dispute.amount?.currencyCode ?? null,
-      evidenceDueBy: dispute.evidenceDueBy ? new Date(dispute.evidenceDueBy) : null,
-      evidenceSentOn: dispute.evidenceSentOn ? new Date(dispute.evidenceSentOn) : null,
-      sourceSnapshotJson: JSON.stringify(dispute)
-    }
+    update: payload,
+    create: { ...payload, shopifyDisputeId: dispute.id }
   });
 
   await upsertOrderSnapshot(dispute, merchantId);
@@ -403,18 +457,13 @@ async function importDisputeNode(
 }
 
 async function backfillExistingDisputeOrderData(
-  client: ReturnType<typeof createShopifyAdminClient>,
-  merchantId: string
+  client: AdminClient,
+  merchantId: string,
+  diagnostics: SyncDiagnostics
 ) {
   const disputes = await db.dispute.findMany({
     where: { merchantId },
-    select: {
-      id: true,
-      shopifyOrderId: true,
-      amount: true,
-      currencyCode: true,
-      sourceSnapshotJson: true
-    }
+    select: { id: true, shopifyOrderId: true, amount: true, currencyCode: true }
   });
 
   for (const dispute of disputes) {
@@ -422,18 +471,12 @@ async function backfillExistingDisputeOrderData(
       continue;
     }
 
-    const order = await fetchOrderDetailsById(client, dispute.shopifyOrderId);
+    const order = await fetchOrderDetailsById(client, dispute.shopifyOrderId, diagnostics);
     if (!order) {
       continue;
     }
 
-    await upsertOrderSnapshot(
-      {
-        id: dispute.id,
-        order
-      },
-      merchantId
-    );
+    await upsertOrderSnapshot({ id: dispute.id, order }, merchantId);
 
     const fallbackAmount = order.currentTotalPriceSet?.shopMoney?.amount ?? null;
     const fallbackCurrencyCode = order.currentTotalPriceSet?.shopMoney?.currencyCode ?? null;
@@ -445,180 +488,68 @@ async function backfillExistingDisputeOrderData(
           ? fallbackAmount ?? undefined
           : dispute.amount ?? fallbackAmount ?? undefined,
         currencyCode: dispute.currencyCode ?? fallbackCurrencyCode ?? null,
-        sourceSnapshotJson: JSON.stringify({
-          id: dispute.id,
-          order
-        })
+        sourceSnapshotJson: JSON.stringify({ id: dispute.id, order })
       }
     });
   }
 }
 
-async function listOrderDisputeFallbacks(
-  client: ReturnType<typeof createShopifyAdminClient>
-) {
-  const recentOrdersResponse = await client.request(RECENT_ORDERS_WITH_DETAILS_QUERY);
-  const recentOrderErrors = (
-    "errors" in recentOrdersResponse && Array.isArray(recentOrdersResponse.errors)
-      ? recentOrdersResponse.errors
-      : []
-  ) as ShopifyGraphqlError[];
-  const recentOrdersData = recentOrdersResponse.data as
-    | {
-        orders?: {
-          nodes?: Array<OrderWithDisputesNode>;
-        };
-      }
-    | undefined;
-
-  if (recentOrderErrors.length > 0) {
-    throw new Error(
-      `Shopify recent-orders query failed: ${recentOrderErrors
-        .map((error) => error.message)
-        .filter(Boolean)
-        .join("; ")}`
-    );
-  }
-
-  const disputes: ShopifyDisputeNode[] = [];
-  const recentOrders = recentOrdersData?.orders?.nodes ?? [];
-
-  for (const order of recentOrders) {
-    if (!order?.disputes?.length) {
-      continue;
-    }
-
-    for (const summary of order.disputes) {
-      const disputeResponse = await client.request(DISPUTE_SYNC_QUERY, {
-        variables: { id: summary.id }
-      });
-      const disputeErrors = (
-        "errors" in disputeResponse && Array.isArray(disputeResponse.errors) ? disputeResponse.errors : []
-      ) as ShopifyGraphqlError[];
-      const disputeData = disputeResponse.data as SingleDisputeQueryResponse | undefined;
-
-      if (disputeErrors.length === 0 && disputeData?.dispute) {
-        disputes.push(await enrichOrderDetails(client, {
-          ...disputeData.dispute,
-          order: disputeData.dispute.order ?? order
-        }));
-        continue;
-      }
-
-      disputes.push(buildDisputeFromOrderSummary(order, summary));
-    }
-  }
-
-  return disputes;
-}
-
-async function collectRootDisputes(client: ReturnType<typeof createShopifyAdminClient>) {
-  const disputes: ShopifyDisputeNode[] = [];
-  let after: string | null = null;
-
-  for (let page = 0; page < 20; page += 1) {
-    const response = await client.request(DISPUTES_LIST_QUERY, {
-      variables: { after }
-    });
-    const responseErrors = (
-      "errors" in response && Array.isArray(response.errors) ? response.errors : []
-    ) as ShopifyGraphqlError[];
-    const data = response.data as DisputesQueryResponse | undefined;
-
-    if (responseErrors.length > 0) {
-      throw new Error(
-        `Shopify dispute query failed: ${responseErrors
-          .map((error) => error.message)
-          .filter(Boolean)
-          .join("; ")}`
-      );
-    }
-
-    disputes.push(...(data?.disputes?.nodes ?? []));
-    after = data?.disputes?.pageInfo?.endCursor ?? null;
-    if (!data?.disputes?.pageInfo?.hasNextPage || !after) {
-      break;
-    }
-  }
-
-  return disputes;
-}
-
-async function collectAccountDisputes(client: ReturnType<typeof createShopifyAdminClient>) {
-  const disputes: ShopifyDisputeNode[] = [];
-  let after: string | null = null;
-
-  for (let page = 0; page < 20; page += 1) {
-    const response = await client.request(SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY, {
-      variables: { after }
-    });
-    const responseErrors = (
-      "errors" in response && Array.isArray(response.errors) ? response.errors : []
-    ) as ShopifyGraphqlError[];
-    const data = response.data as ShopifyPaymentsAccountDisputesQueryResponse | undefined;
-
-    if (
-      responseErrors.length > 0 &&
-      responseErrors.some((error) => error.message && !error.message.includes("Access denied"))
-    ) {
-      throw new Error(
-        `Shopify payments account dispute query failed: ${responseErrors
-          .map((error) => error.message)
-          .filter(Boolean)
-          .join("; ")}`
-      );
-    }
-
-    disputes.push(...(data?.shopifyPaymentsAccount?.disputes?.nodes ?? []));
-    after = data?.shopifyPaymentsAccount?.disputes?.pageInfo?.endCursor ?? null;
-    if (!data?.shopifyPaymentsAccount?.disputes?.pageInfo?.hasNextPage || !after) {
-      break;
-    }
-  }
-
-  return disputes;
-}
+/* ------------------------------------------------------------------ *
+ * Entry point
+ * ------------------------------------------------------------------ */
 
 export async function syncRecentDisputesForMerchant(shopDomain: string) {
-  const merchant = await db.merchant.findUnique({
-    where: { shopDomain }
-  });
+  const merchant = await db.merchant.findUnique({ where: { shopDomain } });
 
   if (!merchant?.accessTokenEncrypted) {
     throw new Error("Merchant is not installed or access token is missing.");
   }
 
-  const accessToken = decryptString(merchant.accessTokenEncrypted);
   const client = createShopifyAdminClient({
     storeDomain: shopDomain,
-    accessToken
+    accessToken: decryptString(merchant.accessTokenEncrypted)
   });
 
+  const diagnostics = new SyncDiagnostics();
   const disputesById = new Map<string, ShopifyDisputeNode>();
+  const sources: Record<string, number> = {};
 
-  for (const dispute of await collectRootDisputes(client)) {
+  const topLevel = await collectTopLevelDisputes(client, diagnostics);
+  sources.topLevelDisputes = topLevel.length;
+  for (const dispute of topLevel) {
     disputesById.set(dispute.id, mergeDisputeNode(disputesById.get(dispute.id), dispute));
   }
 
-  for (const dispute of await collectAccountDisputes(client)) {
+  const account = await collectAccountDisputes(client, diagnostics);
+  sources.shopifyPaymentsAccountDisputes = account.length;
+  for (const dispute of account) {
     disputesById.set(dispute.id, mergeDisputeNode(disputesById.get(dispute.id), dispute));
   }
 
-  for (const dispute of await listOrderDisputeFallbacks(client)) {
+  const orderDerived = await collectOrderDerivedDisputes(client, diagnostics);
+  sources.orderDerivedDisputes = orderDerived.length;
+  for (const dispute of orderDerived) {
     disputesById.set(dispute.id, mergeDisputeNode(disputesById.get(dispute.id), dispute));
   }
 
-  await backfillExistingDisputeOrderData(client, merchant.id);
+  const enriched = await enrichCustomers(client, [...disputesById.values()], diagnostics);
 
-  const disputes = [...disputesById.values()];
-
-  if (disputes.length === 0) {
-    return { synced: 0 };
-  }
-
-  for (const dispute of disputes) {
+  for (const dispute of enriched) {
     await importDisputeNode(dispute, merchant.id);
   }
 
-  return { synced: disputes.length };
+  await backfillExistingDisputeOrderData(client, merchant.id, diagnostics);
+
+  if (enriched.length === 0) {
+    diagnostics.note(
+      "No disputes returned by any Shopify source. If the store shows a chargeback in Admin, confirm it is " +
+        "on Shopify Payments test mode (not Bogus Gateway) - Bogus Gateway creates no dispute records."
+    );
+  }
+
+  return {
+    synced: enriched.length,
+    sources,
+    warnings: diagnostics.list()
+  };
 }

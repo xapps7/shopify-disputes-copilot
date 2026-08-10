@@ -49,12 +49,16 @@ export async function runDisputeSyncWithRetry(shopDomain: string) {
           syncedCount: result.synced,
           completedAt: new Date(),
           attemptCount: attempt,
-          lastError: null
+          // A succeeded-but-empty sync is the exact failure this app shipped with.
+          // Persist the reason so /api/health explains it instead of showing null.
+          lastError: result.warnings.length > 0 ? result.warnings.join(" | ") : null
         }
       });
 
       return {
         synced: result.synced,
+        sources: result.sources,
+        warnings: result.warnings,
         attemptCount: attempt,
         syncRunId: syncRun.id
       };

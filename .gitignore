@@ -16,3 +16,5 @@ coverage
 dist
 *.log
 tsconfig.tsbuildinfo
+
+.claude-transfer/
