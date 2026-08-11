@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "db:push": "prisma db push"
+    "db:push": "prisma db push",
+    "test": "node --experimental-strip-types --test tests/*.test.ts"
   },
   "engines": {
     "node": ">=22.0.0"

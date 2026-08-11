@@ -4,7 +4,8 @@ import {
   getSampleDisputeDetail
 } from "@/lib/disputes/sample-data";
 import { createShopifyAdminClient } from "@/lib/shopify/client";
-import { RECENT_ORDERS_WITH_DETAILS_QUERY } from "@/lib/shopify/queries";
+import { graphqlErrorMessages } from "@/lib/shopify/errors";
+import { RECENT_ORDERS_NO_CUSTOMER_QUERY } from "@/lib/shopify/queries";
 import type {
   AnalyticsSnapshotView,
   DashboardDispute,
@@ -146,7 +147,14 @@ async function fetchRecentOrderSummaries(
     storeDomain: shopDomain,
     accessToken: decryptString(accessTokenEncrypted)
   });
-  const response = await client.request(RECENT_ORDERS_WITH_DETAILS_QUERY);
+  // Deliberately the customer-free query: customer traversal is denied without
+  // read_customers, and errors must never be swallowed here (this read path was
+  // the last remaining place using the old, silent pattern).
+  const response = await client.request(RECENT_ORDERS_NO_CUSTOMER_QUERY);
+  const errorMessages = graphqlErrorMessages(response);
+  if (errorMessages.length > 0) {
+    console.error("[repository] recent order summaries failed:", errorMessages.join(" | "));
+  }
   const data = response.data as
     | {
         orders?: {

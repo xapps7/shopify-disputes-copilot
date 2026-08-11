@@ -5,15 +5,22 @@ import { syncDerivedDisputeState } from "@/lib/disputes/auto-sync";
 
 export type DisputeWebhookPayload = {
   admin_graphql_api_id?: string;
+  /** The real disputes/create + disputes/update payload uses `id`. */
+  id?: number | string;
   amount?: string;
   currency?: string;
+  /** Not sent by Shopify - kept only for backwards compatibility. */
   dispute_id?: number | string;
   order_id?: number | string;
   reason?: string;
+  network_reason_code?: string;
   reason_details?: string;
   status?: string;
+  type?: string;
   evidence_due_by?: string;
   evidence_sent_on?: string;
+  initiated_at?: string;
+  finalized_on?: string;
 };
 
 function mapStatus(status?: string): DisputeStatus {
@@ -44,9 +51,17 @@ export async function upsertDisputeFromWebhook(shopDomain: string, payload: Disp
     create: { shopDomain }
   });
 
+  // Shopify sends `id`. The previous code read `dispute_id`, which does not
+  // exist, so EVERY webhook from EVERY shop collapsed onto the single row
+  // `gid://shopify/ShopifyPaymentsDispute/unknown` and reassigned its merchant.
+  const numericDisputeId = payload.id ?? payload.dispute_id;
+
+  if (!payload.admin_graphql_api_id && !numericDisputeId) {
+    throw new Error("Dispute webhook payload has no dispute id; refusing to write.");
+  }
+
   const shopifyDisputeId =
-    payload.admin_graphql_api_id ??
-    `gid://shopify/ShopifyPaymentsDispute/${payload.dispute_id ?? "unknown"}`;
+    payload.admin_graphql_api_id ?? `gid://shopify/ShopifyPaymentsDispute/${numericDisputeId}`;
 
   const previousDispute = await db.dispute.findUnique({
     where: { shopifyDisputeId },
@@ -64,7 +79,7 @@ export async function upsertDisputeFromWebhook(shopDomain: string, payload: Disp
       shopifyOrderId: payload.order_id ? `gid://shopify/Order/${payload.order_id}` : undefined,
       status: mapStatus(payload.status),
       reason: payload.reason,
-      reasonDetails: payload.reason_details,
+      reasonDetails: payload.network_reason_code ?? payload.reason_details,
       amount: payload.amount,
       currencyCode: payload.currency,
       evidenceDueBy: payload.evidence_due_by ? new Date(payload.evidence_due_by) : undefined,
@@ -77,7 +92,7 @@ export async function upsertDisputeFromWebhook(shopDomain: string, payload: Disp
       shopifyOrderId: payload.order_id ? `gid://shopify/Order/${payload.order_id}` : undefined,
       status: mapStatus(payload.status),
       reason: payload.reason,
-      reasonDetails: payload.reason_details,
+      reasonDetails: payload.network_reason_code ?? payload.reason_details,
       amount: payload.amount,
       currencyCode: payload.currency,
       evidenceDueBy: payload.evidence_due_by ? new Date(payload.evidence_due_by) : undefined,

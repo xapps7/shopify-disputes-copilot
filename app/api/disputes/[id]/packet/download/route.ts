@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 import { db } from "@/lib/db";
-import { getSampleDisputeDetail } from "@/lib/disputes/sample-data";
 import { buildPacketSummary } from "@/lib/disputes/packet-content";
 
 type RouteContext = {
@@ -21,27 +20,14 @@ export async function GET(_request: Request, { params }: RouteContext) {
       }
     });
 
-    const sourceDispute = dispute
-      ? dispute
-      : (() => {
-          const sample = getSampleDisputeDetail(id);
+    // Previously this fell back to sample data for ANY unknown id, handing the
+    // merchant a plausible-looking evidence packet full of another store's
+    // fabricated facts. Unknown dispute -> 404.
+    if (!dispute) {
+      return NextResponse.json({ ok: false, message: "Dispute not found." }, { status: 404 });
+    }
 
-          return {
-            id: sample.id,
-            shopifyDisputeId: sample.shopifyDisputeId,
-            status: sample.status,
-            reason: sample.reason,
-            reasonDetails: sample.reasonDetails,
-            amount: { toString: () => sample.amount },
-            currencyCode: sample.currencyCode,
-            evidenceDueBy: sample.evidenceDueBy ? new Date(sample.evidenceDueBy) : null,
-            evidenceItems: sample.evidenceItems,
-            merchant: {
-              shopDomain: "xappsdev.myshopify.com",
-              settingsJson: null
-            }
-          };
-        })();
+    const sourceDispute = dispute;
 
     const content = buildPacketSummary(sourceDispute);
     const disputeRef = sourceDispute.shopifyDisputeId.split("/").pop() ?? id;

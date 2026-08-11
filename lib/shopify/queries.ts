@@ -505,6 +505,7 @@ export const DISPUTES_LIST_NO_CUSTOMER_QUERY = `#graphql
         initiatedAt
         evidenceDueBy
         evidenceSentOn
+        finalizedOn
         amount {
           amount
           currencyCode
@@ -552,6 +553,7 @@ export const DISPUTE_SYNC_NO_CUSTOMER_QUERY = `#graphql
       initiatedAt
       evidenceDueBy
       evidenceSentOn
+      finalizedOn
       amount {
         amount
         currencyCode

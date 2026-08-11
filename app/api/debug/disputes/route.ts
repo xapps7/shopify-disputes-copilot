@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { db } from "@/lib/db";
+import { isDiagnosticsAuthorized } from "@/lib/diagnostics-auth";
 import { decryptString } from "@/lib/crypto";
 import { resolveShopDomain } from "@/lib/shopify/auth";
 import { createShopifyAdminClient } from "@/lib/shopify/client";
@@ -86,6 +87,11 @@ function trim(probe: ProbeResult, limit = 5): ProbeResult {
 
 export async function GET(request: Request) {
   try {
+    if (!isDiagnosticsAuthorized(request)) {
+      // 404 rather than 401 so the endpoint's existence is not advertised.
+      return NextResponse.json({ ok: false, message: "Not found." }, { status: 404 });
+    }
+
     const url = new URL(request.url);
     const shopDomain = await resolveShopDomain({ shop: url.searchParams.get("shop") ?? undefined });
     const orderId = url.searchParams.get("orderId");

@@ -53,6 +53,7 @@ type ShopifyDisputeNode = {
   evidenceDueBy?: string | null;
   evidenceSentOn?: string | null;
   initiatedAt?: string | null;
+  finalizedOn?: string | null;
   type?: string | null;
   order?: ShopifyOrderNode | null;
 };
@@ -80,23 +81,55 @@ class SyncDiagnostics {
   }
 }
 
-function mergeDisputeNode(existing: ShopifyDisputeNode | undefined, incoming: ShopifyDisputeNode): ShopifyDisputeNode {
+/**
+ * `Order.disputes` returns OrderDisputeSummary nodes whose GIDs look like
+ * `gid://shopify/OrderDisputeSummary/<n>`, while the top-level `disputes`
+ * connection returns `gid://shopify/ShopifyPaymentsDispute/<n>` for the SAME
+ * dispute. Keying on the raw GID stored each dispute twice, and
+ * `dispute(id: <OrderDisputeSummary gid>)` fails with RESOURCE_NOT_FOUND.
+ * Normalise both to the ShopifyPaymentsDispute form.
+ */
+export function toDisputeGid(id: string): string {
+  const numericId = id.split("/").pop();
+  return numericId ? `gid://shopify/ShopifyPaymentsDispute/${numericId}` : id;
+}
+
+function mergeDisputeNode(
+  existing: ShopifyDisputeNode | undefined,
+  incoming: ShopifyDisputeNode,
+  // Order-derived data is low fidelity (order total instead of the disputed
+  // amount, no reason details). It must never overwrite authoritative values.
+  fillOnly = false
+): ShopifyDisputeNode {
   if (!existing) {
     return incoming;
   }
 
+  const pick = <T,>(a: T | null | undefined, b: T | null | undefined) => (fillOnly ? (b ?? a) : (a ?? b));
+
   return {
-    ...existing,
-    ...incoming,
-    amount: incoming.amount ?? existing.amount,
-    reasonDetails: incoming.reasonDetails ?? existing.reasonDetails,
-    status: incoming.status ?? existing.status,
-    evidenceDueBy: incoming.evidenceDueBy ?? existing.evidenceDueBy,
-    evidenceSentOn: incoming.evidenceSentOn ?? existing.evidenceSentOn,
-    initiatedAt: incoming.initiatedAt ?? existing.initiatedAt,
-    type: incoming.type ?? existing.type,
+    ...(fillOnly ? incoming : existing),
+    ...(fillOnly ? existing : incoming),
+    id: existing.id,
+    amount: pick(incoming.amount, existing.amount),
+    reasonDetails: pick(incoming.reasonDetails, existing.reasonDetails),
+    status: pick(incoming.status, existing.status),
+    evidenceDueBy: pick(incoming.evidenceDueBy, existing.evidenceDueBy),
+    evidenceSentOn: pick(incoming.evidenceSentOn, existing.evidenceSentOn),
+    initiatedAt: pick(incoming.initiatedAt, existing.initiatedAt),
+    finalizedOn: pick(incoming.finalizedOn, existing.finalizedOn),
+    type: pick(incoming.type, existing.type),
     order: incoming.order ? { ...existing.order, ...incoming.order } : existing.order
   };
+}
+
+function safeParse(value: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
 }
 
 function normalizeStatus(status?: string | null) {
@@ -215,25 +248,29 @@ async function collectOrderDerivedDisputes(client: AdminClient, diagnostics: Syn
         continue;
       }
 
+      const disputeGid = toDisputeGid(summary.id);
+
       const detailResponse = await client.request(DISPUTE_SYNC_NO_CUSTOMER_QUERY, {
-        variables: { id: summary.id }
+        variables: { id: disputeGid }
       });
       const detailErrors = extractGraphqlErrors(detailResponse);
       const detail = (detailResponse.data as { dispute?: ShopifyDisputeNode | null } | undefined)?.dispute;
 
       if (detailErrors.length > 0) {
-        diagnostics.add(`dispute(${summary.id})`, detailResponse);
+        diagnostics.add(`dispute(${disputeGid})`, detailResponse);
       }
 
       if (detail) {
-        disputes.push({ ...detail, order: { ...order, ...(detail.order ?? {}) } });
+        disputes.push({ ...detail, id: toDisputeGid(detail.id), order: { ...order, ...(detail.order ?? {}) } });
         continue;
       }
 
-      // Even without full dispute detail, the order summary is enough to make
-      // the dispute visible with a real amount instead of USD 0.00.
+      // Even without full dispute detail, the order summary makes the dispute
+      // visible. Note the amount here is the ORDER total, not the disputed
+      // amount - so this node is merged fill-only and never overwrites a real
+      // amount from the top-level disputes query.
       disputes.push({
-        id: summary.id,
+        id: disputeGid,
         status: summary.status,
         type: summary.initiatedAs,
         amount: order.currentTotalPriceSet?.shopMoney ?? null,
@@ -424,6 +461,8 @@ async function importDisputeNode(dispute: ShopifyDisputeNode, merchantId: string
     currencyCode: dispute.amount?.currencyCode ?? null,
     evidenceDueBy: dispute.evidenceDueBy ? new Date(dispute.evidenceDueBy) : null,
     evidenceSentOn: dispute.evidenceSentOn ? new Date(dispute.evidenceSentOn) : null,
+    initiatedAt: dispute.initiatedAt ? new Date(dispute.initiatedAt) : null,
+    finalizedOn: dispute.finalizedOn ? new Date(dispute.finalizedOn) : null,
     sourceSnapshotJson: JSON.stringify(dispute)
   };
 
@@ -463,7 +502,7 @@ async function backfillExistingDisputeOrderData(
 ) {
   const disputes = await db.dispute.findMany({
     where: { merchantId },
-    select: { id: true, shopifyOrderId: true, amount: true, currencyCode: true }
+    select: { id: true, shopifyOrderId: true, amount: true, currencyCode: true, sourceSnapshotJson: true }
   });
 
   for (const dispute of disputes) {
@@ -488,7 +527,12 @@ async function backfillExistingDisputeOrderData(
           ? fallbackAmount ?? undefined
           : dispute.amount ?? fallbackAmount ?? undefined,
         currencyCode: dispute.currencyCode ?? fallbackCurrencyCode ?? null,
-        sourceSnapshotJson: JSON.stringify({ id: dispute.id, order })
+        // Merge into the existing snapshot instead of replacing it - the
+        // Shopify dispute payload is the audit trail and must not be lost.
+        sourceSnapshotJson: JSON.stringify({
+          ...(dispute.sourceSnapshotJson ? safeParse(dispute.sourceSnapshotJson) : {}),
+          order
+        })
       }
     });
   }
@@ -517,19 +561,22 @@ export async function syncRecentDisputesForMerchant(shopDomain: string) {
   const topLevel = await collectTopLevelDisputes(client, diagnostics);
   sources.topLevelDisputes = topLevel.length;
   for (const dispute of topLevel) {
-    disputesById.set(dispute.id, mergeDisputeNode(disputesById.get(dispute.id), dispute));
+    const key = toDisputeGid(dispute.id);
+    disputesById.set(key, mergeDisputeNode(disputesById.get(key), { ...dispute, id: key }));
   }
 
   const account = await collectAccountDisputes(client, diagnostics);
   sources.shopifyPaymentsAccountDisputes = account.length;
   for (const dispute of account) {
-    disputesById.set(dispute.id, mergeDisputeNode(disputesById.get(dispute.id), dispute));
+    const key = toDisputeGid(dispute.id);
+    disputesById.set(key, mergeDisputeNode(disputesById.get(key), { ...dispute, id: key }));
   }
 
   const orderDerived = await collectOrderDerivedDisputes(client, diagnostics);
   sources.orderDerivedDisputes = orderDerived.length;
   for (const dispute of orderDerived) {
-    disputesById.set(dispute.id, mergeDisputeNode(disputesById.get(dispute.id), dispute));
+    const key = toDisputeGid(dispute.id);
+    disputesById.set(key, mergeDisputeNode(disputesById.get(key), { ...dispute, id: key }, true));
   }
 
   const enriched = await enrichCustomers(client, [...disputesById.values()], diagnostics);
