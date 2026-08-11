@@ -198,3 +198,44 @@ model SyncRun {
   @@index([merchantId, type, startedAt])
   @@index([merchantId, status])
 }
+
+/// Replay protection for inbound Shopify webhooks. The HMAC covers the body only,
+/// so a captured request replays forever; `webhookId` (X-Shopify-Webhook-Id) is
+/// unique per delivery and the unique index makes the dedupe race-free.
+model WebhookDelivery {
+  id                    String                 @id @default(cuid())
+  webhookId             String                 @unique
+  topic                 String?
+  shopDomain            String?
+  apiVersion            String?
+  triggeredAt           DateTime?
+  receivedAt            DateTime               @default(now())
+  createdAt             DateTime               @default(now())
+
+  @@index([shopDomain, topic])
+  @@index([receivedAt])
+}
+
+/// Audit + fulfilment record for the mandatory privacy webhooks. Intentionally has
+/// NO relation to Merchant: shop/redact deletes the Merchant row (cascading to
+/// everything else) and the proof that we honoured the request must outlive it.
+model ComplianceRequest {
+  id                    String                 @id @default(cuid())
+  shopDomain            String
+  shopifyShopId         String?
+  topic                 String
+  webhookId             String?
+  customerId            String?
+  customerEmailHash     String?
+  payloadJson           String
+  assembledJson         String?
+  status                String                 @default("PENDING")
+  receivedAt            DateTime               @default(now())
+  resolvedAt            DateTime?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  @@index([shopDomain, topic])
+  @@index([resolvedAt])
+  @@index([receivedAt])
+}

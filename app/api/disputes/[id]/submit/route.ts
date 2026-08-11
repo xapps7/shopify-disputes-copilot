@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { recordManualSubmission } from "@/lib/disputes/submissions";
+import { guardDisputeRoute, toErrorResponse } from "@/lib/shopify/route-guard";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -13,6 +14,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       notes?: string;
     };
     const { id } = await params;
+    await guardDisputeRoute(request, id);
 
     await recordManualSubmission(id, {
       method: body.method ?? "SHOPIFY_ADMIN",
@@ -20,16 +22,10 @@ export async function POST(request: Request, { params }: RouteContext) {
     });
 
     return NextResponse.json({
-      message: "Submission recorded. The dispute is now marked as submitted for review."
+      message:
+        "Recorded in Disputes Co-Pilot only. Nothing was sent to Shopify - submit the packet in Shopify Admin."
     });
   } catch (error) {
-    console.error("Submission update failed", error);
-
-    return NextResponse.json(
-      {
-        message: error instanceof Error ? error.message : "Submission update failed."
-      },
-      { status: 500 }
-    );
+    return toErrorResponse(error, "Submission update failed.");
   }
 }

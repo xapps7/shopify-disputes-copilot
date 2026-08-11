@@ -4,7 +4,7 @@ import { isOpenAIDraftEnabled } from "@/lib/ai/openai-dispute-drafts";
 import { db } from "@/lib/db";
 import { isDiagnosticsAuthorized } from "@/lib/diagnostics-auth";
 import { getLatestDisputeSyncRun } from "@/lib/disputes/sync-runs";
-import { resolveShopDomain } from "@/lib/shopify/auth";
+import { getAuthenticatedShopDomain } from "@/lib/shopify/request-context";
 import { APP_COMMIT, APP_RELEASE } from "@/lib/version";
 
 export async function GET(request: Request) {
@@ -22,7 +22,7 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
-  const shopDomain = await resolveShopDomain({ shop: url.searchParams.get("shop") ?? undefined });
+  const shopDomain = await getAuthenticatedShopDomain(request);
   const merchant = shopDomain
     ? await db.merchant.findUnique({
         where: { shopDomain },

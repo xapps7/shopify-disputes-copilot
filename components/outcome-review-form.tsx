@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { BlockStack, Button, Card, InlineStack, Select, Text, TextField } from "@shopify/polaris";
 
 import type { PreventionRecommendationView } from "@/lib/types";
+import { authenticatedFetch } from "@/components/authenticated-fetch";
 
 type OutcomeReviewFormProps = {
   disputeId: string;
@@ -30,7 +31,7 @@ export function OutcomeReviewForm({
     setIsSaving(true);
     setMessage(null);
 
-    const response = await fetch(`/api/disputes/${disputeId}/outcome`, {
+    const response = await authenticatedFetch(`/api/disputes/${disputeId}/outcome`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"

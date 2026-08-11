@@ -1,24 +1,64 @@
 "use client";
 
-import { startTransition, useState } from "react";
+import { startTransition, useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BlockStack, Button, Select, Text, TextField } from "@shopify/polaris";
+import {
+  BlockStack,
+  Button,
+  DropZone,
+  InlineError,
+  InlineStack,
+  Select,
+  Text,
+  TextField,
+  Thumbnail
+} from "@shopify/polaris";
+import { NoteIcon } from "@shopify/polaris-icons";
+import { authenticatedFetch } from "@/components/authenticated-fetch";
 
 type EvidenceUploadFormProps = {
   disputeId: string;
 };
 
+const ACCEPTED_TYPES = ".pdf,.png,.jpg,.jpeg,.txt,.csv";
+
 export function EvidenceUploadForm({ disputeId }: EvidenceUploadFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [category, setCategory] = useState("CUSTOMER_COMMUNICATION");
+  const [file, setFile] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  async function handleSubmit(formData: FormData) {
+  const handleDrop = useCallback((_files: File[], acceptedFiles: File[]) => {
+    const [accepted] = acceptedFiles;
+    if (accepted) {
+      setFile(accepted);
+      setError(null);
+    }
+  }, []);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!title.trim() || !file) {
+      setError("Add a title and choose a file before uploading.");
+      return;
+    }
+
+    setError(null);
     setIsSubmitting(true);
     setMessage(null);
 
-    const response = await fetch(`/api/disputes/${disputeId}/evidence`, {
+    const formData = new FormData();
+    formData.set("title", title.trim());
+    formData.set("description", description.trim());
+    formData.set("category", category);
+    formData.set("file", file);
+
+    const response = await authenticatedFetch(`/api/disputes/${disputeId}/evidence`, {
       method: "POST",
       body: formData
     });
@@ -27,6 +67,9 @@ export function EvidenceUploadForm({ disputeId }: EvidenceUploadFormProps) {
     setMessage(payload?.message ?? (response.ok ? "Evidence uploaded." : "Upload failed."));
 
     if (response.ok) {
+      setTitle("");
+      setDescription("");
+      setFile(null);
       startTransition(() => {
         router.refresh();
       });
@@ -36,9 +79,17 @@ export function EvidenceUploadForm({ disputeId }: EvidenceUploadFormProps) {
   }
 
   return (
-    <form action={handleSubmit} className="polaris-form">
+    <form onSubmit={handleSubmit} className="polaris-form">
       <BlockStack gap="300">
-        <TextField autoComplete="off" label="Evidence title" name="title" placeholder="Evidence title" />
+        <TextField
+          autoComplete="off"
+          label="Evidence title"
+          name="title"
+          onChange={setTitle}
+          placeholder="Evidence title"
+          requiredIndicator
+          value={title}
+        />
         <Select
           label="Evidence category"
           name="category"
@@ -60,20 +111,42 @@ export function EvidenceUploadForm({ disputeId }: EvidenceUploadFormProps) {
           label="Why this evidence matters"
           multiline={4}
           name="description"
+          onChange={setDescription}
           placeholder="Describe why this evidence matters."
+          value={description}
         />
-        <BlockStack gap="100">
-          <Text as="p" variant="bodyMd">
-            Attach file
-          </Text>
-          <Text as="p" variant="bodySm" tone="subdued">
-            Accepted formats: PDF, PNG, JPG, TXT, and CSV. Use the category that matches the checklist row you are trying to satisfy.
-          </Text>
-          <input accept=".pdf,.png,.jpg,.jpeg,.txt,.csv" name="file" required type="file" />
-        </BlockStack>
+
+        <DropZone
+          accept={ACCEPTED_TYPES}
+          allowMultiple={false}
+          error={Boolean(error) && !file}
+          id="evidence-file"
+          label="Attach file"
+          onDrop={handleDrop}
+          errorOverlayText="That file type is not accepted"
+        >
+          {file ? (
+            <BlockStack gap="100" inlineAlign="center">
+              <InlineStack gap="200" blockAlign="center">
+                <Thumbnail alt={file.name} size="small" source={NoteIcon} />
+                <Text as="span" variant="bodySm">
+                  {file.name}
+                </Text>
+              </InlineStack>
+            </BlockStack>
+          ) : (
+            <DropZone.FileUpload actionTitle="Add file" actionHint="Accepted: PDF, PNG, JPG, TXT, CSV" />
+          )}
+        </DropZone>
+
+        {error ? <InlineError message={error} fieldID="evidence-file" /> : null}
+
         <Text as="p" variant="bodySm" tone="subdued">
-          Example: upload carrier labels or tracking exports as <strong>Shipping documentation</strong>, and proof-of-delivery scans as <strong>Delivery confirmation</strong>.
+          Use the category that matches the checklist row you are trying to satisfy. For example: upload carrier labels
+          or tracking exports as <strong>Shipping documentation</strong>, and proof-of-delivery scans as{" "}
+          <strong>Delivery confirmation</strong>.
         </Text>
+
         <Button loading={isSubmitting} submit variant="primary">
           {isSubmitting ? "Uploading..." : "Upload evidence"}
         </Button>

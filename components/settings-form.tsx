@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { BlockStack, Button, Checkbox, InlineGrid, Text, TextField } from "@shopify/polaris";
+import { Banner, BlockStack, Button, Checkbox, InlineGrid, Text, TextField } from "@shopify/polaris";
 
 import type { MerchantSettings } from "@/lib/settings";
+import { authenticatedFetch } from "@/components/authenticated-fetch";
 
 type SettingsFormProps = {
   initialSettings: MerchantSettings;
@@ -26,24 +27,27 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
     initialSettings.allowManualSubmissionRecording
   );
 
-  async function handleSubmit(formData: FormData) {
+  async function handleSubmit() {
     setIsSaving(true);
     setMessage(null);
 
-    const response = await fetch("/api/settings", {
+    // Read from component state rather than FormData: the inactive fields below
+    // are rendered `disabled`, and disabled inputs are omitted from FormData,
+    // which would silently blank the stored values on every save.
+    const response = await authenticatedFetch("/api/settings", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        returnPolicyUrl: String(formData.get("returnPolicyUrl") ?? ""),
-        refundPolicyUrl: String(formData.get("refundPolicyUrl") ?? ""),
-        supportEmail: String(formData.get("supportEmail") ?? ""),
-        supportPhone: String(formData.get("supportPhone") ?? ""),
-        statementDescriptor: String(formData.get("statementDescriptor") ?? ""),
-        packetFooter: String(formData.get("packetFooter") ?? ""),
-        alertEmail: String(formData.get("alertEmail") ?? ""),
-        evidenceRetentionDays: String(formData.get("evidenceRetentionDays") ?? ""),
+        returnPolicyUrl,
+        refundPolicyUrl,
+        supportEmail,
+        supportPhone,
+        statementDescriptor,
+        packetFooter,
+        alertEmail,
+        evidenceRetentionDays,
         notifyDueSoon,
         notifyMissingEvidence,
         allowManualSubmissionRecording
@@ -102,25 +106,6 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
           value={statementDescriptor}
         />
 
-        <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
-          <TextField
-            autoComplete="email"
-            label="Alert email"
-            name="alertEmail"
-            onChange={setAlertEmail}
-            placeholder="ops@example.com"
-            value={alertEmail}
-          />
-          <TextField
-            autoComplete="off"
-            label="Evidence retention days"
-            name="evidenceRetentionDays"
-            onChange={setEvidenceRetentionDays}
-            placeholder="365"
-            value={evidenceRetentionDays}
-          />
-        </InlineGrid>
-
         <TextField
           autoComplete="off"
           label="Packet footer note"
@@ -131,22 +116,63 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
           value={packetFooter}
         />
 
-        <BlockStack gap="200">
-          <Checkbox
-            label="Alert when disputes are due within 48 hours"
-            checked={notifyDueSoon}
-            onChange={setNotifyDueSoon}
-          />
-          <Checkbox
-            label="Alert when evidence is missing on active cases"
-            checked={notifyMissingEvidence}
-            onChange={setNotifyMissingEvidence}
-          />
-          <Checkbox
-            label="Allow manual submission recording in the dispute workspace"
-            checked={allowManualSubmissionRecording}
-            onChange={setAllowManualSubmissionRecording}
-          />
+        <Checkbox
+          label="Allow manual submission recording in the dispute workspace"
+          checked={allowManualSubmissionRecording}
+          onChange={setAllowManualSubmissionRecording}
+        />
+
+        <BlockStack gap="300">
+          <Text as="h3" variant="headingSm">
+            Not active yet
+          </Text>
+          <Banner tone="warning" title="These settings are saved but not used yet">
+            <p>
+              Disputes Co-Pilot does not send any email and does not delete files on a schedule. The values below are
+              stored on your merchant record so they are ready when those features ship — until then, nothing here
+              will alert you about a deadline. Check the dispute queue for upcoming deadlines instead.
+            </p>
+          </Banner>
+
+          <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
+            <TextField
+              autoComplete="email"
+              disabled
+              helpText="Not active yet — no email is sent."
+              label="Alert email"
+              name="alertEmail"
+              onChange={setAlertEmail}
+              placeholder="ops@example.com"
+              value={alertEmail}
+            />
+            <TextField
+              autoComplete="off"
+              disabled
+              helpText="Not active yet — files are never deleted automatically."
+              label="Evidence retention days"
+              name="evidenceRetentionDays"
+              onChange={setEvidenceRetentionDays}
+              placeholder="365"
+              value={evidenceRetentionDays}
+            />
+          </InlineGrid>
+
+          <BlockStack gap="200">
+            <Checkbox
+              disabled
+              helpText="Not active yet — no alert is sent."
+              label="Alert when disputes are due within 48 hours"
+              checked={notifyDueSoon}
+              onChange={setNotifyDueSoon}
+            />
+            <Checkbox
+              disabled
+              helpText="Not active yet — no alert is sent."
+              label="Alert when evidence is missing on active cases"
+              checked={notifyMissingEvidence}
+              onChange={setNotifyMissingEvidence}
+            />
+          </BlockStack>
         </BlockStack>
 
         <div className="polaris-actions">

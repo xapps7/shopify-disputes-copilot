@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { startTransition, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Badge,
   BlockStack,
@@ -10,12 +10,16 @@ import {
   EmptyState,
   IndexFilters,
   IndexTable,
-  Text,
   useSetIndexFiltersMode
 } from "@shopify/polaris";
 
 import { AdminPageLayout } from "@/components/admin-page-layout";
+import { DeadlineBadge, useNow } from "@/components/deadline-badge";
+import { EMPTY_STATE_IMAGE } from "@/components/empty-state-image";
 import { ResourceSection } from "@/components/resource-section";
+import { SyncStatusBanner, useDisputeSync } from "@/components/sync-status";
+import { isDueSoon } from "@/lib/format/date";
+import { formatMoney } from "@/lib/format/money";
 import type { DashboardDispute } from "@/lib/types";
 
 type DisputesIndexPageShellProps = {
@@ -32,49 +36,16 @@ function toneForStatus(status: string) {
 
 export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps) {
   const { mode, setMode } = useSetIndexFiltersMode();
-  const router = useRouter();
   const searchParams = useSearchParams();
+  const now = useNow();
   const [selectedTab, setSelectedTab] = useState(0);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
-
-  async function handleSync() {
-    setIsSyncing(true);
-    setSyncMessage(null);
-
-    const params = new URLSearchParams();
-    const shop = searchParams.get("shop");
-    if (shop) {
-      params.set("shop", shop);
-    }
-
-    const response = await fetch(`/api/sync/disputes${params.toString() ? `?${params.toString()}` : ""}`, {
-      method: "POST"
-    });
-    const payload = (await response.json().catch(() => null)) as
-      | { synced?: number; message?: string }
-      | null;
-
-    setSyncMessage(
-      response.ok ? `Synced ${payload?.synced ?? 0} disputes.` : (payload?.message ?? "Sync failed.")
-    );
-
-    if (response.ok) {
-      startTransition(() => {
-        router.refresh();
-      });
-    }
-
-    setIsSyncing(false);
-  }
+  const { isSyncing, result: syncResult, runSync } = useDisputeSync();
 
   const filteredDisputes = useMemo(() => {
     switch (selectedTab) {
       case 1:
-        return disputes.filter((dispute) => {
-          if (!dispute.evidenceDueBy) return false;
-          return new Date(dispute.evidenceDueBy).getTime() - Date.now() <= 172800000;
-        });
+        // A dispute with no deadline is never "due soon".
+        return disputes.filter((dispute) => isDueSoon(dispute.evidenceDueBy, now ?? undefined));
       case 2:
         return disputes.filter((dispute) =>
           ["NEEDS_RESPONSE", "WARNING_NEEDS_RESPONSE"].includes(dispute.status)
@@ -84,22 +55,18 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
       default:
         return disputes;
     }
-  }, [disputes, selectedTab]);
+  }, [disputes, now, selectedTab]);
 
   return (
     <AdminPageLayout
       title="Disputes"
       subtitle="Review active disputes, deadlines, and evidence readiness."
-      primaryAction={{ content: "Sync disputes", onAction: handleSync, loading: isSyncing }}
+      primaryAction={{ content: "Sync disputes", onAction: runSync, loading: isSyncing }}
       secondaryActions={[{ content: "Open evidence library", url: "/evidence" }]}
       gap="300"
     >
       <BlockStack gap="300">
-        {syncMessage ? (
-          <Text as="p" variant="bodySm" tone="subdued">
-            {syncMessage}
-          </Text>
-        ) : null}
+        <SyncStatusBanner result={syncResult} />
         <ResourceSection title="Dispute queue" flush>
           <IndexFilters
             tabs={[
@@ -154,17 +121,9 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
                     <Badge tone={toneForStatus(dispute.status)}>{dispute.status.replaceAll("_", " ")}</Badge>
                   </IndexTable.Cell>
                   <IndexTable.Cell>
-                    {dispute.evidenceDueBy ? (
-                      <Badge tone={new Date(dispute.evidenceDueBy).getTime() - Date.now() <= 172800000 ? "critical" : "info"}>
-                        {new Date(dispute.evidenceDueBy).toLocaleDateString()}
-                      </Badge>
-                    ) : (
-                      "No deadline"
-                    )}
+                    <DeadlineBadge dueBy={dispute.evidenceDueBy} now={now} />
                   </IndexTable.Cell>
-                  <IndexTable.Cell>
-                    {dispute.currencyCode ?? "USD"} {dispute.amount}
-                  </IndexTable.Cell>
+                  <IndexTable.Cell>{formatMoney(dispute.amount, dispute.currencyCode)}</IndexTable.Cell>
                   <IndexTable.Cell>
                     <Badge tone={dispute.completenessScore >= 75 ? "success" : dispute.completenessScore >= 50 ? "warning" : "critical"}>
                       {`${dispute.completenessScore}%`}
@@ -175,9 +134,19 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
             </IndexTable>
           ) : (
             <Box padding="400">
-              <EmptyState heading="No disputes available" image="">
-                <p>Sync disputes to populate the operating queue.</p>
-              </EmptyState>
+              {disputes.length === 0 ? (
+                <EmptyState
+                  heading="No disputes yet"
+                  image={EMPTY_STATE_IMAGE}
+                  action={{ content: "Sync disputes", onAction: runSync, loading: isSyncing }}
+                >
+                  <p>Sync disputes to populate the operating queue.</p>
+                </EmptyState>
+              ) : (
+                <EmptyState heading="No disputes match this view" image={EMPTY_STATE_IMAGE}>
+                  <p>Switch back to the All tab to see the other disputes in the queue.</p>
+                </EmptyState>
+              )}
             </Box>
           )}
         </ResourceSection>

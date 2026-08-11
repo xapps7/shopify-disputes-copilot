@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { SESSION_COOKIE, readSessionCookieValue } from "@/lib/shopify/session-token";
 
 import { cookies } from "next/headers";
 
@@ -20,7 +21,18 @@ export function normalizeShopDomain(shop: string) {
 }
 
 export async function getCurrentShopDomain() {
+  // Prefer the signed session cookie minted from a verified App Bridge token;
+  // the legacy SHOP_COOKIE is SameSite=Lax and is never sent inside the admin
+  // iframe, which is what pushed every caller onto the unsafe ?shop= param.
   const store = await cookies();
+  const verified = await readSessionCookieValue(
+    store.get(SESSION_COOKIE)?.value,
+    process.env.SHOPIFY_API_SECRET ?? ""
+  );
+  if (verified) {
+    return verified;
+  }
+
   return store.get(SHOP_COOKIE)?.value ?? null;
 }
 
@@ -46,8 +58,8 @@ export async function setCurrentShopDomain(shopDomain: string) {
   const store = await cookies();
   store.set(SHOP_COOKIE, shopDomain, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    secure: true,
+    sameSite: "none",
     path: "/"
   });
 }
@@ -56,8 +68,8 @@ export async function setCurrentHost(host: string) {
   const store = await cookies();
   store.set(HOST_COOKIE, host, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    secure: true,
+    sameSite: "none",
     path: "/"
   });
 }
@@ -71,8 +83,8 @@ export async function setOauthState(state: string) {
   const store = await cookies();
   store.set(STATE_COOKIE, state, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    secure: true,
+    sameSite: "none",
     path: "/"
   });
 }

@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 
 import { generatePacketForDispute, updateLatestPacketSummary } from "@/lib/disputes/packets";
+import { guardDisputeRoute, toErrorResponse } from "@/lib/shopify/route-guard";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await context.params;
+    await guardDisputeRoute(request, id);
     const packet = await generatePacketForDispute(id);
 
     return NextResponse.json({
@@ -15,10 +17,7 @@ export async function POST(
       packetUrl: packet.pdfUrl
     });
   } catch (error) {
-    return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Packet generation failed." },
-      { status: 500 }
-    );
+    return toErrorResponse(error, "Packet generation failed.");
   }
 }
 
@@ -28,6 +27,7 @@ export async function PATCH(
 ) {
   try {
     const { id } = await context.params;
+    await guardDisputeRoute(request, id);
     const body = (await request.json()) as { summaryText?: string };
 
     if (!body.summaryText?.trim()) {
@@ -40,9 +40,6 @@ export async function PATCH(
       message: "Packet narrative updated."
     });
   } catch (error) {
-    return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Packet update failed." },
-      { status: 500 }
-    );
+    return toErrorResponse(error, "Packet update failed.");
   }
 }

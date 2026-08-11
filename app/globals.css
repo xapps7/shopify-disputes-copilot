@@ -31,10 +31,6 @@ textarea {
   font: inherit;
 }
 
-input[type="file"] {
-  width: 100%;
-}
-
 .app-shell {
   min-height: 100vh;
   background: #f6f6f7;
@@ -58,19 +54,6 @@ input[type="file"] {
   width: 100%;
 }
 
-.info-hint {
-  width: 18px;
-  height: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #d1d1d1;
-  border-radius: 999px;
-  background: #ffffff;
-  color: #616161;
-  cursor: help;
-}
-
 .table-link {
   color: #005bd3;
   font-weight: 500;
@@ -83,11 +66,6 @@ input[type="file"] {
 .sync-message {
   margin: 0;
   color: #616161;
-}
-
-.polaris-card-stack {
-  display: grid;
-  gap: 16px;
 }
 
 .polaris-form {
@@ -118,19 +96,6 @@ input[type="file"] {
   overflow-wrap: anywhere;
 }
 
-.packet-preview-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.packet-preview-card {
-  border: 1px solid #e1e3e5;
-  border-radius: 12px;
-  padding: 16px;
-  background: #ffffff;
-}
-
 @media (max-width: 768px) {
   .app-shell__masthead {
     padding: 0 8px 8px;
@@ -142,9 +107,5 @@ input[type="file"] {
 
   .app-shell :where(.Polaris-Page) {
     padding-inline: 8px;
-  }
-
-  .packet-preview-grid {
-    grid-template-columns: 1fr;
   }
 }

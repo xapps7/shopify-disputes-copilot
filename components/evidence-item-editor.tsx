@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Badge, BlockStack, Button, InlineStack, Modal, Select, Text, TextField } from "@shopify/polaris";
 
 import type { DisputeOptionView, EvidenceLibraryItemView } from "@/lib/types";
+import { authenticatedFetch } from "@/components/authenticated-fetch";
 
 type EvidenceItemEditorProps = {
   item: EvidenceLibraryItemView | null;
@@ -34,7 +35,7 @@ export function EvidenceItemEditor({ item, disputeOptions, open, onClose }: Evid
     setIsSaving(true);
     setMessage(null);
 
-    const response = await fetch(`/api/evidence/${item.id}`, {
+    const response = await authenticatedFetch(`/api/evidence/${item.id}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json"

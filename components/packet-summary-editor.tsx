@@ -3,6 +3,7 @@
 import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BlockStack, Button, Text, TextField } from "@shopify/polaris";
+import { authenticatedFetch } from "@/components/authenticated-fetch";
 
 type PacketSummaryEditorProps = {
   disputeId: string;
@@ -19,7 +20,7 @@ export function PacketSummaryEditor({ disputeId, initialSummary }: PacketSummary
     setIsSaving(true);
     setMessage(null);
 
-    const response = await fetch(`/api/disputes/${disputeId}/packet`, {
+    const response = await authenticatedFetch(`/api/disputes/${disputeId}/packet`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json"

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { startTransition, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Banner,
   Badge,
@@ -18,7 +18,11 @@ import {
 } from "@shopify/polaris";
 
 import { AdminPageLayout } from "@/components/admin-page-layout";
+import { DeadlineBadge, useNow } from "@/components/deadline-badge";
+import { EMPTY_STATE_IMAGE } from "@/components/empty-state-image";
 import { ResourceSection } from "@/components/resource-section";
+import { SyncStatusBanner, useDisputeSync } from "@/components/sync-status";
+import { formatCurrencyTotals, formatMoney, sumByCurrency } from "@/lib/format/money";
 import type { DashboardDispute, OverviewMetricsView, PreventionRecommendationView } from "@/lib/types";
 
 type OverviewPageShellProps = {
@@ -36,43 +40,18 @@ function toneForStatus(status: string) {
 }
 
 export function OverviewPageShell({ metrics, recentDisputes, recommendations }: OverviewPageShellProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const now = useNow();
+  const { isSyncing, result: syncResult, runSync } = useDisputeSync();
   const embeddedQuery = searchParams.toString();
   const disputesUrl = `/disputes${embeddedQuery ? `?${embeddedQuery}` : ""}`;
   const evidenceUrl = `/evidence${embeddedQuery ? `?${embeddedQuery}` : ""}`;
 
-  async function handleSync() {
-    setIsSyncing(true);
-    setSyncMessage(null);
-
-    const params = new URLSearchParams();
-    const shop = searchParams.get("shop");
-    if (shop) {
-      params.set("shop", shop);
-    }
-
-    const response = await fetch(`/api/sync/disputes${params.toString() ? `?${params.toString()}` : ""}`, {
-      method: "POST"
-    });
-    const payload = (await response.json().catch(() => null)) as
-      | { synced?: number; message?: string }
-      | null;
-
-    setSyncMessage(
-      response.ok ? `Synced ${payload?.synced ?? 0} disputes.` : (payload?.message ?? "Sync failed.")
-    );
-
-    if (response.ok) {
-      startTransition(() => {
-        router.refresh();
-      });
-    }
-
-    setIsSyncing(false);
-  }
+  // `metrics.totalAmount` adds every dispute amount together regardless of
+  // currency, which is not a number that means anything. Total per currency
+  // instead, from the same dispute rows the metric was derived from.
+  const disputedTotals = useMemo(() => sumByCurrency(recentDisputes), [recentDisputes]);
+  const isMixedCurrency = disputedTotals.length > 1;
 
   return (
     <AdminPageLayout
@@ -81,18 +60,24 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
       primaryAction={{ content: "View disputes", url: disputesUrl }}
       secondaryActions={[
         { content: "Open evidence library", url: evidenceUrl },
-        { content: isSyncing ? "Syncing disputes..." : "Sync disputes", onAction: handleSync, disabled: isSyncing }
+        { content: isSyncing ? "Syncing disputes..." : "Sync disputes", onAction: runSync, disabled: isSyncing }
       ]}
       gap="400"
       banner={
         metrics.dueSoon > 0 ? (
           <Banner tone="critical">
-            <p>{metrics.dueSoon} disputes require response within 48 hours.</p>
+            <p>
+              {metrics.dueSoon === 1
+                ? "1 dispute is overdue or due within 48 hours."
+                : `${metrics.dueSoon} disputes are overdue or due within 48 hours.`}
+            </p>
           </Banner>
         ) : undefined
       }
     >
       <BlockStack gap="400">
+        <SyncStatusBanner result={syncResult} />
+
         <Card>
           <BlockStack gap="300">
             <Text as="p" variant="bodyMd">
@@ -107,7 +92,10 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
                 ["Open disputes", String(metrics.openDisputes)],
                 ["Due soon", String(metrics.dueSoon)],
                 ["Evidence ready", String(metrics.evidenceReady)],
-                ["Total disputed", `$${metrics.totalAmount.toFixed(0)}`]
+                [
+                  isMixedCurrency ? "Total disputed (per currency)" : "Total disputed",
+                  formatCurrencyTotals(disputedTotals)
+                ]
               ].map(([label, value]) => (
                 <InlineStack gap="100" key={label}>
                   <Text as="span" variant="bodySm" tone="subdued">
@@ -207,17 +195,9 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
                     <Badge tone={toneForStatus(dispute.status)}>{dispute.status.replaceAll("_", " ")}</Badge>
                   </IndexTable.Cell>
                   <IndexTable.Cell>
-                    {dispute.evidenceDueBy ? (
-                      <Badge tone={new Date(dispute.evidenceDueBy).getTime() - Date.now() <= 172800000 ? "critical" : "info"}>
-                        {new Date(dispute.evidenceDueBy).toLocaleDateString()}
-                      </Badge>
-                    ) : (
-                      "No deadline"
-                    )}
+                    <DeadlineBadge dueBy={dispute.evidenceDueBy} now={now} />
                   </IndexTable.Cell>
-                  <IndexTable.Cell>
-                    {dispute.currencyCode ?? "USD"} {dispute.amount}
-                  </IndexTable.Cell>
+                  <IndexTable.Cell>{formatMoney(dispute.amount, dispute.currencyCode)}</IndexTable.Cell>
                   <IndexTable.Cell>{`${dispute.completenessScore}%`}</IndexTable.Cell>
                 </IndexTable.Row>
               ))}
@@ -226,20 +206,14 @@ export function OverviewPageShell({ metrics, recentDisputes, recommendations }: 
             <Box padding="400" width="100%">
               <EmptyState
                 heading="No disputes yet"
-                action={{ content: "Sync disputes", onAction: handleSync }}
-                image=""
+                action={{ content: "Sync disputes", onAction: runSync, loading: isSyncing }}
+                image={EMPTY_STATE_IMAGE}
               >
                 <p>Once disputes are synced, the overview will highlight what needs attention first.</p>
               </EmptyState>
             </Box>
           )}
         </ResourceSection>
-
-        {syncMessage ? (
-          <Text as="p" tone="subdued" variant="bodySm">
-            {syncMessage}
-          </Text>
-        ) : null}
 
         <ResourceSection title="Prevention insights">
           <BlockStack gap="150">

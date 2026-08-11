@@ -19,8 +19,11 @@ import {
 import { AIPackageAssessment } from "@/components/ai-package-assessment";
 import { PacketQualityPanel } from "@/components/packet-quality-panel";
 import { PacketSummaryEditor } from "@/components/packet-summary-editor";
+import { ShopifySubmissionNotice } from "@/components/shopify-submission-notice";
+import { useShopDomain } from "@/components/use-shop-domain";
 import { generatePackageAssessment } from "@/lib/ai/package-assessment";
 import { assessPacketQuality } from "@/lib/disputes/workflow";
+import { formatMoney } from "@/lib/format/money";
 import type { DisputeDetailView } from "@/lib/types";
 
 type PacketPreviewPageShellProps = {
@@ -40,6 +43,7 @@ function splitSections(summaryText: string | null) {
 
 export function PacketPreviewPageShell({ dispute }: PacketPreviewPageShellProps) {
   const searchParams = useSearchParams();
+  const shopDomain = useShopDomain();
   const sections = splitSections(dispute.latestPacket?.summaryText ?? null);
   const packetReview = assessPacketQuality(dispute);
   const aiAssessment = generatePackageAssessment(dispute);
@@ -63,6 +67,12 @@ export function PacketPreviewPageShell({ dispute }: PacketPreviewPageShellProps)
       }
     >
       <BlockStack gap="400">
+        <ShopifySubmissionNotice
+          shopDomain={shopDomain}
+          shopifyDisputeId={dispute.shopifyDisputeId}
+          recordedAt={dispute.latestPacket?.submittedAt ?? dispute.evidenceSentOn ?? null}
+        />
+
         <Banner tone="info">
           <p>Banks and card issuers decide final outcomes. Review the evidence package before sending it onward.</p>
         </Banner>
@@ -94,7 +104,7 @@ export function PacketPreviewPageShell({ dispute }: PacketPreviewPageShellProps)
                 Amount
               </Text>
               <Text as="p" variant="headingMd">
-                {dispute.currencyCode ?? "USD"} {dispute.amount}
+                {formatMoney(dispute.amount, dispute.currencyCode)}
               </Text>
             </BlockStack>
           </Card>
@@ -148,11 +158,18 @@ export function PacketPreviewPageShell({ dispute }: PacketPreviewPageShellProps)
                 <Text as="h2" variant="headingMd">
                   Included evidence
                 </Text>
-                <List type="bullet">
-                  {dispute.evidenceItems.map((item) => (
-                    <List.Item key={item.id}>{item.title}</List.Item>
-                  ))}
-                </List>
+                {dispute.evidenceItems.length > 0 ? (
+                  <List type="bullet">
+                    {dispute.evidenceItems.map((item) => (
+                      <List.Item key={item.id}>{item.title}</List.Item>
+                    ))}
+                  </List>
+                ) : (
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    No evidence files are attached to this dispute yet, so the packet contains the narrative only. Add
+                    files from the dispute page before submitting.
+                  </Text>
+                )}
               </BlockStack>
             </Card>
 

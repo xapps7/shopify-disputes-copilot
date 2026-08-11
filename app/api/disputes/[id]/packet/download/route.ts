@@ -2,16 +2,24 @@ import { NextResponse } from "next/server";
 
 import { db } from "@/lib/db";
 import { buildPacketSummary } from "@/lib/disputes/packet-content";
+import { requireMerchant } from "@/lib/disputes/tenant";
+import { requireShopDomain } from "@/lib/shopify/request-context";
+import { toErrorResponse } from "@/lib/shopify/route-guard";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
-export async function GET(_request: Request, { params }: RouteContext) {
+export async function GET(request: Request, { params }: RouteContext) {
   try {
     const { id } = await params;
-    const dispute = await db.dispute.findUnique({
-      where: { id },
+    const shopDomain = await requireShopDomain(request);
+    const merchant = await requireMerchant(shopDomain);
+
+    // This packet contains customer PII. It was previously readable by anyone
+    // holding a dispute id, with no authentication and no tenant check.
+    const dispute = await db.dispute.findFirst({
+      where: { id, merchantId: merchant.id },
       include: {
         merchant: true,
         evidenceItems: {
@@ -40,9 +48,6 @@ export async function GET(_request: Request, { params }: RouteContext) {
       }
     });
   } catch (error) {
-    return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Packet download failed." },
-      { status: 500 }
-    );
+    return toErrorResponse(error, "Packet download failed.");
   }
 }

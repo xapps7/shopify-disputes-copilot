@@ -6,24 +6,33 @@ import {
   Banner,
   Badge,
   BlockStack,
+  Box,
   Card,
   DataTable,
   Divider,
+  EmptyState,
   InlineStack,
   Layout,
   Page,
   ProgressBar,
   Text
 } from "@shopify/polaris";
-import { useState } from "react";
+import { useRef } from "react";
 
+import { DeadlineBadge, useNow } from "@/components/deadline-badge";
 import { DisputeResponseDraft } from "@/components/dispute-response-draft";
+import { EMPTY_STATE_IMAGE } from "@/components/empty-state-image";
 import { EvidenceGapCoach } from "@/components/evidence-gap-coach";
 import { EvidenceUploadForm } from "@/components/evidence-upload-form";
 import { GeneratePacketButton } from "@/components/generate-packet-button";
 import { OutcomeReviewForm } from "@/components/outcome-review-form";
 import { PacketQualityPanel } from "@/components/packet-quality-panel";
+import { ShopifySubmissionNotice } from "@/components/shopify-submission-notice";
 import { SubmissionCenter } from "@/components/submission-center";
+import { useShopDomain } from "@/components/use-shop-domain";
+import { describeDeadline, formatDate } from "@/lib/format/date";
+import { formatMoney } from "@/lib/format/money";
+import { shopifyAdminDisputeUrl } from "@/lib/format/shopify-admin";
 import { assessPacketQuality, buildEvidenceGapInsights } from "@/lib/disputes/workflow";
 import type { AIPackageAssessmentView, DisputeDetailView, DisputeResponseDraftView } from "@/lib/types";
 
@@ -39,14 +48,6 @@ function statusTone(status: string) {
   if (status.includes("WARNING") || status === "NEEDS_RESPONSE") return "warning" as const;
   if (status === "WON") return "success" as const;
   if (status === "LOST" || status === "ACCEPTED") return "critical" as const;
-  return "info" as const;
-}
-
-function deadlineTone(evidenceDueBy: string | null) {
-  if (!evidenceDueBy) return "info" as const;
-  const days = Math.ceil((new Date(evidenceDueBy).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-  if (days < 0) return "critical" as const;
-  if (days <= 2) return "warning" as const;
   return "info" as const;
 }
 
@@ -69,7 +70,8 @@ function nextStep(readinessScore: number) {
 
   return {
     title: "Prepare for submission",
-    detail: "The packet is evidence-complete. Finalize the merchant response and choose the submission path.",
+    detail:
+      "The packet is evidence-complete. Finalize the merchant response, download the packet, and submit it in Shopify Admin.",
     tone: "success" as const
   };
 }
@@ -86,16 +88,30 @@ export function DisputePageShell({
   packageAssessment
 }: DisputePageShellProps) {
   const searchParams = useSearchParams();
+  const shopDomain = useShopDomain();
+  const now = useNow();
+  const submissionSectionRef = useRef<HTMLDivElement | null>(null);
   const actionGuidance = nextStep(readinessScore);
   const embeddedQuery = searchParams.toString();
   const disputesUrl = `/disputes${embeddedQuery ? `?${embeddedQuery}` : ""}`;
   const evidenceUrl = `/evidence${embeddedQuery ? `?${embeddedQuery}` : ""}`;
   const packetUrl = `/packets/${dispute.id}${embeddedQuery ? `?${embeddedQuery}` : ""}`;
-  const dueDateLabel = dispute.evidenceDueBy
-    ? new Date(dispute.evidenceDueBy).toLocaleDateString()
-    : "No deadline";
-  const [submitMessage, setSubmitMessage] = useState<string | null>(null);
+  const adminDisputeUrl = shopifyAdminDisputeUrl(shopDomain, dispute.shopifyDisputeId);
+  const deadline = describeDeadline(dispute.evidenceDueBy, now ?? undefined);
+  const recordedSubmissionAt = dispute.latestPacket?.submittedAt ?? dispute.evidenceSentOn ?? null;
+  const disputeAmount = formatMoney(dispute.amount, dispute.currencyCode);
   const gapInsights = buildEvidenceGapInsights(dispute);
+
+  function focusSubmissionSection() {
+    const node = submissionSectionRef.current;
+    if (!node) {
+      return;
+    }
+
+    node.scrollIntoView({ behavior: "smooth", block: "center" });
+    node.focus({ preventScroll: true });
+  }
+
   const packetReview = assessPacketQuality(dispute);
   const evidenceByCategory = dispute.evidenceItems.reduce<Record<string, DisputeDetailView["evidenceItems"]>>(
     (acc, item) => {
@@ -109,18 +125,20 @@ export function DisputePageShell({
     <Page
       fullWidth
       title={`Dispute ${dispute.shopifyDisputeId.split("/").pop()}`}
-      subtitle={`${(dispute.reason ?? "Unknown").replaceAll("_", " ")} · ${dispute.currencyCode ?? "USD"} ${dispute.amount}`}
+      subtitle={`${(dispute.reason ?? "Unknown").replaceAll("_", " ")} · ${disputeAmount}`}
       backAction={{ content: "Disputes", url: disputesUrl }}
-      primaryAction={{
-        content: "Submit evidence",
-        onAction: () => {
-          setSubmitMessage(
-            dispute.latestPacket
-              ? "Use the submission center to record the merchant's manual submission after sending the packet in Shopify Admin."
-              : "Generate a packet draft before submitting evidence."
-          );
-        }
-      }}
+      primaryAction={
+        adminDisputeUrl
+          ? {
+              content: "Submit in Shopify Admin",
+              url: adminDisputeUrl,
+              external: true
+            }
+          : {
+              content: "Record submission",
+              onAction: focusSubmissionSection
+            }
+      }
       secondaryActions={[
         ...(dispute.latestPacket
           ? [
@@ -130,28 +148,27 @@ export function DisputePageShell({
                 external: true
               }
             ]
+          : []),
+        ...(adminDisputeUrl
+          ? [
+              {
+                content: "Record submission",
+                onAction: focusSubmissionSection
+              }
+            ]
           : [])
       ]}
     >
       <BlockStack gap="400">
+        <ShopifySubmissionNotice
+          shopDomain={shopDomain}
+          shopifyDisputeId={dispute.shopifyDisputeId}
+          recordedAt={recordedSubmissionAt}
+        />
+
         <Banner tone={actionGuidance.tone}>
           <p>{actionGuidance.detail}</p>
         </Banner>
-
-        {submitMessage ? (
-          <Banner tone="info">
-            <p>{submitMessage}</p>
-          </Banner>
-        ) : null}
-
-        {dispute.evidenceSentOn || dispute.latestPacket?.submittedAt ? (
-          <Banner tone="success">
-            <p>
-              Submission has been detected on this dispute. The workspace is now tracking review and outcome updates from
-              synced Shopify status changes.
-            </p>
-          </Banner>
-        ) : null}
 
         <Layout>
           <Layout.Section>
@@ -162,7 +179,8 @@ export function DisputePageShell({
                     <BlockStack gap="150">
                       <InlineStack gap="200" blockAlign="center">
                         <Badge tone={statusTone(dispute.status)}>{dispute.status.replaceAll("_", " ")}</Badge>
-                        <Badge tone={deadlineTone(dispute.evidenceDueBy)}>{`Due ${dueDateLabel}`}</Badge>
+                        <Badge>{`Due ${formatDate(dispute.evidenceDueBy, { fallback: "No deadline" })}`}</Badge>
+                        {now === null ? null : <Badge tone={deadline.tone}>{deadline.label}</Badge>}
                       </InlineStack>
                       <Text as="h2" variant="headingMd">
                         Dispute summary
@@ -175,7 +193,7 @@ export function DisputePageShell({
 
                   <InlineStack gap="600" wrap>
                     {[
-                      ["Amount", `${dispute.currencyCode ?? "USD"} ${dispute.amount}`],
+                      ["Amount", disputeAmount],
                       ["Reason", (dispute.reason ?? "Unknown").replaceAll("_", " ")],
                       ["Order", dispute.orderSummary?.orderName ?? "Unknown"],
                       ["Readiness", `${readinessScore}%`]
@@ -297,24 +315,37 @@ export function DisputePageShell({
                   <Text as="h2" variant="headingMd">
                     Timeline
                   </Text>
-                  <BlockStack gap="200">
-                    {dispute.timeline.map((event, index) => (
-                      <BlockStack gap="100" key={event.id}>
-                        <InlineStack align="space-between">
-                          <Text as="p" variant="bodyMd" fontWeight="medium">
-                            {event.eventType.replaceAll("_", " ")}
-                          </Text>
+                  {dispute.timeline.length > 0 ? (
+                    <BlockStack gap="200">
+                      {dispute.timeline.map((event, index) => (
+                        <BlockStack gap="100" key={event.id}>
+                          <InlineStack align="space-between">
+                            <Text as="p" variant="bodyMd" fontWeight="medium">
+                              {event.eventType.replaceAll("_", " ")}
+                            </Text>
+                            <Text as="p" variant="bodySm" tone="subdued">
+                              {formatDate(event.eventTimestamp)}
+                            </Text>
+                          </InlineStack>
                           <Text as="p" variant="bodySm" tone="subdued">
-                            {new Date(event.eventTimestamp).toLocaleDateString()}
+                            {event.source}
                           </Text>
-                        </InlineStack>
-                        <Text as="p" variant="bodySm" tone="subdued">
-                          {event.source}
+                          {index < dispute.timeline.length - 1 ? <Divider /> : null}
+                        </BlockStack>
+                      ))}
+                    </BlockStack>
+                  ) : (
+                    <Box padding="200">
+                      <BlockStack gap="100">
+                        <Text as="p" variant="bodyMd" fontWeight="medium">
+                          No activity recorded yet
                         </Text>
-                        {index < dispute.timeline.length - 1 ? <Divider /> : null}
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          Uploads, packet generation, sync updates, and recorded submissions appear here as they happen.
+                        </Text>
                       </BlockStack>
-                    ))}
-                  </BlockStack>
+                    </Box>
+                  )}
                 </BlockStack>
               </Card>
 
@@ -337,21 +368,30 @@ export function DisputePageShell({
                     </Link>
                   </InlineStack>
 
-                  <DataTable
-                    columnContentTypes={["text", "text", "text"]}
-                    headings={["File", "Category", "Source"]}
-                    rows={dispute.evidenceItems.map((item) => [
-                      item.fileUrl ? (
-                        <a className="table-link" href={item.fileUrl} key={`${item.id}-link`} rel="noreferrer" target="_blank">
-                          {item.title}
-                        </a>
-                      ) : (
-                        item.title
-                      ),
-                      item.category.replaceAll("_", " "),
-                      item.sourceType
-                    ])}
-                  />
+                  {dispute.evidenceItems.length > 0 ? (
+                    <DataTable
+                      columnContentTypes={["text", "text", "text"]}
+                      headings={["File", "Category", "Source"]}
+                      rows={dispute.evidenceItems.map((item) => [
+                        item.fileUrl ? (
+                          <a className="table-link" href={item.fileUrl} key={`${item.id}-link`} rel="noreferrer" target="_blank">
+                            {item.title}
+                          </a>
+                        ) : (
+                          item.title
+                        ),
+                        item.category.replaceAll("_", " "),
+                        item.sourceType
+                      ])}
+                    />
+                  ) : (
+                    <EmptyState heading="No evidence files yet" image={EMPTY_STATE_IMAGE}>
+                      <p>
+                        Upload the files that close the checklist gaps above using the <strong>Add evidence</strong>{" "}
+                        panel, or link an existing file from the evidence library.
+                      </p>
+                    </EmptyState>
+                  )}
                 </BlockStack>
               </Card>
 
@@ -367,7 +407,8 @@ export function DisputePageShell({
                     Packet preview and submission
                   </Text>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    Review the packet before export. If direct submission is unavailable, download the packet and submit it manually in Shopify Admin.
+                    Review the packet, then download it. This app cannot submit evidence to Shopify — you upload the
+                    packet yourself on the dispute page in Shopify Admin.
                   </Text>
                   <InlineStack gap="300" wrap>
                     <Link className="table-link" href={packetUrl as never}>
@@ -400,7 +441,10 @@ export function DisputePageShell({
                       [
                         "Order amount",
                         dispute.orderSummary?.orderTotal
-                          ? `${dispute.orderSummary.currencyCode ?? dispute.currencyCode ?? "USD"} ${dispute.orderSummary.orderTotal}`
+                          ? formatMoney(
+                              dispute.orderSummary.orderTotal,
+                              dispute.orderSummary.currencyCode ?? dispute.currencyCode
+                            )
                           : "Unavailable"
                       ],
                       ["Customer", dispute.orderSummary?.customerName ?? "Unavailable"],
@@ -435,7 +479,7 @@ export function DisputePageShell({
                     columnContentTypes={["text", "text"]}
                     headings={["Field", "Value"]}
                     rows={[
-                      ["Disputed amount", `${dispute.currencyCode ?? "USD"} ${dispute.amount}`],
+                      ["Disputed amount", disputeAmount],
                       ["Refund proof", dispute.evidenceItems.some((item) => item.category === "REFUND_PROOF") ? "Present" : "Not linked"],
                       ["Packet status", dispute.latestPacket?.status ?? "Not generated"]
                     ]}
@@ -461,9 +505,7 @@ export function DisputePageShell({
                       <Text as="p" variant="bodySm">
                         Deadline state
                       </Text>
-                      <Badge tone={deadlineTone(dispute.evidenceDueBy)}>
-                        {new Date(dispute.evidenceDueBy ?? Date.now()).getTime() - Date.now() <= 172800000 ? "Urgent" : "On track"}
-                      </Badge>
+                      <DeadlineBadge dueBy={dispute.evidenceDueBy} now={now} layout="inline" />
                     </InlineStack>
                   </BlockStack>
                 </BlockStack>
@@ -491,20 +533,24 @@ export function DisputePageShell({
                 </BlockStack>
               </Card>
 
-              <Card>
-                <BlockStack gap="200">
-                  <Text as="h2" variant="headingMd">
-                    Record submission
-                  </Text>
-                  <SubmissionCenter
-                    disputeId={dispute.id}
-                    packetReady={packetReview.status !== "blocked" && Boolean(dispute.latestPacket)}
-                    packetStatus={dispute.latestPacket?.status ?? null}
-                    submittedAt={dispute.latestPacket?.submittedAt ?? null}
-                    evidenceSentOn={dispute.evidenceSentOn}
-                  />
-                </BlockStack>
-              </Card>
+              <div id="record-submission" ref={submissionSectionRef} tabIndex={-1}>
+                <Card>
+                  <BlockStack gap="200">
+                    <Text as="h2" variant="headingMd">
+                      Record submission
+                    </Text>
+                    <SubmissionCenter
+                      disputeId={dispute.id}
+                      packetReady={packetReview.status !== "blocked" && Boolean(dispute.latestPacket)}
+                      packetStatus={dispute.latestPacket?.status ?? null}
+                      submittedAt={dispute.latestPacket?.submittedAt ?? null}
+                      evidenceSentOn={dispute.evidenceSentOn}
+                      shopDomain={shopDomain}
+                      shopifyDisputeId={dispute.shopifyDisputeId}
+                    />
+                  </BlockStack>
+                </Card>
+              </div>
 
               <Card>
                 <BlockStack gap="200">

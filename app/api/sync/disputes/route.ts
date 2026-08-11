@@ -2,15 +2,26 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 
 import { runDisputeSyncWithRetry } from "@/lib/disputes/sync-runs";
-import { resolveShopDomain } from "@/lib/shopify/auth";
+import { consumeRateLimit } from "@/lib/rate-limit";
+import { getAuthenticatedShopDomain } from "@/lib/shopify/request-context";
 
 export async function POST(request: Request) {
   try {
-    const url = new URL(request.url);
-    const shopDomain = await resolveShopDomain({ shop: url.searchParams.get("shop") ?? undefined });
+    const shopDomain = await getAuthenticatedShopDomain(request);
 
     if (!shopDomain) {
-      return NextResponse.json({ ok: false, message: "No active shop session found." }, { status: 400 });
+      return NextResponse.json({ ok: false, message: "Unauthorized." }, { status: 401 });
+    }
+
+    // Each sync fans out into a sequence of Shopify Admin API calls and retries
+    // up to three times, so an unbounded caller could exhaust the merchant's
+    // own Shopify rate limit. Six bursts, refilling one every 20s.
+    const limit = consumeRateLimit(`sync:${shopDomain}`, { capacity: 6, refillPerSecond: 1 / 20 });
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { ok: false, message: "Sync was requested too frequently. Try again shortly." },
+        { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
+      );
     }
 
     const result = await runDisputeSyncWithRetry(shopDomain);
@@ -20,12 +31,7 @@ export async function POST(request: Request) {
     revalidatePath("/recommendations");
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
-    return NextResponse.json(
-      {
-        ok: false,
-        message: error instanceof Error ? error.message : "Dispute sync failed."
-      },
-      { status: 500 }
-    );
+    console.error("Dispute sync failed", error);
+    return NextResponse.json({ ok: false, message: "Dispute sync failed." }, { status: 500 });
   }
 }

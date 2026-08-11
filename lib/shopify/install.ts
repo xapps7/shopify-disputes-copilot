@@ -40,9 +40,16 @@ const SHOP_INFO_QUERY = `#graphql
   }
 `;
 
+// NOTE: the three mandatory privacy topics (customers/data_request,
+// customers/redact, shop/redact) are NOT registrable here - they are not valid
+// `WebhookSubscriptionTopic` enum values. They are app-level configuration and
+// live in shopify.app.toml under `[[webhooks.subscriptions]]` / `compliance_topics`.
 const installWebhookDefinitions = [
   { topic: "DISPUTES_CREATE", path: "/api/webhooks/disputes/create" },
-  { topic: "DISPUTES_UPDATE", path: "/api/webhooks/disputes/update" }
+  { topic: "DISPUTES_UPDATE", path: "/api/webhooks/disputes/update" },
+  // Required so a retained access token is destroyed the moment the merchant
+  // removes the app, instead of lingering until shop/redact arrives 48h later.
+  { topic: "APP_UNINSTALLED", path: "/api/webhooks/app/uninstalled" }
 ] as const;
 
 type InstallResult = {

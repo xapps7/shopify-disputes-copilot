@@ -1,6 +1,6 @@
 import { EvidenceLibraryPageShell } from "@/components/evidence-library-page-shell";
 import { listDisputeOptions, listEvidenceLibrary } from "@/lib/disputes/repository";
-import { resolveShopDomain } from "@/lib/shopify/auth";
+import { getAuthenticatedShopDomainForPage } from "@/lib/shopify/request-context";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -11,7 +11,7 @@ type EvidencePageProps = {
 
 export default async function EvidencePage({ searchParams }: EvidencePageProps) {
   const params = (await searchParams) ?? {};
-  const shopDomain = await resolveShopDomain(params);
+  const shopDomain = await getAuthenticatedShopDomainForPage(params);
   const [items, disputeOptions] = await Promise.all([
     listEvidenceLibrary(shopDomain),
     listDisputeOptions(shopDomain)

@@ -1,6 +1,6 @@
 import { DisputesIndexPageShell } from "@/components/disputes-index-page-shell";
 import { listDashboardDisputes } from "@/lib/disputes/repository";
-import { resolveShopDomain } from "@/lib/shopify/auth";
+import { getAuthenticatedShopDomainForPage } from "@/lib/shopify/request-context";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -11,7 +11,7 @@ type DisputesPageProps = {
 
 export default async function DisputesPage({ searchParams }: DisputesPageProps) {
   const params = (await searchParams) ?? {};
-  const shopDomain = await resolveShopDomain(params);
+  const shopDomain = await getAuthenticatedShopDomainForPage(params);
   const disputes = await listDashboardDisputes(shopDomain);
 
   return <DisputesIndexPageShell disputes={disputes} />;

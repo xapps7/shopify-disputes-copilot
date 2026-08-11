@@ -434,9 +434,11 @@ export async function listDisputeOptions(shopDomain?: string | null): Promise<Di
   }));
 }
 
-export async function getDisputeDetail(id: string): Promise<DisputeDetailView> {
-  const dispute = await db.dispute.findUnique({
-    where: { id },
+export async function getDisputeDetail(id: string, merchantId?: string): Promise<DisputeDetailView> {
+  // merchantId is required for anything reached from a request. It is optional
+  // only for internal callers that already resolved ownership.
+  const dispute = await db.dispute.findFirst({
+    where: merchantId ? { id, merchantId } : { id },
     include: {
       evidenceItems: {
         orderBy: { createdAt: "asc" }

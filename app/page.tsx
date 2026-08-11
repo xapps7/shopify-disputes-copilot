@@ -1,6 +1,6 @@
 import { OverviewPageShell } from "@/components/overview-page-shell";
 import { getOverviewMetrics, listDashboardDisputes, listRecommendations } from "@/lib/disputes/repository";
-import { resolveShopDomain } from "@/lib/shopify/auth";
+import { getAuthenticatedShopDomainForPage } from "@/lib/shopify/request-context";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -11,7 +11,7 @@ type HomePageProps = {
 
 export default async function HomePage({ searchParams }: HomePageProps) {
   const params = (await searchParams) ?? {};
-  const shopDomain = await resolveShopDomain(params);
+  const shopDomain = await getAuthenticatedShopDomainForPage(params);
 
   const [metrics, recentDisputes, recommendations] = await Promise.all([
     getOverviewMetrics(shopDomain),

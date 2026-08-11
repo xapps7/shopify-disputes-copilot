@@ -5,15 +5,17 @@ import { generateOpenAIPackageAssessment } from "@/lib/ai/openai-package-assessm
 import { generateOpenAIDisputeDraft, isOpenAIDraftEnabled } from "@/lib/ai/openai-dispute-drafts";
 import { generatePackageAssessment } from "@/lib/ai/package-assessment";
 import { getDisputeDetail } from "@/lib/disputes/repository";
+import { guardDisputeRoute, toErrorResponse } from "@/lib/shopify/route-guard";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
-export async function POST(_: Request, { params }: RouteContext) {
+export async function POST(request: Request, { params }: RouteContext) {
   try {
     const { id } = await params;
-    const dispute = await getDisputeDetail(id);
+    const { merchant } = await guardDisputeRoute(request, id);
+    const dispute = await getDisputeDetail(id, merchant.id);
     let draft = generateDisputeResponseDraft(dispute);
     let assessment = generatePackageAssessment(dispute);
 
@@ -42,13 +44,6 @@ export async function POST(_: Request, { params }: RouteContext) {
       assessment
     });
   } catch (error) {
-    console.error("Draft generation failed", error);
-
-    return NextResponse.json(
-      {
-        message: error instanceof Error ? error.message : "Draft generation failed."
-      },
-      { status: 500 }
-    );
+    return toErrorResponse(error, "Draft generation failed.");
   }
 }

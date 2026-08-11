@@ -19,6 +19,7 @@ import {
 import { AIPackageAssessment } from "@/components/ai-package-assessment";
 import type { DisputeResponseDraftView } from "@/lib/types";
 import type { AIPackageAssessmentView } from "@/lib/types";
+import { authenticatedFetch } from "@/components/authenticated-fetch";
 
 type DisputeResponseDraftProps = {
   disputeId: string;
@@ -42,7 +43,7 @@ export function DisputeResponseDraft({
     setIsRefreshing(true);
     setMessage(null);
 
-    const response = await fetch(`/api/disputes/${disputeId}/draft`, {
+    const response = await authenticatedFetch(`/api/disputes/${disputeId}/draft`, {
       method: "POST"
     });
 

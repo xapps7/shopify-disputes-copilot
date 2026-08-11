@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { isDiagnosticsAuthorized } from "@/lib/diagnostics-auth";
 import { decryptString } from "@/lib/crypto";
-import { resolveShopDomain } from "@/lib/shopify/auth";
+import { getAuthenticatedShopDomain } from "@/lib/shopify/request-context";
 import { createShopifyAdminClient } from "@/lib/shopify/client";
 import { extractGraphqlErrors, graphqlErrorMessages } from "@/lib/shopify/errors";
 import { APP_COMMIT, APP_RELEASE } from "@/lib/version";
@@ -93,7 +93,7 @@ export async function GET(request: Request) {
     }
 
     const url = new URL(request.url);
-    const shopDomain = await resolveShopDomain({ shop: url.searchParams.get("shop") ?? undefined });
+    const shopDomain = await getAuthenticatedShopDomain(request);
     const orderId = url.searchParams.get("orderId");
     const orderName = url.searchParams.get("orderName");
 

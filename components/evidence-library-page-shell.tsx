@@ -17,9 +17,11 @@ import {
 } from "@shopify/polaris";
 
 import { AdminPageLayout } from "@/components/admin-page-layout";
+import { EMPTY_STATE_IMAGE } from "@/components/empty-state-image";
 import { EvidenceItemEditor } from "@/components/evidence-item-editor";
 import { ResourceSection } from "@/components/resource-section";
 import { filterEvidenceItems } from "@/lib/disputes/workflow";
+import { formatDate } from "@/lib/format/date";
 import type { DisputeOptionView, EvidenceLibraryItemView } from "@/lib/types";
 
 type EvidenceLibraryPageShellProps = {
@@ -36,6 +38,7 @@ export function EvidenceLibraryPageShell({ items, disputeOptions }: EvidenceLibr
   const filteredItems = useMemo(() => filterEvidenceItems(items, selectedTab, queryValue), [items, queryValue, selectedTab]);
   const editingItem = items.find((item) => item.id === editingItemId) ?? null;
   const embeddedQuery = searchParams.toString();
+  const disputesUrl = `/disputes${embeddedQuery ? `?${embeddedQuery}` : ""}`;
 
   return (
     <AdminPageLayout
@@ -112,16 +115,39 @@ export function EvidenceLibraryPageShell({ items, disputeOptions }: EvidenceLibr
                   </Link>
                 </IndexTable.Cell>
                 <IndexTable.Cell>{item.sourceType}</IndexTable.Cell>
-                <IndexTable.Cell>{new Date(item.createdAt).toLocaleDateString()}</IndexTable.Cell>
+                <IndexTable.Cell>{formatDate(item.createdAt)}</IndexTable.Cell>
               </IndexTable.Row>
             ))}
           </IndexTable>
         ) : (
           <Box padding="400">
             <BlockStack gap="200">
-              <EmptyState heading="No evidence files match this view" image="">
-                <p>Adjust the category filter or search query to broaden the evidence shelf.</p>
-              </EmptyState>
+              {items.length === 0 ? (
+                <EmptyState
+                  heading="No evidence files yet"
+                  image={EMPTY_STATE_IMAGE}
+                  action={{ content: "View disputes", url: disputesUrl }}
+                >
+                  <p>
+                    Files you upload on a dispute appear here, ready to reuse on any other dispute that needs the same
+                    proof.
+                  </p>
+                </EmptyState>
+              ) : (
+                <EmptyState
+                  heading="No evidence files match this view"
+                  image={EMPTY_STATE_IMAGE}
+                  action={
+                    queryValue
+                      ? { content: "Clear search", onAction: () => setQueryValue("") }
+                      : { content: "Show all files", onAction: () => setSelectedTab(0) }
+                  }
+                >
+                  <p>
+                    {`${items.length} file${items.length === 1 ? " is" : "s are"} stored, but none match the current category or search.`}
+                  </p>
+                </EmptyState>
+              )}
               <Text as="p" variant="bodySm" tone="subdued">
                 Evidence items are organized by category, source, and linked dispute.
               </Text>

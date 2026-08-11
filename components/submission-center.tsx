@@ -2,7 +2,21 @@
 
 import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Badge, BlockStack, Button, InlineStack, Select, Text, TextField } from "@shopify/polaris";
+import {
+  Badge,
+  Banner,
+  BlockStack,
+  Button,
+  InlineStack,
+  Link as PolarisLink,
+  Select,
+  Text,
+  TextField
+} from "@shopify/polaris";
+
+import { formatDateTime } from "@/lib/format/date";
+import { shopifyAdminDisputeUrl } from "@/lib/format/shopify-admin";
+import { authenticatedFetch } from "@/components/authenticated-fetch";
 
 type SubmissionCenterProps = {
   disputeId: string;
@@ -10,6 +24,8 @@ type SubmissionCenterProps = {
   packetStatus: string | null;
   submittedAt: string | null;
   evidenceSentOn: string | null;
+  shopDomain?: string | null;
+  shopifyDisputeId?: string | null;
 };
 
 export function SubmissionCenter({
@@ -17,19 +33,23 @@ export function SubmissionCenter({
   packetReady,
   packetStatus,
   submittedAt,
-  evidenceSentOn
+  evidenceSentOn,
+  shopDomain = null,
+  shopifyDisputeId = null
 }: SubmissionCenterProps) {
   const router = useRouter();
   const [method, setMethod] = useState("SHOPIFY_ADMIN");
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const adminUrl = shopifyAdminDisputeUrl(shopDomain, shopifyDisputeId);
+  const recordedAt = submittedAt ?? evidenceSentOn ?? null;
 
   async function handleSubmit() {
     setIsSubmitting(true);
     setMessage(null);
 
-    const response = await fetch(`/api/disputes/${disputeId}/submit`, {
+    const response = await authenticatedFetch(`/api/disputes/${disputeId}/submit`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -38,7 +58,11 @@ export function SubmissionCenter({
     });
 
     const payload = (await response.json().catch(() => null)) as { message?: string } | null;
-    setMessage(payload?.message ?? (response.ok ? "Submission recorded." : "Submission failed."));
+    setMessage(
+      response.ok
+        ? "Saved to this app only. Nothing was sent to Shopify."
+        : (payload?.message ?? "Could not save this note.")
+    );
 
     if (response.ok) {
       startTransition(() => {
@@ -51,6 +75,13 @@ export function SubmissionCenter({
 
   return (
     <BlockStack gap="300">
+      <Banner tone="warning">
+        <p>
+          This only writes a note in Disputes Co-Pilot. It does not submit evidence to Shopify or the card issuer.
+          Submit the packet in Shopify Admin first, then record it here so your team knows it is done.
+        </p>
+      </Banner>
+
       <BlockStack gap="150">
         <InlineStack align="space-between">
           <Text as="p" variant="bodySm" tone="subdued">
@@ -60,22 +91,22 @@ export function SubmissionCenter({
         </InlineStack>
         <InlineStack align="space-between">
           <Text as="p" variant="bodySm" tone="subdued">
-            Last recorded submission
+            Recorded in this app
           </Text>
           <Text as="p" variant="bodySm">
-            {submittedAt ?? evidenceSentOn
-              ? new Date(submittedAt ?? evidenceSentOn ?? "").toLocaleString()
-              : "Not submitted"}
+            {recordedAt ? formatDateTime(recordedAt) : "Not recorded"}
           </Text>
         </InlineStack>
       </BlockStack>
 
-      <Text as="p" variant="bodySm" tone="subdued">
-        When Shopify sends a dispute status update, this section updates automatically. Use the action below only as a fallback if the merchant already submitted in Shopify Admin and the sync has not reflected it yet.
-      </Text>
+      {adminUrl ? (
+        <PolarisLink url={adminUrl} target="_blank">
+          Open this dispute in Shopify Admin
+        </PolarisLink>
+      ) : null}
 
       <Select
-        label="Submission method"
+        label="Where did you submit it?"
         options={[
           { label: "Shopify Admin", value: "SHOPIFY_ADMIN" },
           { label: "Bank / processor portal", value: "PROCESSOR_PORTAL" },
@@ -91,11 +122,11 @@ export function SubmissionCenter({
         multiline={3}
         value={notes}
         onChange={setNotes}
-        placeholder="Add a short note about how and where the seller submitted the packet."
+        placeholder="Add a short note about how and where you submitted the packet."
       />
 
       <Button disabled={!packetReady} loading={isSubmitting} onClick={handleSubmit} variant="primary">
-        Mark as submitted (fallback)
+        Record submission in this app
       </Button>
 
       {!packetReady ? (

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { recordDisputeOutcome } from "@/lib/disputes/outcomes";
+import { guardDisputeRoute, toErrorResponse } from "@/lib/shopify/route-guard";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -14,6 +15,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       notes?: string;
     };
     const { id } = await params;
+    await guardDisputeRoute(request, id);
 
     await recordDisputeOutcome(id, {
       outcome: body.outcome ?? "UNDER_REVIEW",
@@ -25,13 +27,6 @@ export async function POST(request: Request, { params }: RouteContext) {
       message: "Outcome recorded and recommendations updated."
     });
   } catch (error) {
-    console.error("Outcome update failed", error);
-
-    return NextResponse.json(
-      {
-        message: error instanceof Error ? error.message : "Outcome update failed."
-      },
-      { status: 500 }
-    );
+    return toErrorResponse(error, "Outcome update failed.");
   }
 }

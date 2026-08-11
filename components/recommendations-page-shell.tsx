@@ -3,6 +3,7 @@
 import { Badge, BlockStack, Box, Divider, EmptyState, InlineGrid, Text } from "@shopify/polaris";
 
 import { AdminPageLayout } from "@/components/admin-page-layout";
+import { EMPTY_STATE_IMAGE } from "@/components/empty-state-image";
 import { ResourceSection } from "@/components/resource-section";
 import type { PreventionRecommendationView } from "@/lib/types";
 
@@ -49,7 +50,7 @@ export function RecommendationsPageShell({ recommendations }: RecommendationsPag
         </ResourceSection>
       ) : (
         <ResourceSection title="Prevention actions">
-          <EmptyState heading="No recommendations yet" image="">
+          <EmptyState heading="No recommendations yet" image={EMPTY_STATE_IMAGE}>
             <p>Recommendations appear after dispute outcomes are reviewed and tagged.</p>
           </EmptyState>
         </ResourceSection>
