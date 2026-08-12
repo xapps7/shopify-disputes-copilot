@@ -270,3 +270,20 @@ test("returns an empty candidate list for empty input", () => {
   assert.deepEqual(orderIdCandidates(null), []);
   assert.deepEqual(orderIdCandidates(undefined), []);
 });
+
+// Regression: the deployed app had SHOPIFY_WEBHOOK_SECRET set to a DIFFERENT
+// app's client secret, so every webhook 401'd — including the three mandatory
+// privacy webhooks Shopify tests during review. Verified live: a body signed
+// with the client secret was rejected. Webhooks must verify against the client
+// secret, which is what `shopifyConfig.webhookSecret` now resolves to.
+test("a body signed with the client secret verifies; another app's secret does not", () => {
+  const body = JSON.stringify({ shop_domain: "example.myshopify.com", customer: { id: 1 } });
+  const clientSecret = "shpss_client_secret_for_this_app";
+  const otherAppSecret = "shpss_secret_belonging_to_a_different_app";
+
+  const signed = computeWebhookHmac(body, clientSecret);
+
+  assert.equal(isValidWebhookHmac(body, signed, clientSecret), true);
+  assert.equal(isValidWebhookHmac(body, signed, otherAppSecret), false);
+  assert.equal(isValidWebhookHmac(body, computeWebhookHmac(body, otherAppSecret), clientSecret), false);
+});
