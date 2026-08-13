@@ -579,8 +579,16 @@ export const DISPUTE_SYNC_NO_CUSTOMER_QUERY = `#graphql
 `;
 
 /** Customer PII fetched separately so denial degrades gracefully. */
-export const ORDER_CUSTOMER_QUERY = `#graphql
-  query OrderCustomer($id: ID!) {
+/**
+ * Protected customer data, fetched in isolation.
+ *
+ * Customer name/email AND the shipping address are all Level 2 protected
+ * customer data - they need the read_customers scope AND Partner Dashboard
+ * field approval. Keeping them in one separate request means a denial costs
+ * these fields only, instead of nulling every dispute payload.
+ */
+export const ORDER_PROTECTED_DETAILS_QUERY = `#graphql
+  query OrderProtectedDetails($id: ID!) {
     order(id: $id) {
       id
       customer {
@@ -588,9 +596,23 @@ export const ORDER_CUSTOMER_QUERY = `#graphql
         lastName
         email
       }
+      shippingAddress {
+        name
+        address1
+        address2
+        city
+        province
+        provinceCode
+        zip
+        country
+        countryCodeV2
+      }
     }
   }
 `;
+
+/** @deprecated Use ORDER_PROTECTED_DETAILS_QUERY. */
+export const ORDER_CUSTOMER_QUERY = ORDER_PROTECTED_DETAILS_QUERY;
 
 /**
  * Recent orders with everything the packet builder needs EXCEPT customer PII.

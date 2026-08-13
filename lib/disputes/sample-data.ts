@@ -1,5 +1,7 @@
 import type { DashboardDispute, DisputeDetailView } from "@/lib/types";
 
+import { buildEvidenceFieldStates } from "@/lib/disputes/evidence-fields";
+
 function fraudChecklist() {
   return [
     {
@@ -95,6 +97,7 @@ export const sampleDisputeDetails: DisputeDetailView[] = [
     id: "local-1",
     shopifyDisputeId: "gid://shopify/ShopifyPaymentsDispute/1001",
     shopifyOrderId: "gid://shopify/Order/1001",
+    evidenceFields: buildEvidenceFieldStates([], {}, {}),
     status: "NEEDS_RESPONSE",
     reason: "FRAUD",
     reasonDetails: "Customer claims cardholder did not authorize the order.",
@@ -140,7 +143,9 @@ export const sampleDisputeDetails: DisputeDetailView[] = [
         title: "Delivered via UPS",
         description: "Tracking confirmed delivered at front door with timestamp.",
         sourceType: "shopify_fulfillment",
-        fileUrl: "/uploads/local-1/delivery-proof.txt"
+        fileUrl: "/uploads/local-1/delivery-proof.txt",
+        fileMimeType: null,
+        fileSizeBytes: null
       },
       {
         id: "e2",
@@ -148,7 +153,9 @@ export const sampleDisputeDetails: DisputeDetailView[] = [
         title: "Customer support exchange",
         description: "Customer confirmed delayed shipment inquiry before dispute.",
         sourceType: "merchant_upload",
-        fileUrl: "/uploads/local-1/customer-thread.txt"
+        fileUrl: "/uploads/local-1/customer-thread.txt",
+        fileMimeType: null,
+        fileSizeBytes: null
       }
     ],
     timeline: [
@@ -179,6 +186,7 @@ export const sampleDisputeDetails: DisputeDetailView[] = [
     id: "local-2",
     shopifyDisputeId: "gid://shopify/ShopifyPaymentsDispute/1002",
     shopifyOrderId: "gid://shopify/Order/1002",
+    evidenceFields: buildEvidenceFieldStates([], {}, {}),
     status: "UNDER_REVIEW",
     reason: "PRODUCT_NOT_RECEIVED",
     reasonDetails: "Customer claims the parcel never arrived at the delivery address.",
@@ -224,7 +232,9 @@ export const sampleDisputeDetails: DisputeDetailView[] = [
         title: "FedEx proof of delivery",
         description: "Carrier scan marked delivered with timestamp and destination city.",
         sourceType: "shopify_fulfillment",
-        fileUrl: "/uploads/local-2/delivery-proof.txt"
+        fileUrl: "/uploads/local-2/delivery-proof.txt",
+        fileMimeType: null,
+        fileSizeBytes: null
       },
       {
         id: "e4",
@@ -232,7 +242,9 @@ export const sampleDisputeDetails: DisputeDetailView[] = [
         title: "Shipping label and tracking history",
         description: "Label, service type, and final-mile tracking history for the shipment.",
         sourceType: "merchant_upload",
-        fileUrl: "/uploads/local-2/shipping-record.txt"
+        fileUrl: "/uploads/local-2/shipping-record.txt",
+        fileMimeType: null,
+        fileSizeBytes: null
       }
     ],
     timeline: [

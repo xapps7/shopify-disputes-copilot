@@ -6,7 +6,7 @@ import { extractGraphqlErrors, graphqlErrorMessages, isAccessDeniedError } from 
 import {
   DISPUTE_SYNC_NO_CUSTOMER_QUERY,
   DISPUTES_LIST_NO_CUSTOMER_QUERY,
-  ORDER_CUSTOMER_QUERY,
+  ORDER_PROTECTED_DETAILS_QUERY,
   ORDER_DETAILS_NO_CUSTOMER_BY_ID_QUERY,
   RECENT_ORDERS_NO_CUSTOMER_QUERY,
   SHOPIFY_PAYMENTS_ACCOUNT_DISPUTES_QUERY
@@ -20,6 +20,18 @@ type OrderCustomer = {
   email?: string | null;
 };
 
+export type OrderShippingAddress = {
+  name?: string | null;
+  address1?: string | null;
+  address2?: string | null;
+  city?: string | null;
+  province?: string | null;
+  provinceCode?: string | null;
+  zip?: string | null;
+  country?: string | null;
+  countryCodeV2?: string | null;
+};
+
 type ShopifyOrderNode = {
   id: string;
   name?: string | null;
@@ -30,6 +42,7 @@ type ShopifyOrderNode = {
     shopMoney?: { amount?: string | null; currencyCode?: string | null } | null;
   } | null;
   customer?: OrderCustomer | null;
+  shippingAddress?: OrderShippingAddress | null;
   lineItems?: { nodes: Array<{ name?: string | null; quantity?: number | null; sku?: string | null }> } | null;
   // Order.fulfillments is [Fulfillment!]! - a plain list, NOT a connection.
   // Selecting `nodes` on it is a schema error that nulls the entire query.
@@ -296,6 +309,7 @@ async function enrichCustomers(
 ) {
   const orderIds = [...new Set(disputes.map((dispute) => dispute.order?.id).filter((id): id is string => Boolean(id)))];
   const customersByOrderId = new Map<string, OrderCustomer>();
+  const addressesByOrderId = new Map<string, OrderShippingAddress>();
   let denied = false;
 
   for (const orderId of orderIds) {
@@ -303,7 +317,7 @@ async function enrichCustomers(
       break;
     }
 
-    const response = await client.request(ORDER_CUSTOMER_QUERY, { variables: { id: orderId } });
+    const response = await client.request(ORDER_PROTECTED_DETAILS_QUERY, { variables: { id: orderId } });
     const errors = extractGraphqlErrors(response);
 
     if (errors.length > 0) {
@@ -327,21 +341,42 @@ async function enrichCustomers(
       continue;
     }
 
-    const customer = (response.data as { order?: { customer?: OrderCustomer | null } | null } | undefined)?.order
-      ?.customer;
+    const order = (
+      response.data as
+        | { order?: { customer?: OrderCustomer | null; shippingAddress?: OrderShippingAddress | null } | null }
+        | undefined
+    )?.order;
 
-    if (customer) {
-      customersByOrderId.set(orderId, customer);
+    if (order?.customer) {
+      customersByOrderId.set(orderId, order.customer);
+    }
+
+    if (order?.shippingAddress) {
+      addressesByOrderId.set(orderId, order.shippingAddress);
     }
   }
 
   return disputes.map((dispute) => {
-    const customer = dispute.order?.id ? customersByOrderId.get(dispute.order.id) : undefined;
-    if (!dispute.order || !customer) {
+    const orderId = dispute.order?.id;
+    if (!dispute.order || !orderId) {
       return dispute;
     }
 
-    return { ...dispute, order: { ...dispute.order, customer } };
+    const customer = customersByOrderId.get(orderId);
+    const shippingAddress = addressesByOrderId.get(orderId);
+
+    if (!customer && !shippingAddress) {
+      return dispute;
+    }
+
+    return {
+      ...dispute,
+      order: {
+        ...dispute.order,
+        ...(customer ? { customer } : {}),
+        ...(shippingAddress ? { shippingAddress } : {})
+      }
+    };
   });
 }
 

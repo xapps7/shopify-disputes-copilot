@@ -4,6 +4,13 @@ import {
   getSampleDisputeDetail
 } from "@/lib/disputes/sample-data";
 import { createShopifyAdminClient } from "@/lib/shopify/client";
+import {
+  buildEvidenceFieldStates,
+  draftEvidenceFields,
+  type EvidenceFieldKey
+} from "@/lib/disputes/evidence-fields";
+import { getReasonProfile, normalizeReasonCode } from "@/lib/disputes/reason-codes";
+import { getMerchantSettings } from "@/lib/settings";
 import { graphqlErrorMessages } from "@/lib/shopify/errors";
 import { RECENT_ORDERS_NO_CUSTOMER_QUERY } from "@/lib/shopify/queries";
 import type {
@@ -180,9 +187,13 @@ async function fetchRecentOrderSummaries(
   );
 }
 
-function buildChecklist(reason: string | null, categories: Set<string>) {
+function buildChecklist(rawReason: string | null, categories: Set<string>) {
+  // Shopify's enum value is FRAUDULENT, not FRAUD. Comparing against "FRAUD"
+  // meant this branch never ran and every fraud dispute got the generic list.
+  const reason = normalizeReasonCode(rawReason);
+
   const required =
-    reason === "FRAUD"
+    reason === "FRAUDULENT"
       ? [
           {
             label: "Delivery confirmation",
@@ -388,8 +399,9 @@ export async function getAnalyticsSnapshot(shopDomain?: string | null): Promise<
       const delta = Math.ceil((new Date(item.evidenceDueBy).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
       return delta <= 2;
     }).length,
-    fraudCount: disputes.filter((item) => item.reason === "FRAUD").length,
-    productNotReceivedCount: disputes.filter((item) => item.reason === "PRODUCT_NOT_RECEIVED").length,
+    fraudCount: disputes.filter((item) => normalizeReasonCode(item.reason) === "FRAUDULENT").length,
+    productNotReceivedCount: disputes.filter((item) => normalizeReasonCode(item.reason) === "PRODUCT_NOT_RECEIVED")
+      .length,
     avgReadiness:
       disputes.length > 0
         ? Math.round(disputes.reduce((sum, dispute) => sum + dispute.completenessScore, 0) / disputes.length)
@@ -504,6 +516,76 @@ export async function getDisputeDetail(id: string, merchantId?: string): Promise
   }
   const evidenceCategories = new Set(dispute.evidenceItems.map((item) => item.category));
 
+  // Shopify's evidence form, assembled: generated drafts for everything the app
+  // can infer, with any merchant edits layered on top. This is what turns the
+  // response from a blank form into something to review and copy.
+  const settings = await getMerchantSettings(dispute.merchant.shopDomain);
+  const savedFields = ((): Partial<Record<EvidenceFieldKey, string>> => {
+    if (!dispute.evidenceFieldsJson) {
+      return {};
+    }
+    try {
+      const parsed = JSON.parse(dispute.evidenceFieldsJson);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  })();
+
+  const orderNode = (() => {
+    if (!dispute.sourceSnapshotJson) {
+      return null;
+    }
+    try {
+      const parsed = JSON.parse(dispute.sourceSnapshotJson) as { order?: Record<string, any> | null };
+      return parsed?.order ?? null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const addressParts = [
+    orderNode?.shippingAddress?.address1,
+    orderNode?.shippingAddress?.address2,
+    orderNode?.shippingAddress?.city,
+    orderNode?.shippingAddress?.provinceCode ?? orderNode?.shippingAddress?.province,
+    orderNode?.shippingAddress?.zip,
+    orderNode?.shippingAddress?.countryCodeV2 ?? orderNode?.shippingAddress?.country
+  ].filter(Boolean);
+
+  const trackingSummaries: string[] = (orderNode?.fulfillments ?? [])
+    .flatMap((fulfillment: any) => fulfillment?.trackingInfo ?? [])
+    .map((info: any) => [info?.company, info?.number].filter(Boolean).join(" "))
+    .filter(Boolean);
+
+  const lineItemSummaries: string[] = (orderNode?.lineItems?.nodes ?? [])
+    .map((item: any) => [item?.name, item?.quantity ? `x${item.quantity}` : null].filter(Boolean).join(" "))
+    .filter(Boolean);
+
+  const reasonProfile = getReasonProfile(dispute.reason);
+  const evidenceFields = buildEvidenceFieldStates(
+    reasonProfile.priorityFields,
+    savedFields,
+    draftEvidenceFields({
+      reasonLabel: reasonProfile.label,
+      reasonQuestion: reasonProfile.theQuestion,
+      orderName: mergedOrderSummary?.orderName ?? null,
+      orderTotal: mergedOrderSummary?.orderTotal ?? null,
+      currencyCode: mergedOrderSummary?.currencyCode ?? dispute.currencyCode ?? null,
+      customerName: mergedOrderSummary?.customerName ?? null,
+      customerEmail: mergedOrderSummary?.customerEmail ?? null,
+      shippingAddress: addressParts.length > 0 ? addressParts.join(", ") : null,
+      fulfillmentStatus: mergedOrderSummary?.fulfillmentStatus ?? null,
+      trackingSummaries,
+      lineItemSummaries,
+      refundPolicyUrl: settings.refundPolicyUrl,
+      returnPolicyUrl: settings.returnPolicyUrl,
+      supportEmail: settings.supportEmail,
+      statementDescriptor: settings.statementDescriptor,
+      orderPlacedAt: orderNode?.createdAt ? new Date(orderNode.createdAt).toISOString().slice(0, 10) : null
+    })
+  );
+
   return {
     id: dispute.id,
     shopifyDisputeId: dispute.shopifyDisputeId,
@@ -541,8 +623,11 @@ export async function getDisputeDetail(id: string, merchantId?: string): Promise
       title: item.title,
       description: item.description ?? null,
       sourceType: item.sourceType,
-      fileUrl: item.fileUrl ?? null
+      fileUrl: item.fileUrl ?? null,
+      fileMimeType: item.fileMimeType ?? null,
+      fileSizeBytes: item.fileSizeBytes ?? null
     })),
+    evidenceFields,
     timeline: dispute.timelineEvents.map((event) => ({
       id: event.id,
       eventType: event.eventType,

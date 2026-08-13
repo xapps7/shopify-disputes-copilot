@@ -1,3 +1,5 @@
+import type { EvidenceFieldState } from "@/lib/disputes/evidence-fields";
+
 export type DashboardDispute = {
   id: string;
   shopifyDisputeId: string;
@@ -69,7 +71,11 @@ export type DisputeDetailView = {
     description: string | null;
     sourceType: string;
     fileUrl: string | null;
+    fileMimeType: string | null;
+    fileSizeBytes: number | null;
   }>;
+  /** Shopify's evidence form, pre-filled: saved merchant edits merged over generated drafts. */
+  evidenceFields: EvidenceFieldState[];
   timeline: Array<{
     id: string;
     eventType: string;

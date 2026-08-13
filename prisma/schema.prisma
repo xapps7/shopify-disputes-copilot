@@ -90,6 +90,10 @@ model Dispute {
   initiatedAt           DateTime?
   finalizedOn           DateTime?
   sourceSnapshotJson    String?
+  /// Merchant-edited values keyed by Shopify evidence field name, e.g.
+  /// { "uncategorizedText": "...", "accessActivityLog": "..." }. Drafts are
+  /// generated on read; only merchant edits are persisted here.
+  evidenceFieldsJson    String?
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   merchant              Merchant               @relation(fields: [merchantId], references: [id], onDelete: Cascade)
@@ -142,6 +146,9 @@ model EvidenceItem {
   description           String?
   fileUrl               String?
   fileMimeType          String?
+  /// Needed to enforce Shopify's 4 MB total evidence cap before the merchant
+  /// assembles a packet Shopify will reject.
+  fileSizeBytes         Int?
   structuredValueJson   String?
   readinessState        String?
   createdBy             String?

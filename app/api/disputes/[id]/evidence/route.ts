@@ -3,23 +3,18 @@ import { EvidenceCategory } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import { guardDisputeRoute, toErrorResponse } from "@/lib/shopify/route-guard";
+import {
+  ALLOWED_EVIDENCE_MIME_TYPES,
+  MAX_TOTAL_EVIDENCE_BYTES
+} from "@/lib/disputes/evidence-fields";
 import { persistUploadedFile } from "@/lib/storage";
 
-/** Evidence is documents and screenshots; nothing here needs to be executable. */
-const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
-const ALLOWED_MIME_TYPES = new Set([
-  "application/pdf",
-  "image/png",
-  "image/jpeg",
-  "image/gif",
-  "image/webp",
-  "text/plain",
-  "text/csv",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-]);
+/**
+ * Shopify accepts .pdf, .png and .jpeg only, and 4 MB TOTAL across every
+ * evidence slot - not per file. A merchant who passes a generous per-file check
+ * can still assemble a packet Shopify rejects, so both are enforced here.
+ */
+const MAX_SINGLE_UPLOAD_BYTES = MAX_TOTAL_EVIDENCE_BYTES;
 
 export async function POST(
   request: Request,
@@ -32,8 +27,11 @@ export async function POST(
     // Reject oversized bodies before buffering them: `file.arrayBuffer()` pulls
     // the whole upload into memory and there was previously no cap at all.
     const declaredLength = Number(request.headers.get("content-length") ?? "0");
-    if (Number.isFinite(declaredLength) && declaredLength > MAX_UPLOAD_BYTES) {
-      return NextResponse.json({ message: "File is larger than the 20 MB limit." }, { status: 413 });
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_SINGLE_UPLOAD_BYTES) {
+      return NextResponse.json(
+        { message: "Shopify accepts 4 MB of evidence in total. This file alone is over that." },
+        { status: 413 }
+      );
     }
 
     const formData = await request.formData();
@@ -46,14 +44,41 @@ export async function POST(
       return NextResponse.json({ message: "Title and file are required." }, { status: 400 });
     }
 
-    if (file.size > MAX_UPLOAD_BYTES) {
-      return NextResponse.json({ message: "File is larger than the 20 MB limit." }, { status: 413 });
+    if (file.size > MAX_SINGLE_UPLOAD_BYTES) {
+      return NextResponse.json(
+        { message: "Shopify accepts 4 MB of evidence in total. This file alone is over that." },
+        { status: 413 }
+      );
     }
 
-    if (!ALLOWED_MIME_TYPES.has(file.type)) {
+    if (!(ALLOWED_EVIDENCE_MIME_TYPES as readonly string[]).includes(file.type)) {
       return NextResponse.json(
-        { message: `Unsupported file type${file.type ? `: ${file.type}` : ""}.` },
+        {
+          message: `Shopify only accepts PDF, PNG and JPEG for dispute evidence${
+            file.type ? ` - this file is ${file.type}` : ""
+          }.`
+        },
         { status: 415 }
+      );
+    }
+
+    // Enforce the 4 MB TOTAL cap across everything already attached, so the
+    // merchant finds out now rather than when Shopify rejects the packet.
+    const existing = await db.evidenceItem.aggregate({
+      where: { disputeId: id, fileSizeBytes: { not: null } },
+      _sum: { fileSizeBytes: true }
+    });
+    const usedBytes = existing._sum.fileSizeBytes ?? 0;
+
+    if (usedBytes + file.size > MAX_TOTAL_EVIDENCE_BYTES) {
+      const remaining = Math.max(0, MAX_TOTAL_EVIDENCE_BYTES - usedBytes);
+      return NextResponse.json(
+        {
+          message: `Shopify accepts 4 MB of evidence in total for a dispute. ${Math.round(
+            remaining / 1024
+          )} KB left - this file is ${Math.round(file.size / 1024)} KB.`
+        },
+        { status: 413 }
       );
     }
 
@@ -69,6 +94,7 @@ export async function POST(
         description: description || null,
         fileUrl,
         fileMimeType: file.type || null,
+        fileSizeBytes: file.size,
         createdBy: "merchant"
       }
     });

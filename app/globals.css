@@ -96,6 +96,56 @@ textarea {
   overflow-wrap: anywhere;
 }
 
+/*
+ * The response builder mirrors Shopify's evidence form field for field, so each
+ * field names the Shopify field it maps to. Monospace signals "this is an API
+ * name, not prose" without needing a sentence to explain it.
+ */
+.shopify-field-key {
+  font-family: var(--p-font-family-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 12px;
+  line-height: 16px;
+  color: #4a4a4a;
+  background: #f1f1f1;
+  border: 1px solid #e1e3e5;
+  border-radius: 6px;
+  padding: 1px 6px;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * Copy and save confirmations. Both elements are always present in the DOM so
+ * that a change of text content is what assistive technology announces - a live
+ * region that only mounts on success is frequently missed. Reserving the line
+ * height also stops the confirmation from nudging the layout.
+ */
+.copy-status,
+.save-status {
+  display: inline-block;
+  min-height: 20px;
+  font-size: 13px;
+  line-height: 20px;
+  color: #616161;
+}
+
+.copy-status:not(:empty),
+.save-status:not(:empty) {
+  font-weight: 500;
+}
+
+/* Announced, never shown. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 @media (max-width: 768px) {
   .app-shell__masthead {
     padding: 0 8px 8px;
