@@ -3,15 +3,11 @@ import { revalidatePath } from "next/cache";
 
 import { runDisputeSyncWithRetry } from "@/lib/disputes/sync-runs";
 import { consumeRateLimit } from "@/lib/rate-limit";
-import { getAuthenticatedShopDomain } from "@/lib/shopify/request-context";
+import { guardShopRoute, toErrorResponse } from "@/lib/shopify/route-guard";
 
 export async function POST(request: Request) {
   try {
-    const shopDomain = await getAuthenticatedShopDomain(request);
-
-    if (!shopDomain) {
-      return NextResponse.json({ ok: false, message: "Unauthorized." }, { status: 401 });
-    }
+    const { shopDomain } = await guardShopRoute(request);
 
     // Each sync fans out into a sequence of Shopify Admin API calls and retries
     // up to three times, so an unbounded caller could exhaust the merchant's
@@ -31,7 +27,6 @@ export async function POST(request: Request) {
     revalidatePath("/recommendations");
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
-    console.error("Dispute sync failed", error);
-    return NextResponse.json({ ok: false, message: "Dispute sync failed." }, { status: 500 });
+    return toErrorResponse(error, "Dispute sync failed.");
   }
 }

@@ -58,6 +58,8 @@ model Merchant {
   id                    String                 @id @default(cuid())
   shopDomain            String                 @unique
   shopifyShopId         String?                @unique
+  /// Set when the token came from token exchange; null for legacy non-expiring OAuth tokens.
+  accessTokenExpiresAt  DateTime?
   accessTokenEncrypted  String?
   plan                  MerchantPlan           @default(STARTER)
   installedAt           DateTime               @default(now())

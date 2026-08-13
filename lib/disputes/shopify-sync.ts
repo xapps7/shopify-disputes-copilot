@@ -309,11 +309,18 @@ async function enrichCustomers(
     if (errors.length > 0) {
       if (errors.every(isAccessDeniedError)) {
         denied = true;
-        diagnostics.note(
-          "Customer details unavailable: " +
-            errors.map((error) => error.message).join(" | ") +
-            " -- add the read_customers scope and approve protected customer data in the Partner Dashboard."
-        );
+        // Two different gates produce ACCESS_DENIED here and the fix differs:
+        //  - missing OAuth scope  -> "Required access: `read_customers` access scope"
+        //  - Protected Customer Data field not approved -> "not approved to use the <field> field"
+        // Telling someone to add a scope they already have sends them the wrong way.
+        const notApproved = errors.some((error) => /not approved to use/i.test(error.message));
+        const remedy = notApproved
+          ? "The read_customers scope is granted, but the app is not approved for protected customer data. " +
+            "In the Partner Dashboard open API access -> Protected customer data and select the Name and " +
+            "Email fields. Development stores do not need review."
+          : "Add the read_customers scope to SHOPIFY_SCOPES and reinstall the app.";
+
+        diagnostics.note(`Customer details unavailable. ${remedy}`);
       } else {
         diagnostics.add(`order(${orderId}).customer`, response);
       }

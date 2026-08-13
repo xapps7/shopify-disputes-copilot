@@ -23,6 +23,12 @@ function unsafeQueryParamAllowed() {
   return process.env.UNSAFE_ALLOW_SHOP_QUERY_PARAM === "true";
 }
 
+export type AuthenticatedContext = {
+  shopDomain: string;
+  /** The raw session token, when this request carried one. Needed for token exchange. */
+  sessionToken: string | null;
+};
+
 async function fromToken(token: string | null): Promise<string | null> {
   if (!token) {
     return null;
@@ -39,6 +45,30 @@ async function fromToken(token: string | null): Promise<string | null> {
 async function fromCookie(): Promise<string | null> {
   const store = await cookies();
   return readSessionCookieValue(store.get(SESSION_COOKIE)?.value, shopifyConfig.apiSecret);
+}
+
+/**
+ * Full context for a route handler: the shop AND the session token it presented,
+ * so callers can exchange that token for an access token.
+ */
+export async function getAuthenticatedContext(request: Request): Promise<AuthenticatedContext | null> {
+  const bearer = request.headers.get("authorization");
+  const headerToken = bearer?.toLowerCase().startsWith("bearer ") ? bearer.slice(7).trim() : null;
+
+  const fromHeader = await fromToken(headerToken);
+  if (fromHeader) {
+    return { shopDomain: fromHeader, sessionToken: headerToken };
+  }
+
+  const url = new URL(request.url);
+  const idToken = url.searchParams.get("id_token");
+  const fromIdToken = await fromToken(idToken);
+  if (fromIdToken) {
+    return { shopDomain: fromIdToken, sessionToken: idToken };
+  }
+
+  const shopDomain = await getAuthenticatedShopDomain(request);
+  return shopDomain ? { shopDomain, sessionToken: null } : null;
 }
 
 /** For route handlers, which have the Request object. */
