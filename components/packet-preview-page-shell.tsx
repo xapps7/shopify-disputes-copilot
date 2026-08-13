@@ -70,6 +70,7 @@ export function PacketPreviewPageShell({ dispute }: PacketPreviewPageShellProps)
         <ShopifySubmissionNotice
           shopDomain={shopDomain}
           shopifyDisputeId={dispute.shopifyDisputeId}
+          shopifyOrderId={dispute.shopifyOrderId}
           recordedAt={dispute.latestPacket?.submittedAt ?? dispute.evidenceSentOn ?? null}
         />
 

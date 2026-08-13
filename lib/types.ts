@@ -28,6 +28,8 @@ export type DashboardInsightView = {
 export type DisputeDetailView = {
   id: string;
   shopifyDisputeId: string;
+  /** Needed to link into Shopify Admin: chargebacks live on the order page. */
+  shopifyOrderId: string | null;
   status: string;
   reason: string | null;
   reasonDetails: string | null;

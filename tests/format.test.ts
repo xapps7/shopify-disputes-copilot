@@ -10,7 +10,6 @@ import {
 import { daysUntil, describeDeadline, formatDate, formatDateTime, isDueSoon } from "../lib/format/date.ts";
 import {
   numericDisputeId,
-  shopifyAdminDisputeUrl,
   storeHandleFromShopDomain
 } from "../lib/format/shopify-admin.ts";
 
@@ -165,17 +164,56 @@ test("isDueSoon only fires inside the urgency window", () => {
 // Shopify Admin deep link
 // ---------------------------------------------------------------------------
 
-test("builds the Shopify Admin dispute URL from the shop domain and gid", () => {
+test("extracts the store handle and the legacy numeric id", () => {
   assert.equal(storeHandleFromShopDomain("acme-supply.myshopify.com"), "acme-supply");
   assert.equal(numericDisputeId("gid://shopify/ShopifyPaymentsDispute/11450876085"), "11450876085");
-  assert.equal(
-    shopifyAdminDisputeUrl("acme-supply.myshopify.com", "gid://shopify/ShopifyPaymentsDispute/11450876085"),
-    "https://admin.shopify.com/store/acme-supply/payments/disputes/11450876085"
-  );
 });
 
-test("returns null rather than a broken admin link when either half is unknown", () => {
-  assert.equal(shopifyAdminDisputeUrl(null, "gid://shopify/ShopifyPaymentsDispute/1"), null);
-  assert.equal(shopifyAdminDisputeUrl("acme-supply.myshopify.com", null), null);
-  assert.equal(shopifyAdminDisputeUrl("acme-supply.myshopify.com", "gid://shopify/ShopifyPaymentsDispute/"), null);
+
+/* ------------------------------------------------------------------ *
+ * Shopify Admin links
+ *
+ * Regression: we shipped a link to
+ * https://admin.shopify.com/store/<handle>/payments/disputes/<id>
+ * which returns "page not found" — Shopify Admin has NO per-dispute page.
+ * Chargebacks are surfaced on the ORDER, which is where merchants respond.
+ * ------------------------------------------------------------------ */
+
+test("builds an order URL, not a non-existent dispute URL", async () => {
+  const { shopifyAdminOrderUrl } = await import("../lib/format/shopify-admin.ts");
+
+  const url = shopifyAdminOrderUrl(
+    "disputes-mresg5f8.myshopify.com",
+    "gid://shopify/Order/7563412209845"
+  );
+
+  assert.equal(url, "https://admin.shopify.com/store/disputes-mresg5f8/orders/7563412209845");
+  assert.ok(!url?.includes("/payments/disputes/"), "must never build the 404 route");
+});
+
+test("returns null rather than a broken link when either half is unknown", async () => {
+  const { shopifyAdminOrderUrl } = await import("../lib/format/shopify-admin.ts");
+
+  assert.equal(shopifyAdminOrderUrl(null, "gid://shopify/Order/1"), null);
+  assert.equal(shopifyAdminOrderUrl("shop.myshopify.com", null), null);
+  assert.equal(shopifyAdminOrderUrl("shop.myshopify.com", "gid://shopify/Order/not-numeric"), null);
+});
+
+test("falls back to the orders list, since there is no disputes-only screen", async () => {
+  const { shopifyAdminOrdersUrl } = await import("../lib/format/shopify-admin.ts");
+
+  assert.equal(
+    shopifyAdminOrdersUrl("disputes-mresg5f8.myshopify.com"),
+    "https://admin.shopify.com/store/disputes-mresg5f8/orders"
+  );
+  assert.equal(shopifyAdminOrdersUrl(null), null);
+});
+
+test("extracts the legacy numeric id from a GID", async () => {
+  const { numericIdFromGid } = await import("../lib/format/shopify-admin.ts");
+
+  assert.equal(numericIdFromGid("gid://shopify/ShopifyPaymentsDispute/11201609909"), "11201609909");
+  assert.equal(numericIdFromGid("gid://shopify/Order/7563412209845"), "7563412209845");
+  assert.equal(numericIdFromGid(""), null);
+  assert.equal(numericIdFromGid(undefined), null);
 });

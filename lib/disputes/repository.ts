@@ -507,6 +507,7 @@ export async function getDisputeDetail(id: string, merchantId?: string): Promise
   return {
     id: dispute.id,
     shopifyDisputeId: dispute.shopifyDisputeId,
+    shopifyOrderId: dispute.shopifyOrderId ?? null,
     status: dispute.status,
     reason: dispute.reason ?? null,
     reasonDetails: dispute.reasonDetails ?? null,

@@ -15,7 +15,7 @@ import {
 } from "@shopify/polaris";
 
 import { formatDateTime } from "@/lib/format/date";
-import { shopifyAdminDisputeUrl } from "@/lib/format/shopify-admin";
+import { shopifyAdminOrderUrl, shopifyAdminOrdersUrl } from "@/lib/format/shopify-admin";
 import { authenticatedFetch } from "@/components/authenticated-fetch";
 
 type SubmissionCenterProps = {
@@ -26,6 +26,7 @@ type SubmissionCenterProps = {
   evidenceSentOn: string | null;
   shopDomain?: string | null;
   shopifyDisputeId?: string | null;
+  shopifyOrderId?: string | null;
 };
 
 export function SubmissionCenter({
@@ -35,14 +36,15 @@ export function SubmissionCenter({
   submittedAt,
   evidenceSentOn,
   shopDomain = null,
-  shopifyDisputeId = null
+  shopifyDisputeId = null,
+  shopifyOrderId = null
 }: SubmissionCenterProps) {
   const router = useRouter();
   const [method, setMethod] = useState("SHOPIFY_ADMIN");
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const adminUrl = shopifyAdminDisputeUrl(shopDomain, shopifyDisputeId);
+  const adminUrl = shopifyAdminOrderUrl(shopDomain, shopifyOrderId) ?? shopifyAdminOrdersUrl(shopDomain);
   const recordedAt = submittedAt ?? evidenceSentOn ?? null;
 
   async function handleSubmit() {

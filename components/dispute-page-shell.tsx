@@ -32,7 +32,7 @@ import { SubmissionCenter } from "@/components/submission-center";
 import { useShopDomain } from "@/components/use-shop-domain";
 import { describeDeadline, formatDate } from "@/lib/format/date";
 import { formatMoney } from "@/lib/format/money";
-import { shopifyAdminDisputeUrl } from "@/lib/format/shopify-admin";
+import { shopifyAdminOrderUrl, shopifyAdminOrdersUrl } from "@/lib/format/shopify-admin";
 import { assessPacketQuality, buildEvidenceGapInsights } from "@/lib/disputes/workflow";
 import type { AIPackageAssessmentView, DisputeDetailView, DisputeResponseDraftView } from "@/lib/types";
 
@@ -96,7 +96,8 @@ export function DisputePageShell({
   const disputesUrl = `/disputes${embeddedQuery ? `?${embeddedQuery}` : ""}`;
   const evidenceUrl = `/evidence${embeddedQuery ? `?${embeddedQuery}` : ""}`;
   const packetUrl = `/packets/${dispute.id}${embeddedQuery ? `?${embeddedQuery}` : ""}`;
-  const adminDisputeUrl = shopifyAdminDisputeUrl(shopDomain, dispute.shopifyDisputeId);
+  const adminDisputeUrl =
+    shopifyAdminOrderUrl(shopDomain, dispute.shopifyOrderId) ?? shopifyAdminOrdersUrl(shopDomain);
   const deadline = describeDeadline(dispute.evidenceDueBy, now ?? undefined);
   const recordedSubmissionAt = dispute.latestPacket?.submittedAt ?? dispute.evidenceSentOn ?? null;
   const disputeAmount = formatMoney(dispute.amount, dispute.currencyCode);
@@ -163,6 +164,7 @@ export function DisputePageShell({
         <ShopifySubmissionNotice
           shopDomain={shopDomain}
           shopifyDisputeId={dispute.shopifyDisputeId}
+          shopifyOrderId={dispute.shopifyOrderId}
           recordedAt={recordedSubmissionAt}
         />
 
@@ -547,6 +549,7 @@ export function DisputePageShell({
                       evidenceSentOn={dispute.evidenceSentOn}
                       shopDomain={shopDomain}
                       shopifyDisputeId={dispute.shopifyDisputeId}
+                      shopifyOrderId={dispute.shopifyOrderId}
                     />
                   </BlockStack>
                 </Card>

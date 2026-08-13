@@ -94,6 +94,7 @@ export const sampleDisputeDetails: DisputeDetailView[] = [
   {
     id: "local-1",
     shopifyDisputeId: "gid://shopify/ShopifyPaymentsDispute/1001",
+    shopifyOrderId: "gid://shopify/Order/1001",
     status: "NEEDS_RESPONSE",
     reason: "FRAUD",
     reasonDetails: "Customer claims cardholder did not authorize the order.",
@@ -177,6 +178,7 @@ export const sampleDisputeDetails: DisputeDetailView[] = [
   {
     id: "local-2",
     shopifyDisputeId: "gid://shopify/ShopifyPaymentsDispute/1002",
+    shopifyOrderId: "gid://shopify/Order/1002",
     status: "UNDER_REVIEW",
     reason: "PRODUCT_NOT_RECEIVED",
     reasonDetails: "Customer claims the parcel never arrived at the delivery address.",
