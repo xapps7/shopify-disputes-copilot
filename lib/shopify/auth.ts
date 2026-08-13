@@ -74,7 +74,9 @@ export async function setCurrentHost(host: string) {
   });
 }
 
-export function buildEmbeddedAppUrl(shopDomain: string, pathname = "/dashboard", host?: string | null) {
+// NOTE: /dashboard was removed - it was a bare redirect to "/". Defaulting to it
+// here would land a freshly installed merchant on a 404.
+export function buildEmbeddedAppUrl(shopDomain: string, pathname = "/", host?: string | null) {
   const apiKey = process.env.SHOPIFY_API_KEY ?? "";
   return buildEmbeddedAdminUrl(apiKey, shopDomain, pathname, host);
 }
@@ -96,10 +98,23 @@ export async function consumeOauthState() {
   return value;
 }
 
+/**
+ * IMPORTANT: the requested scopes come from the SHOPIFY_SCOPES environment
+ * variable, NOT from shopify.app.toml. Adding a scope to the TOML changes what
+ * Shopify records for the app, but the consent screen a merchant actually sees
+ * is built here - so both must be updated or the reinstall silently grants the
+ * old scope set.
+ */
 export function buildInstallUrl(shop: string, state: string) {
+  const scopes = process.env.SHOPIFY_SCOPES ?? "";
+
+  if (!scopes) {
+    throw new Error("SHOPIFY_SCOPES is not set; refusing to build an install URL with no scopes.");
+  }
+
   const params = new URLSearchParams({
     client_id: process.env.SHOPIFY_API_KEY ?? "",
-    scope: process.env.SHOPIFY_SCOPES ?? "",
+    scope: scopes,
     redirect_uri: `${process.env.SHOPIFY_APP_URL}/api/auth/callback`,
     state
   });
