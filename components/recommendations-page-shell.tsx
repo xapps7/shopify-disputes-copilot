@@ -1,6 +1,6 @@
 "use client";
 
-import { Badge, BlockStack, Box, Divider, EmptyState, InlineGrid, Text } from "@shopify/polaris";
+import { Badge, Banner, BlockStack, Box, Divider, EmptyState, InlineGrid, Text } from "@shopify/polaris";
 
 import { AdminPageLayout } from "@/components/admin-page-layout";
 import { EMPTY_STATE_IMAGE } from "@/components/empty-state-image";
@@ -11,11 +11,24 @@ type RecommendationsPageShellProps = {
   recommendations: PreventionRecommendationView[];
 };
 
+// Recommendations is no longer a destination of its own: prevention is what
+// moves the VAMP and ECM ratios, so it belongs on Account health, next to the
+// ratios it moves. The route still resolves - old links and bookmarks should
+// not 404 - and it says where the work moved to.
 export function RecommendationsPageShell({ recommendations }: RecommendationsPageShellProps) {
   return (
     <AdminPageLayout
       title="Recommendations"
       subtitle="Turn dispute outcomes into prevention actions for the merchant team."
+      primaryAction={{ content: "Open Account health", url: "/account-health" }}
+      banner={
+        <Banner tone="info" title="Prevention now lives on Account health">
+          <p>
+            These actions sit beside the Visa and Mastercard ratios they exist to move, because avoiding a chargeback
+            is the only thing that lowers those ratios — winning one does not.
+          </p>
+        </Banner>
+      }
       gap="300"
     >
       {recommendations.length > 0 ? (

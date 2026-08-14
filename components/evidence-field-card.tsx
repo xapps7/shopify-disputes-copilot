@@ -63,9 +63,14 @@ export type EvidenceFieldCardProps = {
   onChange: (key: EvidenceFieldKey, value: string) => void;
   /** Lets a page-level live region repeat the confirmation, if the parent has one. */
   onCopied?: (message: string) => void;
+  /**
+   * The dispute is closed: this is the record of what was argued, not a draft.
+   * The text stays selectable and copyable - it is only no longer editable.
+   */
+  readOnly?: boolean;
 };
 
-export function EvidenceFieldCard({ field, onChange, onCopied }: EvidenceFieldCardProps) {
+export function EvidenceFieldCard({ field, onChange, onCopied, readOnly = false }: EvidenceFieldCardProps) {
   const [value, setValue] = useState(field.value);
   const [copyState, setCopyState] = useState<CopyState>("idle");
   /**
@@ -100,6 +105,10 @@ export function EvidenceFieldCard({ field, onChange, onCopied }: EvidenceFieldCa
   const fieldId = `evidence-field-${field.key}`;
 
   function handleChange(next: string) {
+    if (readOnly) {
+      return;
+    }
+
     setValue(next);
     onChange(field.key, next);
   }
@@ -146,13 +155,14 @@ export function EvidenceFieldCard({ field, onChange, onCopied }: EvidenceFieldCa
 
         <TextField
           autoComplete="off"
-          helpText={field.prompt}
+          helpText={readOnly ? "This dispute is closed to changes. The text is kept as the record of what was argued." : field.prompt}
           id={fieldId}
           label={field.label}
           labelHidden
           multiline={isMultiline ? rows : undefined}
           onChange={handleChange}
-          placeholder={field.placeholder}
+          placeholder={readOnly ? undefined : field.placeholder}
+          readOnly={readOnly}
           value={value}
         />
 
@@ -179,7 +189,9 @@ export function EvidenceFieldCard({ field, onChange, onCopied }: EvidenceFieldCa
 
           <Text as="p" variant="bodySm" tone="subdued">
             {trimmed.length === 0
-              ? "Empty — Shopify will receive nothing for this field"
+              ? readOnly
+                ? "Empty — Shopify received nothing for this field"
+                : "Empty — Shopify will receive nothing for this field"
               : `${trimmed.length} characters`}
           </Text>
         </InlineStack>

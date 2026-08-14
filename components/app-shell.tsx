@@ -10,13 +10,62 @@ type AppShellProps = {
   commit: string;
 };
 
-const navItems = [
-  { href: "/", label: "Overview" },
-  { href: "/disputes", label: "Disputes" },
-  { href: "/evidence", label: "Evidence Library" },
-  { href: "/recommendations", label: "Recommendations" },
-  { href: "/settings", label: "Settings" }
-] as const satisfies ReadonlyArray<{ href: string; label: string }>;
+/**
+ * Four destinations, named for what the merchant is trying to do.
+ *
+ * The old nav listed the data model - Overview, Disputes, Evidence library,
+ * Recommendations, Settings - which spread one job across several tabs and gave
+ * the most consequential question in the product no home at all.
+ *
+ * There are two separate scoreboards in chargebacks, and they do not move
+ * together: money recovered (fighting a case) and account survival (the Visa
+ * VAMP and Mastercard ECM ratios that decide whether the shop keeps card
+ * processing). Winning a chargeback recovers the money and does nothing to the
+ * ratio. "Account health" is the second scoreboard, and it absorbs
+ * Recommendations, because prevention is ratio work - as a tab of its own
+ * nobody visited it.
+ *
+ * Evidence library is off the primary nav: it is a filing cabinet, reached from
+ * Settings or from the dispute that needs a file, not a place to go.
+ *
+ * `matches` keeps a route that has no tab of its own highlighting the tab that
+ * owns it, so the nav never claims the merchant is somewhere they are not, and
+ * `selected` is never out of range (Polaris indexes `tabs[selected]` when the
+ * strip overflows).
+ */
+const NAV_ITEMS = [
+  { href: "/", label: "Today", matches: (pathname: string) => pathname === "/" },
+  {
+    href: "/disputes",
+    label: "Disputes",
+    matches: (pathname: string) =>
+      pathname === "/disputes" || pathname.startsWith("/disputes/") || pathname.startsWith("/packets/")
+  },
+  {
+    href: "/account-health",
+    label: "Account health",
+    matches: (pathname: string) =>
+      pathname === "/account-health" ||
+      pathname.startsWith("/account-health/") ||
+      // Recommendations now live inside Account health; the old route still
+      // resolves, and it highlights the tab that owns it.
+      pathname === "/recommendations" ||
+      pathname.startsWith("/recommendations/")
+  },
+  {
+    href: "/settings",
+    label: "Settings",
+    matches: (pathname: string) =>
+      pathname === "/settings" ||
+      pathname.startsWith("/settings/") ||
+      // The evidence library is reached from Settings, so it keeps that tab lit
+      // rather than leaving the nav pointing nowhere.
+      pathname === "/evidence" ||
+      pathname.startsWith("/evidence/")
+  }
+  // `as const` keeps each href a literal, which is what Next's typed routes
+  // check `router.push` against - a widened `string` fails that check.
+] as const satisfies ReadonlyArray<{ href: string; label: string; matches: (pathname: string) => boolean }>;
 
 export function AppShell({ children, release, commit }: AppShellProps) {
   void release;
@@ -24,26 +73,20 @@ export function AppShell({ children, release, commit }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const selectedTabIndex = navItems.findIndex((item) =>
-    item.href === "/"
-      ? pathname === "/"
-      : item.href === "/disputes" && pathname.startsWith("/packets/")
-        ? true
-        : pathname === item.href || pathname.startsWith(`${item.href}/`)
-  );
+  const selectedTabIndex = NAV_ITEMS.findIndex((item) => item.matches(pathname));
 
   return (
     <div className="app-shell">
       <div className="app-shell__masthead">
         <Tabs
-          tabs={navItems.map((item) => ({
+          tabs={NAV_ITEMS.map((item) => ({
             id: item.href,
             content: item.label,
             accessibilityLabel: item.label
           }))}
           selected={selectedTabIndex >= 0 ? selectedTabIndex : 0}
           onSelect={(selectedTab) => {
-            const target = navItems[selectedTab]?.href ?? "/";
+            const target = NAV_ITEMS[selectedTab]?.href ?? "/";
             const params = new URLSearchParams(searchParams.toString());
             const query = params.toString();
             router.push(query ? `${target}?${query}` : target);

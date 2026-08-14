@@ -20,11 +20,13 @@ import {
 import { NoteIcon } from "@shopify/polaris-icons";
 
 import { authenticatedFetch } from "@/components/authenticated-fetch";
+import { EvidenceGapHint, gapsForCategories, gapsOutsideCategories } from "@/components/evidence-gap-coach";
 import {
   ALLOWED_EVIDENCE_MIME_TYPES,
   EVIDENCE_FILE_SLOTS,
   MAX_TOTAL_EVIDENCE_BYTES
 } from "@/lib/disputes/evidence-fields";
+import type { EvidenceGapInsight } from "@/lib/disputes/workflow";
 
 /**
  * Shopify's file slots, made honest.
@@ -444,13 +446,25 @@ export type EvidenceFileSlotsProps = {
   /** Slot keys this dispute's reason code makes decisive. */
   prioritySlotKeys?: string[];
   onSelectionChange?: (selection: Record<string, string | null>) => void;
+  /**
+   * Checklist gaps, rendered against the slot that would close them rather than
+   * in a coaching tab elsewhere.
+   */
+  gaps?: EvidenceGapInsight[];
+  /**
+   * The dispute is decided or already submitted. Nothing here may change the
+   * record: no uploads, no re-picking which file goes in which slot.
+   */
+  locked?: boolean;
 };
 
 export function EvidenceFileSlots({
   disputeId,
   items,
   prioritySlotKeys = [],
-  onSelectionChange
+  onSelectionChange,
+  gaps = [],
+  locked = false
 }: EvidenceFileSlotsProps) {
   // Only the identity of the uploaded files matters for re-seeding the picks;
   // re-rendering for any other reason must not discard the merchant's choices.
@@ -501,6 +515,9 @@ export function EvidenceFileSlots({
    */
   const uploadedBytes = items.reduce((sum, item) => sum + (item.fileSizeBytes ?? 0), 0);
   const remainingUploadBytes = Math.max(0, MAX_TOTAL_EVIDENCE_BYTES - uploadedBytes);
+
+  const slotCategories = EVIDENCE_FILE_SLOTS.flatMap((slot) => slot.categories);
+  const unclaimedGaps = gapsOutsideCategories(gaps, slotCategories);
 
   return (
     <BlockStack gap="400">
@@ -561,6 +578,7 @@ export function EvidenceFileSlots({
           const selectedItem = selectedId ? (byId.get(selectedId) ?? null) : null;
           const isPriority = prioritySlotKeys.includes(slot.key);
           const selectedUsable = selectedItem ? isUsable(selectedItem) : false;
+          const slotGaps = gapsForCategories(gaps, slot.categories);
 
           const statusBadge = selectedItem ? (
             selectedUsable ? (
@@ -608,15 +626,31 @@ export function EvidenceFileSlots({
                   {slot.prompt}
                 </Text>
 
+                {/*
+                  The coaching for this slot, attached to the slot. Hidden on a
+                  locked dispute: "here is how to go and get it" is wrong advice
+                  for a case that can no longer be changed - the closed record
+                  of what was missing lives under Case and history instead.
+                */}
+                {!locked
+                  ? slotGaps.map((gap) => (
+                      <EvidenceGapHint gap={gap} idPrefix={`slot-${slot.key}`} key={`${slot.key}-${gap.category}`} />
+                    ))
+                  : null}
+
                 {matches.length === 0 ? (
                   <BlockStack gap="100">
                     <Text as="p" variant="bodySm" fontWeight="medium">
                       Nothing in this slot yet
                     </Text>
                     <Text as="p" variant="bodySm" tone="subdued">
-                      Add a file or a link below, or upload one under Evidence files with the category{" "}
-                      {slot.categories.map((category) => category.replaceAll("_", " ").toLowerCase()).join(" or ")}{" "}
-                      and it will appear here.
+                      {locked
+                        ? `This slot went to Shopify empty. It takes ${slot.categories
+                            .map((category) => category.replaceAll("_", " ").toLowerCase())
+                            .join(" or ")}.`
+                        : `Add a file or a link below. Anything already saved to your evidence library under ${slot.categories
+                            .map((category) => category.replaceAll("_", " ").toLowerCase())
+                            .join(" or ")} appears here too.`}
                     </Text>
                     {isPriority ? (
                       <Text as="p" variant="bodySm">
@@ -633,6 +667,7 @@ export function EvidenceFileSlots({
                     ) : null}
 
                     <ChoiceList
+                      disabled={locked}
                       choices={[
                         ...matches.map((item) => ({
                           value: item.id,
@@ -693,17 +728,38 @@ export function EvidenceFileSlots({
                   </BlockStack>
                 )}
 
-                <SlotUploader
-                  category={slot.categories[0] ?? "OTHER"}
-                  disputeId={disputeId}
-                  remainingBytes={remainingUploadBytes}
-                  slotKey={slot.key}
-                  slotLabel={slot.label}
-                />
+                {locked ? null : (
+                  <SlotUploader
+                    category={slot.categories[0] ?? "OTHER"}
+                    disputeId={disputeId}
+                    remainingBytes={remainingUploadBytes}
+                    slotKey={slot.key}
+                    slotLabel={slot.label}
+                  />
+                )}
               </BlockStack>
             </Box>
           );
         })}
+
+        {/*
+          A checklist gap whose category no Shopify slot accepts still has to be
+          said out loud - it belongs in the response text rather than in a file
+          slot, and dropping it silently is how it gets forgotten.
+        */}
+        {!locked && unclaimedGaps.length > 0 ? (
+          <BlockStack gap="200">
+            <Text as="h4" variant="headingSm">
+              Still missing, with no Shopify file slot of its own
+            </Text>
+            <Text as="p" variant="bodySm" tone="subdued">
+              Shopify has no attachment slot for these. Work them into the response text above instead.
+            </Text>
+            {unclaimedGaps.map((gap) => (
+              <EvidenceGapHint gap={gap} idPrefix="unslotted" key={gap.category} />
+            ))}
+          </BlockStack>
+        ) : null}
       </BlockStack>
     </BlockStack>
   );

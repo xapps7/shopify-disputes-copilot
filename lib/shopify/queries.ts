@@ -695,3 +695,17 @@ export const ORDER_DETAILS_NO_CUSTOMER_BY_ID_QUERY = `#graphql
     }
   }
 `;
+
+/**
+ * Order volume, for the denominators of the card-network monitoring ratios.
+ * `ordersCount` is far cheaper than paginating the orders connection, and the
+ * `precision` field tells us when Shopify is estimating rather than counting.
+ */
+export const ORDERS_COUNT_QUERY = `#graphql
+  query OrdersCount($query: String!) {
+    ordersCount(query: $query) {
+      count
+      precision
+    }
+  }
+`;

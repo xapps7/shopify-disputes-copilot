@@ -10,7 +10,6 @@ import {
   Card,
   DataTable,
   Divider,
-  EmptyState,
   InlineGrid,
   InlineStack,
   Page,
@@ -23,9 +22,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { DeadlineBadge, useNow } from "@/components/deadline-badge";
 import { DisputeResponseDraft } from "@/components/dispute-response-draft";
 import { DisputeStrategyCard } from "@/components/dispute-strategy-card";
-import { EMPTY_STATE_IMAGE } from "@/components/empty-state-image";
-import { EvidenceGapCoach } from "@/components/evidence-gap-coach";
-import { EvidenceUploadForm } from "@/components/evidence-upload-form";
 import type { EvidenceFileRef } from "@/components/evidence-file-slots";
 import { GeneratePacketButton } from "@/components/generate-packet-button";
 import { OutcomeReviewForm } from "@/components/outcome-review-form";
@@ -47,11 +43,21 @@ import { assessPacketQuality, buildEvidenceGapInsights } from "@/lib/disputes/wo
 import type { AIPackageAssessmentView, DisputeDetailView, DisputeResponseDraftView } from "@/lib/types";
 
 /**
- * The dispute page used to be a stack of eight equal-weight cards down the right
- * rail, none of which told the merchant what to do next. It is now one screen
- * with one job - write the response - and everything else (checklist, uploads,
- * timeline, packet, outcome) still reachable, one tab away, competing with
- * nothing.
+ * One screen, one job: write the response before Shopify answers for you.
+ *
+ * This page used to carry five tabs - Case details, Evidence files, Coaching,
+ * Packet and submission, Timeline and outcome - which put the work in one place
+ * and the instructions for it in another. Two of them are gone entirely:
+ *
+ *  - Coaching now renders against the slot it is coaching, inside the builder.
+ *    Guidance a tab away from the box it explains is guidance nobody reads.
+ *  - Evidence files is gone because each Shopify slot in the builder takes its
+ *    own upload, so there is nothing left to do on a separate uploads screen,
+ *    and asking the merchant to guess a category was how slots stayed empty.
+ *
+ * What remains is the builder, the hand-off it ends in, and a single "Case and
+ * history" tab holding the record: the details, the checklist as it stands, the
+ * timeline, and the outcome.
  */
 
 type DisputePageShellProps = {
@@ -91,15 +97,12 @@ function categoryLabel(category: string) {
   return category.replaceAll("_", " ").toLowerCase();
 }
 
-const TABS = [
-  { id: "case-details", content: "Case details", panelID: "case-details-panel" },
-  { id: "evidence-files", content: "Evidence files", panelID: "evidence-files-panel" },
-  { id: "coaching", content: "Coaching", panelID: "coaching-panel" },
-  { id: "packet", content: "Packet and submission", panelID: "packet-panel" },
-  { id: "history", content: "Timeline and outcome", panelID: "history-panel" }
-];
-
-const SUBMISSION_TAB_INDEX = 3;
+/**
+ * One tab, because there is one thing here that is not the response: the record
+ * of the case. It stays a tab rather than becoming another card so the builder
+ * keeps the top of the page to itself.
+ */
+const TABS = [{ id: "case-and-history", content: "Case and history", panelID: "case-and-history-panel" }];
 
 export function DisputePageShell({
   dispute,
@@ -126,9 +129,11 @@ export function DisputePageShell({
   const disputeAmount = formatMoney(dispute.amount, dispute.currencyCode);
   const gapInsights = buildEvidenceGapInsights(dispute);
   const packetReview = assessPacketQuality(dispute);
+  const isLocked = dispute.lock.locked;
 
-  // The tab has to be mounted before its content can be focused, so the focus
-  // request is deferred to an effect rather than run inside the click handler.
+  // Record submission is a section on this page now, not a tab: the focus
+  // request still waits for an effect so the node is mounted and scrolled
+  // before it takes focus.
   useEffect(() => {
     if (!pendingSubmissionFocus) {
       return;
@@ -145,7 +150,6 @@ export function DisputePageShell({
   }, [pendingSubmissionFocus]);
 
   function goToRecordSubmission() {
-    setSelectedTab(SUBMISSION_TAB_INDEX);
     setPendingSubmissionFocus(true);
   }
 
@@ -241,7 +245,7 @@ export function DisputePageShell({
       ]}
     >
       <BlockStack gap="400">
-        {dispute.lock.locked ? (
+        {isLocked ? (
           <Banner tone="info" title="This dispute is closed to changes">
             <p>{dispute.lock.reason}</p>
             <p>
@@ -267,369 +271,301 @@ export function DisputePageShell({
           evidenceDueBy={dispute.evidenceDueBy}
           evidenceFields={fields}
           evidenceItems={evidenceFileRefs}
+          gaps={gapInsights}
+          locked={isLocked}
           reason={dispute.reason}
           shopDomain={shopDomain}
           shopifyOrderId={dispute.shopifyOrderId}
         />
 
+        <DisputeResponseDraft
+          disputeId={dispute.id}
+          initialAssessment={packageAssessment}
+          initialDraft={responseDraft}
+        />
+
+        <Card>
+          <BlockStack gap="400">
+            <BlockStack gap="100">
+              <Text as="h2" variant="headingMd">
+                Packet and submission
+              </Text>
+              <Text as="p" variant="bodySm" tone="subdued">
+                The packet is an internal record and a download for your files. The response above is what
+                Shopify&rsquo;s form actually asks for.
+              </Text>
+            </BlockStack>
+
+            <InlineStack gap="300" wrap>
+              <Link className="table-link" href={packetUrl as never}>
+                Open packet preview
+              </Link>
+              {dispute.latestPacket ? (
+                <a
+                  className="table-link"
+                  href={`/api/disputes/${dispute.id}/packet/download`}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  Download current packet
+                </a>
+              ) : null}
+            </InlineStack>
+
+            {isLocked ? null : (
+              <InlineStack>
+                <GeneratePacketButton disputeId={dispute.id} />
+              </InlineStack>
+            )}
+
+            <PacketQualityPanel review={packetReview} />
+
+            <Divider />
+
+            <div id="record-submission" ref={submissionSectionRef} tabIndex={-1}>
+              <BlockStack gap="200">
+                <Text as="h3" variant="headingSm">
+                  Record submission
+                </Text>
+                {isLocked ? (
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {recordedSubmissionAt
+                      ? `Recorded as sent on ${formatDate(recordedSubmissionAt)}. This case is closed, so there is nothing left to record.`
+                      : "This case is closed, so there is nothing left to record."}
+                  </Text>
+                ) : (
+                  <SubmissionCenter
+                    disputeId={dispute.id}
+                    evidenceSentOn={dispute.evidenceSentOn}
+                    packetReady={packetReview.status !== "blocked" && Boolean(dispute.latestPacket)}
+                    packetStatus={dispute.latestPacket?.status ?? null}
+                    shopDomain={shopDomain}
+                    shopifyDisputeId={dispute.shopifyDisputeId}
+                    shopifyOrderId={dispute.shopifyOrderId}
+                    submittedAt={dispute.latestPacket?.submittedAt ?? null}
+                  />
+                )}
+              </BlockStack>
+            </div>
+          </BlockStack>
+        </Card>
+
         <Card padding="0">
           <Tabs onSelect={setSelectedTab} selected={selectedTab} tabs={TABS}>
             <Box padding="400">
-              {selectedTab === 0 ? (
-                <BlockStack gap="400">
-                  <BlockStack gap="200">
-                    <InlineStack gap="200" blockAlign="center" wrap>
-                      <Badge tone={statusTone(dispute.status)}>{dispute.status.replaceAll("_", " ")}</Badge>
-                      <Badge>
-                        {dispute.evidenceDueBy
-                          ? `Shopify sends ${formatDate(dispute.evidenceDueBy)}`
-                          : "No auto-submit date"}
-                      </Badge>
-                      <DeadlineBadge dueBy={dispute.evidenceDueBy} now={now} layout="inline" />
-                    </InlineStack>
-                    <Text as="h2" variant="headingMd">
-                      Case details
-                    </Text>
-                    <Text as="p" variant="bodyMd" tone="subdued">
-                      {dispute.reasonDetails ?? "No additional issuer context is available yet."}
-                    </Text>
-                  </BlockStack>
-
-                  <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
-                    <BlockStack gap="200">
-                      <Text as="h3" variant="headingSm">
-                        Order
-                      </Text>
-                      <DataTable
-                        columnContentTypes={["text", "text"]}
-                        headings={["Field", "Value"]}
-                        rows={[
-                          ["Order", dispute.orderSummary?.orderName ?? "Unavailable"],
-                          [
-                            "Order amount",
-                            dispute.orderSummary?.orderTotal
-                              ? formatMoney(
-                                  dispute.orderSummary.orderTotal,
-                                  dispute.orderSummary.currencyCode ?? dispute.currencyCode
-                                )
-                              : "Unavailable"
-                          ],
-                          ["Customer", dispute.orderSummary?.customerName ?? "Unavailable"],
-                          ["Email", dispute.orderSummary?.customerEmail ?? "Unavailable"],
-                          ["Fulfillment status", dispute.orderSummary?.fulfillmentStatus ?? "Unavailable"]
-                        ]}
-                      />
-                    </BlockStack>
-
-                    <BlockStack gap="200">
-                      <Text as="h3" variant="headingSm">
-                        Payment and refunds
-                      </Text>
-                      <DataTable
-                        columnContentTypes={["text", "text"]}
-                        headings={["Field", "Value"]}
-                        rows={[
-                          ["Disputed amount", disputeAmount],
-                          [
-                            "Refund proof",
-                            dispute.evidenceItems.some((item) => item.category === "REFUND_PROOF")
-                              ? "Present"
-                              : "Not linked"
-                          ],
-                          [
-                            "Delivery evidence",
-                            readyEvidence > 0 ? "Present in evidence record" : "Not yet linked"
-                          ],
-                          ["Packet status", dispute.latestPacket?.status ?? "Not generated"],
-                          [
-                            "Missing evidence categories",
-                            String(dispute.evidenceChecklist.length - readyEvidence)
-                          ]
-                        ]}
-                      />
-                    </BlockStack>
-                  </InlineGrid>
-
-                  <BlockStack gap="150">
-                    <Text as="h3" variant="headingSm">
-                      Evidence category coverage
-                    </Text>
-                    <ProgressBar
-                      progress={readinessScore}
-                      tone={readinessScore < 60 ? "critical" : readinessScore === 100 ? "success" : "primary"}
-                    />
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      {`${readyEvidence} of ${dispute.evidenceChecklist.length} required categories are ready. This counts uploaded files by category; the readiness meter above the response counts the fields Shopify actually asks for.`}
-                    </Text>
-                  </BlockStack>
+              <BlockStack gap="400">
+                <BlockStack gap="200">
+                  <InlineStack gap="200" blockAlign="center" wrap>
+                    <Badge tone={statusTone(dispute.status)}>{dispute.status.replaceAll("_", " ")}</Badge>
+                    <Badge>
+                      {dispute.evidenceDueBy
+                        ? `Shopify sends ${formatDate(dispute.evidenceDueBy)}`
+                        : "No auto-submit date"}
+                    </Badge>
+                    <DeadlineBadge dueBy={dispute.evidenceDueBy} now={now} layout="inline" />
+                  </InlineStack>
+                  <Text as="h2" variant="headingMd">
+                    Case details
+                  </Text>
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    {dispute.reasonDetails ?? "No additional issuer context is available yet."}
+                  </Text>
                 </BlockStack>
-              ) : null}
 
-              {selectedTab === 1 ? (
-                <BlockStack gap="400">
-                  <InlineGrid columns={{ xs: 1, lg: 2 }} gap="400">
-                    <BlockStack gap="300">
-                      <BlockStack gap="100">
-                        <Text as="h2" variant="headingMd">
-                          Add evidence
-                        </Text>
-                        <Text as="p" variant="bodySm" tone="subdued">
-                          Pick the category that matches the Shopify file slot you are filling. Shopify accepts PDF,
-                          PNG and JPEG only, one file per slot, and 4 MB across all of them.
-                        </Text>
-                      </BlockStack>
-                      <EvidenceUploadForm disputeId={dispute.id} />
-                    </BlockStack>
+                <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
+                  <BlockStack gap="200">
+                    <Text as="h3" variant="headingSm">
+                      Order
+                    </Text>
+                    <DataTable
+                      columnContentTypes={["text", "text"]}
+                      headings={["Field", "Value"]}
+                      rows={[
+                        ["Order", dispute.orderSummary?.orderName ?? "Unavailable"],
+                        [
+                          "Order amount",
+                          dispute.orderSummary?.orderTotal
+                            ? formatMoney(
+                                dispute.orderSummary.orderTotal,
+                                dispute.orderSummary.currencyCode ?? dispute.currencyCode
+                              )
+                            : "Unavailable"
+                        ],
+                        ["Customer", dispute.orderSummary?.customerName ?? "Unavailable"],
+                        ["Email", dispute.orderSummary?.customerEmail ?? "Unavailable"],
+                        ["Fulfillment status", dispute.orderSummary?.fulfillmentStatus ?? "Unavailable"]
+                      ]}
+                    />
+                  </BlockStack>
 
-                    <BlockStack gap="300">
-                      <InlineStack align="space-between" blockAlign="center" gap="200" wrap>
-                        <Text as="h2" variant="headingMd">
-                          Files on this dispute
-                        </Text>
-                        <Link className="table-link" href={evidenceUrl as never}>
-                          Open evidence library
-                        </Link>
-                      </InlineStack>
+                  <BlockStack gap="200">
+                    <Text as="h3" variant="headingSm">
+                      Payment and refunds
+                    </Text>
+                    <DataTable
+                      columnContentTypes={["text", "text"]}
+                      headings={["Field", "Value"]}
+                      rows={[
+                        ["Disputed amount", disputeAmount],
+                        [
+                          "Refund proof",
+                          dispute.evidenceItems.some((item) => item.category === "REFUND_PROOF")
+                            ? "Present"
+                            : "Not linked"
+                        ],
+                        ["Delivery evidence", readyEvidence > 0 ? "Present in evidence record" : "Not yet linked"],
+                        ["Packet status", dispute.latestPacket?.status ?? "Not generated"],
+                        [
+                          "Missing evidence categories",
+                          String(dispute.evidenceChecklist.length - readyEvidence)
+                        ]
+                      ]}
+                    />
+                  </BlockStack>
+                </InlineGrid>
 
-                      {dispute.evidenceItems.length > 0 ? (
-                        <DataTable
-                          columnContentTypes={["text", "text", "text"]}
-                          headings={["File", "Category", "Source"]}
-                          rows={dispute.evidenceItems.map((item) => [
-                            item.fileUrl ? (
-                              <a
-                                className="table-link"
-                                href={item.fileUrl}
-                                key={`${item.id}-link`}
-                                rel="noreferrer"
-                                target="_blank"
-                              >
-                                {item.title}
-                              </a>
-                            ) : (
-                              item.title
-                            ),
-                            item.category.replaceAll("_", " "),
-                            item.sourceType
-                          ])}
-                        />
-                      ) : (
-                        <EmptyState heading="No evidence files yet" image={EMPTY_STATE_IMAGE}>
-                          <p>
-                            Upload the files the response needs, or link an existing file from the evidence library.
-                            They appear in the Shopify file slots above as soon as they are here.
-                          </p>
-                        </EmptyState>
-                      )}
-                    </BlockStack>
-                  </InlineGrid>
+                <BlockStack gap="150">
+                  <Text as="h3" variant="headingSm">
+                    Evidence category coverage
+                  </Text>
+                  <ProgressBar
+                    progress={readinessScore}
+                    tone={readinessScore < 60 ? "critical" : readinessScore === 100 ? "success" : "primary"}
+                  />
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {`${readyEvidence} of ${dispute.evidenceChecklist.length} required categories are ready. This counts uploaded files by category; the readiness meter above the response counts the fields Shopify actually asks for.`}
+                  </Text>
+                </BlockStack>
 
-                  <Divider />
+                <Divider />
 
-                  <BlockStack gap="300">
-                    <BlockStack gap="100">
-                      <Text as="h2" variant="headingMd">
+                <BlockStack gap="300">
+                  <BlockStack gap="100">
+                    <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
+                      <Text as="h3" variant="headingSm">
                         Evidence checklist
                       </Text>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        Where each kind of proof comes from, if you still have to go and find it.
-                      </Text>
-                    </BlockStack>
+                      <Link className="table-link" href={evidenceUrl as never}>
+                        Open evidence library
+                      </Link>
+                    </InlineStack>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Where this case stands on proof. Anything still missing is also flagged against the Shopify
+                      slot that would carry it, up in the response, with how to get it.
+                    </Text>
+                  </BlockStack>
 
-                    <BlockStack gap="200">
-                      {dispute.evidenceChecklist.map((item, index) => (
-                        <BlockStack gap="200" key={item.label}>
-                          <InlineStack align="space-between" blockAlign="start" gap="300" wrap>
-                            <BlockStack gap="050">
-                              <Text as="p" variant="bodyMd" fontWeight="medium">
-                                {item.label}
-                              </Text>
-                              <Text as="p" variant="bodySm">
-                                {item.whyItMatters}
-                              </Text>
-                              <Text as="p" variant="bodySm" tone="subdued">
-                                <strong>How to get it:</strong> {item.howToGet}
-                              </Text>
-                              <Text as="p" variant="bodySm" tone="subdued">
-                                <strong>Best source:</strong> {item.bestSource}
-                              </Text>
-                              {item.state === "ready" ? (
-                                (evidenceByCategory[item.category] ?? []).length > 0 ? (
-                                  <InlineStack gap="200" wrap>
-                                    {(evidenceByCategory[item.category] ?? []).map((evidence) =>
-                                      evidence.fileUrl ? (
-                                        <a
-                                          className="table-link"
-                                          href={evidence.fileUrl}
-                                          key={evidence.id}
-                                          rel="noreferrer"
-                                          target="_blank"
-                                        >
-                                          {evidence.title}
-                                        </a>
-                                      ) : (
-                                        <Text as="span" key={evidence.id} variant="bodySm">
-                                          {evidence.title}
-                                        </Text>
-                                      )
-                                    )}
-                                  </InlineStack>
-                                ) : (
-                                  <Text as="p" variant="bodySm" tone="subdued">
-                                    Marked ready from the case record, but no standalone file is linked yet.
-                                  </Text>
-                                )
+                  <BlockStack gap="200">
+                    {dispute.evidenceChecklist.map((item, index) => (
+                      <BlockStack gap="200" key={item.label}>
+                        <InlineStack align="space-between" blockAlign="start" gap="300" wrap>
+                          <BlockStack gap="050">
+                            <Text as="p" variant="bodyMd" fontWeight="medium">
+                              {item.label}
+                            </Text>
+                            <Text as="p" variant="bodySm">
+                              {item.whyItMatters}
+                            </Text>
+                            {item.state === "ready" ? (
+                              (evidenceByCategory[item.category] ?? []).length > 0 ? (
+                                <InlineStack gap="200" wrap>
+                                  {(evidenceByCategory[item.category] ?? []).map((evidence) =>
+                                    evidence.fileUrl ? (
+                                      <a
+                                        className="table-link"
+                                        href={evidence.fileUrl}
+                                        key={evidence.id}
+                                        rel="noreferrer"
+                                        target="_blank"
+                                      >
+                                        {evidence.title}
+                                      </a>
+                                    ) : (
+                                      <Text as="span" key={evidence.id} variant="bodySm">
+                                        {evidence.title}
+                                      </Text>
+                                    )
+                                  )}
+                                </InlineStack>
                               ) : (
-                                <Text as="p" variant="bodySm">
-                                  <strong>Next step:</strong> upload this as{" "}
-                                  <strong>{categoryLabel(item.category)}</strong> in the Add evidence panel above.
+                                <Text as="p" variant="bodySm" tone="subdued">
+                                  Marked ready from the case record, but no standalone file is linked yet.
                                 </Text>
-                              )}
-                            </BlockStack>
-                            <Badge tone={item.state === "ready" ? "success" : "attention"}>
-                              {item.state === "ready" ? "Ready" : "Missing"}
-                            </Badge>
+                              )
+                            ) : isLocked ? (
+                              <Text as="p" variant="bodySm" tone="subdued">
+                                {`Went to the bank without this. Best source next time: ${item.bestSource}`}
+                              </Text>
+                            ) : (
+                              <Text as="p" variant="bodySm">
+                                <strong>Next step:</strong> add this in the response above, under the slot for{" "}
+                                <strong>{categoryLabel(item.category)}</strong>.
+                              </Text>
+                            )}
+                          </BlockStack>
+                          <Badge tone={item.state === "ready" ? "success" : "attention"}>
+                            {item.state === "ready" ? "Ready" : "Missing"}
+                          </Badge>
+                        </InlineStack>
+                        {index < dispute.evidenceChecklist.length - 1 ? <Divider /> : null}
+                      </BlockStack>
+                    ))}
+                  </BlockStack>
+                </BlockStack>
+
+                <Divider />
+
+                <BlockStack gap="200">
+                  <Text as="h3" variant="headingSm">
+                    Timeline
+                  </Text>
+                  {dispute.timeline.length > 0 ? (
+                    <BlockStack gap="200">
+                      {dispute.timeline.map((event, index) => (
+                        <BlockStack gap="100" key={event.id}>
+                          <InlineStack align="space-between" gap="200" wrap>
+                            <Text as="p" variant="bodyMd" fontWeight="medium">
+                              {event.eventType.replaceAll("_", " ")}
+                            </Text>
+                            <Text as="p" variant="bodySm" tone="subdued">
+                              {formatDate(event.eventTimestamp)}
+                            </Text>
                           </InlineStack>
-                          {index < dispute.evidenceChecklist.length - 1 ? <Divider /> : null}
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            {event.source}
+                          </Text>
+                          {index < dispute.timeline.length - 1 ? <Divider /> : null}
                         </BlockStack>
                       ))}
                     </BlockStack>
-                  </BlockStack>
-                </BlockStack>
-              ) : null}
-
-              {selectedTab === 2 ? (
-                <BlockStack gap="400">
-                  <BlockStack gap="200">
-                    <InlineStack align="space-between" blockAlign="center" gap="200" wrap>
-                      <Text as="h2" variant="headingMd">
-                        Evidence collection playbook
-                      </Text>
-                      <Badge tone={gapInsights.length > 0 ? "attention" : "success"}>
-                        {gapInsights.length > 0 ? `${gapInsights.length} gaps` : "Covered"}
-                      </Badge>
-                    </InlineStack>
-                    <EvidenceGapCoach gaps={gapInsights} />
-                  </BlockStack>
-
-                  <Divider />
-
-                  <DisputeResponseDraft
-                    disputeId={dispute.id}
-                    initialAssessment={packageAssessment}
-                    initialDraft={responseDraft}
-                  />
-                </BlockStack>
-              ) : null}
-
-              {selectedTab === 3 ? (
-                <BlockStack gap="400">
-                  <BlockStack gap="200">
-                    <Text as="h2" variant="headingMd">
-                      Packet
-                    </Text>
+                  ) : (
                     <Text as="p" variant="bodySm" tone="subdued">
-                      The packet is an internal record and a download for your files. The response above is what
-                      Shopify&rsquo;s form actually asks for.
+                      Uploads, packet generation, sync updates, and recorded submissions appear here as they happen.
                     </Text>
-                    <InlineStack gap="300" wrap>
-                      <Link className="table-link" href={packetUrl as never}>
-                        Open packet preview
-                      </Link>
-                      {dispute.latestPacket ? (
-                        <a
-                          className="table-link"
-                          href={`/api/disputes/${dispute.id}/packet/download`}
-                          rel="noreferrer"
-                          target="_blank"
-                        >
-                          Download current packet
-                        </a>
-                      ) : null}
-                    </InlineStack>
-                    <InlineStack>
-                      <GeneratePacketButton disputeId={dispute.id} />
-                    </InlineStack>
-                    <PacketQualityPanel review={packetReview} />
-                  </BlockStack>
-
-                  <Divider />
-
-                  <div id="record-submission" ref={submissionSectionRef} tabIndex={-1}>
-                    <BlockStack gap="200">
-                      <Text as="h2" variant="headingMd">
-                        Record submission
-                      </Text>
-                      <SubmissionCenter
-                        disputeId={dispute.id}
-                        evidenceSentOn={dispute.evidenceSentOn}
-                        packetReady={packetReview.status !== "blocked" && Boolean(dispute.latestPacket)}
-                        packetStatus={dispute.latestPacket?.status ?? null}
-                        shopDomain={shopDomain}
-                        shopifyDisputeId={dispute.shopifyDisputeId}
-                        shopifyOrderId={dispute.shopifyOrderId}
-                        submittedAt={dispute.latestPacket?.submittedAt ?? null}
-                      />
-                    </BlockStack>
-                  </div>
+                  )}
                 </BlockStack>
-              ) : null}
 
-              {selectedTab === 4 ? (
-                <BlockStack gap="400">
-                  <BlockStack gap="200">
-                    <Text as="h2" variant="headingMd">
-                      Timeline
-                    </Text>
-                    {dispute.timeline.length > 0 ? (
-                      <BlockStack gap="200">
-                        {dispute.timeline.map((event, index) => (
-                          <BlockStack gap="100" key={event.id}>
-                            <InlineStack align="space-between" gap="200" wrap>
-                              <Text as="p" variant="bodyMd" fontWeight="medium">
-                                {event.eventType.replaceAll("_", " ")}
-                              </Text>
-                              <Text as="p" variant="bodySm" tone="subdued">
-                                {formatDate(event.eventTimestamp)}
-                              </Text>
-                            </InlineStack>
-                            <Text as="p" variant="bodySm" tone="subdued">
-                              {event.source}
-                            </Text>
-                            {index < dispute.timeline.length - 1 ? <Divider /> : null}
-                          </BlockStack>
-                        ))}
-                      </BlockStack>
-                    ) : (
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        Uploads, packet generation, sync updates, and recorded submissions appear here as they
-                        happen.
-                      </Text>
-                    )}
-                  </BlockStack>
+                <Divider />
 
-                  <Divider />
-
-                  <BlockStack gap="200">
-                    <Text as="h2" variant="headingMd">
-                      Recommendations
-                    </Text>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      {dispute.recommendations.length > 0
-                        ? dispute.recommendations[0].recommendationText
-                        : "Recommendations appear after outcome review and tagging."}
-                    </Text>
-                  </BlockStack>
-
-                  <Divider />
-
-                  <OutcomeReviewForm
-                    currentStatus={dispute.status}
-                    disputeId={dispute.id}
-                    recommendations={dispute.recommendations}
-                  />
+                <BlockStack gap="200">
+                  <Text as="h3" variant="headingSm">
+                    What this case changes for next time
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {dispute.recommendations.length > 0
+                      ? dispute.recommendations[0].recommendationText
+                      : "Record the outcome below and the pattern behind it turns into a prevention action under Account health."}
+                  </Text>
                 </BlockStack>
-              ) : null}
+
+                <Divider />
+
+                <OutcomeReviewForm
+                  currentStatus={dispute.status}
+                  disputeId={dispute.id}
+                  recommendations={dispute.recommendations}
+                />
+              </BlockStack>
             </Box>
           </Tabs>
         </Card>
