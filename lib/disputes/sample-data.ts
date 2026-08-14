@@ -101,6 +101,7 @@ export const sampleDisputeDetails: DisputeDetailView[] = [
     shopifyDisputeId: "gid://shopify/ShopifyPaymentsDispute/1001",
     shopifyOrderId: "gid://shopify/Order/1001",
     evidenceFields: buildEvidenceFieldStates([], {}, {}),
+    lock: { locked: false, reason: null, cause: null },
     strategy: recommendStrategy({
       disputeType: "CHARGEBACK",
       status: "NEEDS_RESPONSE",
@@ -207,6 +208,7 @@ export const sampleDisputeDetails: DisputeDetailView[] = [
     shopifyDisputeId: "gid://shopify/ShopifyPaymentsDispute/1002",
     shopifyOrderId: "gid://shopify/Order/1002",
     evidenceFields: buildEvidenceFieldStates([], {}, {}),
+    lock: { locked: false, reason: null, cause: null },
     strategy: recommendStrategy({
       disputeType: "CHARGEBACK",
       status: "NEEDS_RESPONSE",

@@ -81,6 +81,8 @@ export type DisputeDetailView = {
   evidenceFields: EvidenceFieldState[];
   /** Fight, accept, or prevent - with the money and the reasoning behind it. */
   strategy: StrategyRecommendation;
+  /** Set once nothing can reach Shopify any more; the record becomes read-only. */
+  lock: { locked: boolean; reason: string | null; cause: "decided" | "submitted" | "auto-submitted" | null };
   timeline: Array<{
     id: string;
     eventType: string;

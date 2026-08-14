@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { EvidenceCategory } from "@prisma/client";
 
 import { db } from "@/lib/db";
+import { evaluateLock } from "@/lib/disputes/locking";
 import { guardDisputeRoute, toErrorResponse } from "@/lib/shopify/route-guard";
 import {
   ALLOWED_EVIDENCE_MIME_TYPES,
@@ -22,7 +23,17 @@ export async function POST(
 ) {
   try {
     const { id } = await context.params;
-    await guardDisputeRoute(request, id);
+    const { dispute } = await guardDisputeRoute(request, id);
+
+    const lockSource = await db.dispute.findUniqueOrThrow({
+      where: { id: dispute.id },
+      select: { status: true, evidenceSentOn: true, evidenceDueBy: true }
+    });
+    const lock = evaluateLock(lockSource);
+
+    if (lock.locked) {
+      return NextResponse.json({ message: lock.reason }, { status: 409 });
+    }
 
     // Reject oversized bodies before buffering them: `file.arrayBuffer()` pulls
     // the whole upload into memory and there was previously no cap at all.

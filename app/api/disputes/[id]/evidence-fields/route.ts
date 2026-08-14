@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { db } from "@/lib/db";
 import { EVIDENCE_FIELDS, type EvidenceFieldKey } from "@/lib/disputes/evidence-fields";
+import { evaluateLock } from "@/lib/disputes/locking";
 import { guardDisputeRoute, toErrorResponse } from "@/lib/shopify/route-guard";
 
 type RouteContext = {
@@ -24,6 +25,17 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   try {
     const { id } = await params;
     const { dispute } = await guardDisputeRoute(request, id);
+
+    const lockSource = await db.dispute.findUniqueOrThrow({
+      where: { id: dispute.id },
+      select: { status: true, evidenceSentOn: true, evidenceDueBy: true }
+    });
+    const lock = evaluateLock(lockSource);
+
+    if (lock.locked) {
+      // Accepting the edit would be collecting work that can never be sent.
+      return NextResponse.json({ ok: false, message: lock.reason }, { status: 409 });
+    }
 
     const body = (await request.json()) as { key?: string; value?: string };
     const key = body.key?.trim();

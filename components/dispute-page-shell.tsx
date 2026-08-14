@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   Badge,
+  Banner,
   BlockStack,
   Box,
   Card,
@@ -240,6 +241,16 @@ export function DisputePageShell({
       ]}
     >
       <BlockStack gap="400">
+        {dispute.lock.locked ? (
+          <Banner tone="info" title="This dispute is closed to changes">
+            <p>{dispute.lock.reason}</p>
+            <p>
+              Everything below is the record of what was argued. You can still copy it, and it is what teaches the
+              app which evidence actually wins.
+            </p>
+          </Banner>
+        ) : null}
+
         <DisputeStrategyCard strategy={dispute.strategy} />
 
         <ShopifySubmissionNotice

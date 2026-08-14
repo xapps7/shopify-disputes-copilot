@@ -10,6 +10,7 @@ import {
   type EvidenceFieldKey
 } from "@/lib/disputes/evidence-fields";
 import { getReasonProfile, normalizeReasonCode } from "@/lib/disputes/reason-codes";
+import { evaluateLock } from "@/lib/disputes/locking";
 import { recommendStrategy } from "@/lib/economics/strategy";
 import type { WinFactors } from "@/lib/economics/win-probability";
 import { getMerchantSettings } from "@/lib/settings";
@@ -679,6 +680,11 @@ export async function getDisputeDetail(id: string, merchantId?: string): Promise
         }
       : null,
     strategy,
+    lock: evaluateLock({
+      status: dispute.status,
+      evidenceSentOn: dispute.evidenceSentOn,
+      evidenceDueBy: dispute.evidenceDueBy
+    }),
     evidenceItems: dispute.evidenceItems.map((item) => ({
       id: item.id,
       category: item.category,

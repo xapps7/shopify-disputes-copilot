@@ -243,3 +243,50 @@ test("portfolio recoverable counts only what we would advise acting on", () => {
   assert.equal(summary[0].recoverable, 0, "an accept recommendation contributes nothing recoverable");
   assert.equal(summary[0].worthFighting, 0);
 });
+
+/* -------------------------------------------------------------- locking --- */
+
+test("locks once the response has been submitted", async () => {
+  const { evaluateLock } = await import("../lib/disputes/locking.ts");
+  const lock = evaluateLock({
+    status: "NEEDS_RESPONSE",
+    evidenceSentOn: "2026-08-10T00:00:00.000Z",
+    evidenceDueBy: "2026-08-20T00:00:00.000Z"
+  });
+  assert.equal(lock.locked, true);
+  assert.equal(lock.cause, "submitted");
+  assert.match(lock.reason ?? "", /cannot be changed/);
+});
+
+test("locks once the deadline has passed, because Shopify already answered", async () => {
+  const { evaluateLock } = await import("../lib/disputes/locking.ts");
+  const lock = evaluateLock({
+    status: "NEEDS_RESPONSE",
+    evidenceSentOn: null,
+    evidenceDueBy: "2026-08-01T00:00:00.000Z",
+    now: new Date("2026-08-14T00:00:00.000Z")
+  });
+  assert.equal(lock.locked, true);
+  assert.equal(lock.cause, "auto-submitted");
+});
+
+test("locks a decided dispute, and says appeals do not exist", async () => {
+  const { evaluateLock } = await import("../lib/disputes/locking.ts");
+  for (const status of ["WON", "LOST", "ACCEPTED", "CHARGE_REFUNDED"]) {
+    const lock = evaluateLock({ status, evidenceSentOn: null, evidenceDueBy: null });
+    assert.equal(lock.locked, true, `${status} should lock`);
+    assert.equal(lock.cause, "decided");
+  }
+});
+
+test("stays open while there is still time to act", async () => {
+  const { evaluateLock } = await import("../lib/disputes/locking.ts");
+  const lock = evaluateLock({
+    status: "NEEDS_RESPONSE",
+    evidenceSentOn: null,
+    evidenceDueBy: "2026-08-20T00:00:00.000Z",
+    now: new Date("2026-08-14T00:00:00.000Z")
+  });
+  assert.equal(lock.locked, false);
+  assert.equal(lock.reason, null);
+});
