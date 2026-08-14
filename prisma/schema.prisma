@@ -248,3 +248,23 @@ model ComplianceRequest {
   @@index([resolvedAt])
   @@index([receivedAt])
 }
+
+
+/// Deadline warnings. Shopify sends none, and then auto-submits at the deadline,
+/// so a merchant can lose a dispute without ever knowing it existed.
+model DisputeAlert {
+  id                    String                 @id @default(cuid())
+  merchantId            String
+  disputeId             String
+  kind                  String
+  thresholdHours        Int?
+  title                 String
+  body                  String
+  readAt                DateTime?
+  deliveredAt           DateTime?
+  createdAt             DateTime               @default(now())
+
+  @@unique([disputeId, kind, thresholdHours])
+  @@index([merchantId, readAt])
+  @@index([merchantId, createdAt])
+}

@@ -130,7 +130,8 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
             <p>
               Disputes Co-Pilot does not send any email and does not delete files on a schedule. The values below are
               stored on your merchant record so they are ready when those features ship — until then, nothing here
-              will alert you about a deadline. Check the dispute queue for upcoming deadlines instead.
+              will alert you before Shopify auto-submits a response for you. The dispute queue is the only place that
+              countdown appears, so check it.
             </p>
           </Banner>
 

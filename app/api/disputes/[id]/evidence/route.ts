@@ -40,8 +40,53 @@ export async function POST(
     const description = String(formData.get("description") ?? "").trim();
     const category = String(formData.get("category") ?? "OTHER") as EvidenceCategory;
 
-    if (!(file instanceof File) || !title) {
-      return NextResponse.json({ message: "Title and file are required." }, { status: 400 });
+    const linkUrl = String(formData.get("url") ?? "").trim();
+
+    if (!title) {
+      return NextResponse.json({ message: "A title is required." }, { status: 400 });
+    }
+
+    // A link is legitimate evidence - merchants often have a carrier tracking
+    // page rather than a PDF - and it costs nothing against Shopify's 4 MB cap.
+    if (!(file instanceof File)) {
+      if (!linkUrl) {
+        return NextResponse.json({ message: "Add a file or a link." }, { status: 400 });
+      }
+
+      let parsed: URL;
+      try {
+        parsed = new URL(linkUrl);
+      } catch {
+        return NextResponse.json({ message: "That link is not a valid URL." }, { status: 400 });
+      }
+
+      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+        return NextResponse.json({ message: "Links must start with http:// or https://" }, { status: 400 });
+      }
+
+      await db.evidenceItem.create({
+        data: {
+          disputeId: id,
+          category,
+          sourceType: "merchant_link",
+          title,
+          description: description || null,
+          fileUrl: parsed.toString(),
+          createdBy: "merchant"
+        }
+      });
+
+      await db.disputeTimelineEvent.create({
+        data: {
+          disputeId: id,
+          eventType: "EVIDENCE_LINK_ADDED",
+          eventTimestamp: new Date(),
+          source: "merchant",
+          payloadSummaryJson: JSON.stringify({ title, category, url: parsed.toString() })
+        }
+      });
+
+      return NextResponse.json({ message: "Link added.", fileUrl: parsed.toString() });
     }
 
     if (file.size > MAX_SINGLE_UPLOAD_BYTES) {

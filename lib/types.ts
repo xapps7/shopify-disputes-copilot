@@ -4,6 +4,8 @@ export type DashboardDispute = {
   id: string;
   shopifyDisputeId: string;
   shopifyOrderId: string | null;
+  /** e.g. "#1005" - so the queue shows the order, not a raw id. */
+  orderName: string | null;
   status: string;
   reason: string | null;
   amount: string;

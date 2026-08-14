@@ -266,7 +266,11 @@ export function DisputePageShell({
                   <BlockStack gap="200">
                     <InlineStack gap="200" blockAlign="center" wrap>
                       <Badge tone={statusTone(dispute.status)}>{dispute.status.replaceAll("_", " ")}</Badge>
-                      <Badge>{`Due ${formatDate(dispute.evidenceDueBy, { fallback: "No deadline" })}`}</Badge>
+                      <Badge>
+                        {dispute.evidenceDueBy
+                          ? `Shopify sends ${formatDate(dispute.evidenceDueBy)}`
+                          : "No auto-submit date"}
+                      </Badge>
                       <DeadlineBadge dueBy={dispute.evidenceDueBy} now={now} layout="inline" />
                     </InlineStack>
                     <Text as="h2" variant="headingMd">

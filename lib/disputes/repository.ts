@@ -278,6 +278,20 @@ function buildChecklist(rawReason: string | null, categories: Set<string>) {
   }));
 }
 
+/**
+ * Evidence coverage weighted by what this reason code actually needs, rather
+ * than counting uploads. Four screenshots of the wrong thing is not readiness.
+ */
+function reasonAwareCompleteness(reason: string | null, categories: Set<string>) {
+  const checklist = buildChecklist(reason, categories);
+  if (checklist.length === 0) {
+    return 0;
+  }
+
+  const ready = checklist.filter((item) => item.state === "ready").length;
+  return Math.round((ready / checklist.length) * 100);
+}
+
 export async function listDashboardDisputes(shopDomain?: string | null): Promise<DashboardDispute[]> {
   if (!shopDomain) {
     return [];
@@ -322,12 +336,19 @@ export async function listDashboardDisputes(shopDomain?: string | null): Promise
       id: dispute.id,
       shopifyDisputeId: dispute.shopifyDisputeId,
       shopifyOrderId: dispute.shopifyOrderId ?? null,
+      orderName: mergedOrderSummary.orderName ?? null,
       status: dispute.status,
       reason: dispute.reason ?? null,
       amount,
       currencyCode,
       evidenceDueBy: dispute.evidenceDueBy?.toISOString() ?? null,
-      completenessScore: Math.min(100, dispute.evidenceItems.length * 25)
+      // Coverage of the categories this reason code actually needs - the old
+      // score was evidenceItems.length * 25, so four irrelevant uploads read
+      // as fully ready.
+      completenessScore: reasonAwareCompleteness(
+        dispute.reason,
+        new Set(dispute.evidenceItems.map((item) => item.category))
+      )
     };
   });
 }

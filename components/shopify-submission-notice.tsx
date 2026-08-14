@@ -34,7 +34,8 @@ export function ShopifySubmissionNotice({
         <p>
           Disputes Co-Pilot builds and stores your evidence packet locally. It does not upload evidence to Shopify
           or to the card issuer. Download the packet, then open the order in Shopify Admin and use the chargeback
-          banner&rsquo;s <strong>Add evidence</strong> button to submit it before the response deadline.
+          banner&rsquo;s <strong>Add evidence</strong> button. Do it before the auto-submit date: if you do not,
+          Shopify sends a response for you using whatever it holds, and that is what the bank reads.
         </p>
         {recordedAt ? (
           <p>

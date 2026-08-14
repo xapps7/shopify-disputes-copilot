@@ -15,12 +15,18 @@ import {
 } from "@shopify/polaris";
 import { NoteIcon } from "@shopify/polaris-icons";
 import { authenticatedFetch } from "@/components/authenticated-fetch";
+import { ALLOWED_EVIDENCE_MIME_TYPES } from "@/lib/disputes/evidence-fields";
 
 type EvidenceUploadFormProps = {
   disputeId: string;
 };
 
-const ACCEPTED_TYPES = ".pdf,.png,.jpg,.jpeg,.txt,.csv";
+/**
+ * Shopify accepts PDF, PNG and JPEG for dispute evidence and nothing else - the
+ * upload route rejects the rest with a 415. Offering .txt and .csv here (as
+ * this form used to) only produced uploads that could never be attached.
+ */
+const ACCEPTED_TYPES = ".pdf,.png,.jpg,.jpeg";
 
 export function EvidenceUploadForm({ disputeId }: EvidenceUploadFormProps) {
   const router = useRouter();
@@ -32,12 +38,21 @@ export function EvidenceUploadForm({ disputeId }: EvidenceUploadFormProps) {
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleDrop = useCallback((_files: File[], acceptedFiles: File[]) => {
+  const handleDrop = useCallback((files: File[], acceptedFiles: File[]) => {
     const [accepted] = acceptedFiles;
-    if (accepted) {
+    if (accepted && (ALLOWED_EVIDENCE_MIME_TYPES as readonly string[]).includes(accepted.type)) {
       setFile(accepted);
       setError(null);
+      return;
     }
+
+    const [rejected] = files;
+    setFile(null);
+    setError(
+      rejected
+        ? `Shopify accepts PDF, PNG and JPEG only, so "${rejected.name}" cannot be attached to a dispute. Convert it and try again.`
+        : "Choose a PDF, PNG or JPEG file."
+    );
   }, []);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -135,7 +150,10 @@ export function EvidenceUploadForm({ disputeId }: EvidenceUploadFormProps) {
               </InlineStack>
             </BlockStack>
           ) : (
-            <DropZone.FileUpload actionTitle="Add file" actionHint="Accepted: PDF, PNG, JPG, TXT, CSV" />
+            <DropZone.FileUpload
+              actionTitle="Add file"
+              actionHint="Accepted: PDF, PNG, JPEG — 4 MB total across a dispute"
+            />
           )}
         </DropZone>
 
