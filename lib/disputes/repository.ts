@@ -10,6 +10,8 @@ import {
   type EvidenceFieldKey
 } from "@/lib/disputes/evidence-fields";
 import { getReasonProfile, normalizeReasonCode } from "@/lib/disputes/reason-codes";
+import { recommendStrategy } from "@/lib/economics/strategy";
+import type { WinFactors } from "@/lib/economics/win-probability";
 import { getMerchantSettings } from "@/lib/settings";
 import { graphqlErrorMessages } from "@/lib/shopify/errors";
 import { RECENT_ORDERS_NO_CUSTOMER_QUERY } from "@/lib/shopify/queries";
@@ -607,6 +609,44 @@ export async function getDisputeDetail(id: string, merchantId?: string): Promise
     })
   );
 
+  // What to actually do about this dispute: the money, the odds, and - crucially
+  // - whether fighting even helps, given that a win never improves the ratio.
+  const evidenceCategorySet = new Set(dispute.evidenceItems.map((item) => item.category));
+  const priorityStates = evidenceFields.filter((field) => field.priority);
+  const readyStates = priorityStates.filter((field) => field.status === "ready");
+
+  const winFactors: WinFactors = {
+    band: reasonProfile.winnability,
+    hasDeliveryConfirmation: evidenceCategorySet.has("DELIVERY_CONFIRMATION"),
+    hasTracking: trackingSummaries.length > 0 || evidenceCategorySet.has("SHIPPING_DOCUMENTATION"),
+    addressesMatch: null,
+    threeDSecure: null,
+    evidenceCompleteness: priorityStates.length === 0 ? 0 : readyStates.length / priorityStates.length,
+    autoSubmittedOnly: dispute.evidenceItems.length === 0 && Object.keys(savedFields).length === 0,
+    digitalGoods: false
+  };
+
+  // The merchant's own record for this reason code - the only win-rate data
+  // that is actually theirs. Public figures for this do not exist.
+  const [observedWins, observedLosses] = await Promise.all([
+    db.dispute.count({ where: { merchantId: dispute.merchantId, reason: dispute.reason, status: "WON" } }),
+    db.dispute.count({ where: { merchantId: dispute.merchantId, reason: dispute.reason, status: "LOST" } })
+  ]);
+
+  const hoursUntilAutoSubmit = dispute.evidenceDueBy
+    ? (dispute.evidenceDueBy.getTime() - Date.now()) / 3_600_000
+    : null;
+
+  const strategy = recommendStrategy({
+    disputeType: dispute.disputeType?.toUpperCase() === "INQUIRY" ? "INQUIRY" : "CHARGEBACK",
+    status: dispute.status,
+    amount: Number(dispute.amount?.toString() ?? "0"),
+    currencyCode: dispute.currencyCode,
+    hoursUntilAutoSubmit,
+    factors: winFactors,
+    observed: { wins: observedWins, losses: observedLosses }
+  });
+
   return {
     id: dispute.id,
     shopifyDisputeId: dispute.shopifyDisputeId,
@@ -638,6 +678,7 @@ export async function getDisputeDetail(id: string, merchantId?: string): Promise
           submittedAt: dispute.packets[0].submittedAt?.toISOString() ?? null
         }
       : null,
+    strategy,
     evidenceItems: dispute.evidenceItems.map((item) => ({
       id: item.id,
       category: item.category,

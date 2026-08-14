@@ -1,4 +1,5 @@
 import type { EvidenceFieldState } from "@/lib/disputes/evidence-fields";
+import type { StrategyRecommendation } from "@/lib/economics/strategy";
 
 export type DashboardDispute = {
   id: string;
@@ -78,6 +79,8 @@ export type DisputeDetailView = {
   }>;
   /** Shopify's evidence form, pre-filled: saved merchant edits merged over generated drafts. */
   evidenceFields: EvidenceFieldState[];
+  /** Fight, accept, or prevent - with the money and the reasoning behind it. */
+  strategy: StrategyRecommendation;
   timeline: Array<{
     id: string;
     eventType: string;

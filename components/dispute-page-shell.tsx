@@ -21,6 +21,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { DeadlineBadge, useNow } from "@/components/deadline-badge";
 import { DisputeResponseDraft } from "@/components/dispute-response-draft";
+import { DisputeStrategyCard } from "@/components/dispute-strategy-card";
 import { EMPTY_STATE_IMAGE } from "@/components/empty-state-image";
 import { EvidenceGapCoach } from "@/components/evidence-gap-coach";
 import { EvidenceUploadForm } from "@/components/evidence-upload-form";
@@ -239,6 +240,8 @@ export function DisputePageShell({
       ]}
     >
       <BlockStack gap="400">
+        <DisputeStrategyCard strategy={dispute.strategy} />
+
         <ShopifySubmissionNotice
           shopDomain={shopDomain}
           shopifyDisputeId={dispute.shopifyDisputeId}

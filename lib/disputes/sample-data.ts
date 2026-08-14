@@ -1,6 +1,7 @@
 import type { DashboardDispute, DisputeDetailView } from "@/lib/types";
 
 import { buildEvidenceFieldStates } from "@/lib/disputes/evidence-fields";
+import { recommendStrategy } from "@/lib/economics/strategy";
 
 function fraudChecklist() {
   return [
@@ -100,6 +101,23 @@ export const sampleDisputeDetails: DisputeDetailView[] = [
     shopifyDisputeId: "gid://shopify/ShopifyPaymentsDispute/1001",
     shopifyOrderId: "gid://shopify/Order/1001",
     evidenceFields: buildEvidenceFieldStates([], {}, {}),
+    strategy: recommendStrategy({
+      disputeType: "CHARGEBACK",
+      status: "NEEDS_RESPONSE",
+      amount: 149,
+      currencyCode: "USD",
+      hoursUntilAutoSubmit: 72,
+      factors: {
+        band: "moderate",
+        hasDeliveryConfirmation: true,
+        hasTracking: true,
+        addressesMatch: null,
+        threeDSecure: null,
+        evidenceCompleteness: 0.5,
+        autoSubmittedOnly: false,
+        digitalGoods: false
+      }
+    }),
     status: "NEEDS_RESPONSE",
     reason: "FRAUD",
     reasonDetails: "Customer claims cardholder did not authorize the order.",
@@ -189,6 +207,23 @@ export const sampleDisputeDetails: DisputeDetailView[] = [
     shopifyDisputeId: "gid://shopify/ShopifyPaymentsDispute/1002",
     shopifyOrderId: "gid://shopify/Order/1002",
     evidenceFields: buildEvidenceFieldStates([], {}, {}),
+    strategy: recommendStrategy({
+      disputeType: "CHARGEBACK",
+      status: "NEEDS_RESPONSE",
+      amount: 149,
+      currencyCode: "USD",
+      hoursUntilAutoSubmit: 72,
+      factors: {
+        band: "moderate",
+        hasDeliveryConfirmation: true,
+        hasTracking: true,
+        addressesMatch: null,
+        threeDSecure: null,
+        evidenceCompleteness: 0.5,
+        autoSubmittedOnly: false,
+        digitalGoods: false
+      }
+    }),
     status: "UNDER_REVIEW",
     reason: "PRODUCT_NOT_RECEIVED",
     reasonDetails: "Customer claims the parcel never arrived at the delivery address.",
