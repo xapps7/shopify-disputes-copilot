@@ -38,15 +38,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, skipped: decision.reason });
   }
 
-  // The access token is revoked by Shopify the moment the app is uninstalled, so
-  // holding the ciphertext buys nothing and is a standing liability. Clear it.
+  // Both tokens are revoked by Shopify the moment the app is uninstalled, so
+  // holding the ciphertext buys nothing and is a standing liability. Clear them.
+  //
+  // The refresh token matters as much as the access token here: it is the
+  // longer-lived of the two (90 days against one hour), so leaving it behind
+  // keeps the more valuable secret and discards the cheaper one.
+  //
   // updateMany (not update) so an unknown shop is a no-op instead of a P2025 throw,
   // which would make Shopify retry a webhook that can never succeed.
   const { count } = await db.merchant.updateMany({
     where: { shopDomain: targetShop },
     data: {
       uninstalledAt: new Date(),
-      accessTokenEncrypted: null
+      accessTokenEncrypted: null,
+      accessTokenExpiresAt: null,
+      refreshTokenEncrypted: null,
+      refreshTokenExpiresAt: null
     }
   });
 
