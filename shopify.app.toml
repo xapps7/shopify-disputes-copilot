@@ -12,17 +12,11 @@ automatically_update_urls_on_dev = false
 [webhooks]
 api_version = "2026-01"
 
-[[webhooks.subscriptions]]
-topics = [ "disputes/create" ]
-uri = "/api/webhooks/disputes/create"
-
-[[webhooks.subscriptions]]
-topics = [ "disputes/update" ]
-uri = "/api/webhooks/disputes/update"
-
-[[webhooks.subscriptions]]
-topics = [ "app/uninstalled" ]
-uri = "/api/webhooks/app/uninstalled"
+# NOTE: app-specific `topics` subscriptions cannot be declared here while
+# use_legacy_install_flow is true - Shopify rejects the deploy. disputes/create,
+# disputes/update and app/uninstalled are registered at runtime instead, in the
+# OAuth callback (lib/shopify/install.ts). Move them here when the app switches
+# to Shopify-managed installation, because that flow has no callback to run.
 
 [[webhooks.subscriptions]]
 compliance_topics = [ "customers/data_request" ]
