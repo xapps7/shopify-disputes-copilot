@@ -1,5 +1,5 @@
 import { RecommendationsPageShell } from "@/components/recommendations-page-shell";
-import { getAuthenticatedShopDomainForPage } from "@/lib/shopify/request-context";
+import { getEmbeddedPageShop } from "@/lib/shopify/page-context";
 import { listRecommendations } from "@/lib/disputes/repository";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,7 @@ type RecommendationsPageProps = {
 
 export default async function RecommendationsPage({ searchParams }: RecommendationsPageProps) {
   const params = (await searchParams) ?? {};
-  const shopDomain = await getAuthenticatedShopDomainForPage(params);
+  const shopDomain = await getEmbeddedPageShop(params, "/recommendations");
   const recommendations = await listRecommendations(shopDomain);
 
   return <RecommendationsPageShell recommendations={recommendations} />;

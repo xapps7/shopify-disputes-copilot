@@ -1,0 +1,12 @@
+{
+  // Typechecks the app source only.
+  //
+  // The default `npm run typecheck` also compiles `.next/types`, which Next
+  // regenerates on build. A stale `.next` from a previous branch therefore
+  // reports errors for routes that no longer exist and gets the typedRoutes
+  // union wrong - noise that buries real errors. Use this when checking source
+  // without a fresh build; use `npm run typecheck` when `.next` is current.
+  "extends": "./tsconfig.json",
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules", ".next", "_to_delete", ".claude-transfer"]
+}

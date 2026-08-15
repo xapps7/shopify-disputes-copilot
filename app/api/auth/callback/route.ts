@@ -51,7 +51,7 @@ export async function GET(request: Request) {
     const shop = normalizeShopDomain(shopParam);
     const tokenPayload = await exchangeCodeForAccessToken(shop, code);
 
-    await persistMerchantInstall(shop, tokenPayload.access_token);
+    await persistMerchantInstall(shop, tokenPayload);
     const webhookResult = await registerWebhooks(shop, tokenPayload.access_token);
     await Promise.all([
       setCurrentShopDomain(shop),

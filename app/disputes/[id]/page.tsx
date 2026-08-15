@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 
 import { getDisputeDetail } from "@/lib/disputes/repository";
 import { requireMerchant } from "@/lib/disputes/tenant";
-import { getAuthenticatedShopDomainForPage } from "@/lib/shopify/request-context";
+import { getEmbeddedPageShop } from "@/lib/shopify/page-context";
 import { DisputePageShell } from "@/components/dispute-page-shell";
 import { generateDisputeResponseDraft } from "@/lib/ai/dispute-drafts";
 import { generatePackageAssessment } from "@/lib/ai/package-assessment";
@@ -27,7 +27,7 @@ async function loadDispute(
 ): Promise<DisputeDetailView | null> {
   // Scoped to the authenticated merchant: a dispute belonging to another shop
   // must be indistinguishable from one that does not exist.
-  const shopDomain = await getAuthenticatedShopDomainForPage(searchParams);
+  const shopDomain = await getEmbeddedPageShop(searchParams, `/disputes/${id}`);
   if (!shopDomain) {
     return null;
   }

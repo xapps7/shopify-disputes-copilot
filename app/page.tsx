@@ -3,7 +3,7 @@ import { getOverviewMetrics, listDashboardDisputes, listRecommendations } from "
 import { after } from "next/server";
 
 import { syncIfStale, syncIfNeverSynced } from "@/lib/disputes/background-sync";
-import { getAuthenticatedShopDomainForPage } from "@/lib/shopify/request-context";
+import { getEmbeddedPageShop } from "@/lib/shopify/page-context";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -14,7 +14,7 @@ type HomePageProps = {
 
 export default async function HomePage({ searchParams }: HomePageProps) {
   const params = (await searchParams) ?? {};
-  const shopDomain = await getAuthenticatedShopDomainForPage(params);
+  const shopDomain = await getEmbeddedPageShop(params, "/");
 
   // Keeps data fresh without any external scheduler: runs after the response
   // has been sent, so it never delays the page.

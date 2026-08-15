@@ -12,11 +12,28 @@ automatically_update_urls_on_dev = false
 [webhooks]
 api_version = "2026-01"
 
-# NOTE: app-specific `topics` subscriptions cannot be declared here while
-# use_legacy_install_flow is true - Shopify rejects the deploy. disputes/create,
-# disputes/update and app/uninstalled are registered at runtime instead, in the
-# OAuth callback (lib/shopify/install.ts). Move them here when the app switches
-# to Shopify-managed installation, because that flow has no callback to run.
+# Under Shopify-managed installation Shopify never calls the app during install,
+# so there is no OAuth callback in which to register these through the Admin API
+# - the way this app did it until now. They must be declared here instead.
+#
+# These are app-scoped: they apply to every install automatically, and they do
+# NOT appear in the `webhookSubscriptions` Admin API query. A store installed
+# under the old flow keeps its shop-scoped copies and will receive each event
+# twice until POST /api/admin/reconcile-webhooks is run against it once.
+
+[[webhooks.subscriptions]]
+topics = [ "disputes/create" ]
+uri = "/api/webhooks/disputes/create"
+
+[[webhooks.subscriptions]]
+topics = [ "disputes/update" ]
+uri = "/api/webhooks/disputes/update"
+
+# Destroys the retained access token the moment the merchant removes the app,
+# instead of leaving it live until shop/redact arrives up to 48 hours later.
+[[webhooks.subscriptions]]
+topics = [ "app/uninstalled" ]
+uri = "/api/webhooks/app/uninstalled"
 
 [[webhooks.subscriptions]]
 compliance_topics = [ "customers/data_request" ]
@@ -34,7 +51,11 @@ uri = "/api/webhooks/shop/redact"
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 scopes = "read_orders,read_customers,read_shopify_payments_disputes"
 optional_scopes = [ ]
-use_legacy_install_flow = true
+# Shopify-managed installation. Shopify grants scopes and handles re-consent on
+# scope changes without redirecting through the app, so the app has no install
+# callback: it acquires its Admin API token by token exchange on first render
+# (lib/shopify/page-context.ts, lib/shopify/access-token.ts).
+use_legacy_install_flow = false
 
 [auth]
 redirect_urls = [

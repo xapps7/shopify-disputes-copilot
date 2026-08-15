@@ -1,7 +1,7 @@
 import { AccountHealthPageShell } from "@/components/account-health-page-shell";
 import { AccountHealthUnavailable } from "@/components/account-health-unavailable";
 import { getAccountHealth } from "@/lib/economics/account-health";
-import { getAuthenticatedShopDomainForPage } from "@/lib/shopify/request-context";
+import { getEmbeddedPageShop } from "@/lib/shopify/page-context";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -12,7 +12,7 @@ type AccountHealthPageProps = {
 
 export default async function AccountHealthPage({ searchParams }: AccountHealthPageProps) {
   const params = (await searchParams) ?? {};
-  const shopDomain = await getAuthenticatedShopDomainForPage(params);
+  const shopDomain = await getEmbeddedPageShop(params, "/account-health");
   const health = await getAccountHealth(shopDomain);
 
   if (!health) {

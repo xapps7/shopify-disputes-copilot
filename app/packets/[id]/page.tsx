@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { PacketPreviewPageShell } from "@/components/packet-preview-page-shell";
 import { getDisputeDetail } from "@/lib/disputes/repository";
 import { requireMerchant } from "@/lib/disputes/tenant";
-import { getAuthenticatedShopDomainForPage } from "@/lib/shopify/request-context";
+import { getEmbeddedPageShop } from "@/lib/shopify/page-context";
 import type { DisputeDetailView } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +20,7 @@ async function loadDispute(
 ): Promise<DisputeDetailView | null> {
   // Scoped to the authenticated merchant: a dispute belonging to another shop
   // must be indistinguishable from one that does not exist.
-  const shopDomain = await getAuthenticatedShopDomainForPage(searchParams);
+  const shopDomain = await getEmbeddedPageShop(searchParams, `/packets/${id}`);
   if (!shopDomain) {
     return null;
   }

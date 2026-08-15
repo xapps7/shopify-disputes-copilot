@@ -26,6 +26,39 @@ const WEBHOOK_SUBSCRIPTION_MUTATION = `#graphql
   }
 `;
 
+const WEBHOOK_SUBSCRIPTIONS_QUERY = `#graphql
+  query ShopWebhookSubscriptions($cursor: String) {
+    webhookSubscriptions(first: 100, after: $cursor) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        id
+        topic
+        endpoint {
+          __typename
+          ... on WebhookHttpEndpoint {
+            callbackUrl
+          }
+        }
+      }
+    }
+  }
+`;
+
+const WEBHOOK_SUBSCRIPTION_DELETE_MUTATION = `#graphql
+  mutation DeleteWebhook($id: ID!) {
+    webhookSubscriptionDelete(id: $id) {
+      deletedWebhookSubscriptionId
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
 const SHOP_INFO_QUERY = `#graphql
   query ShopInfo {
     shop {
@@ -44,6 +77,12 @@ const SHOP_INFO_QUERY = `#graphql
 // customers/redact, shop/redact) are NOT registrable here - they are not valid
 // `WebhookSubscriptionTopic` enum values. They are app-level configuration and
 // live in shopify.app.toml under `[[webhooks.subscriptions]]` / `compliance_topics`.
+//
+// Since the move to Shopify-managed installation these three are ALSO declared
+// in shopify.app.toml, because managed install never calls the app and so this
+// code no longer runs on install. The list is kept because the legacy OAuth
+// callback is retained as a rollback path, and because `reconcileShopWebhooks`
+// needs to know which shop-scoped subscriptions the app config now supersedes.
 const installWebhookDefinitions = [
   { topic: "DISPUTES_CREATE", path: "/api/webhooks/disputes/create" },
   { topic: "DISPUTES_UPDATE", path: "/api/webhooks/disputes/update" },
@@ -63,6 +102,12 @@ type WebhookRegistrationResult = {
     topic: string;
     reason: string;
   }>;
+};
+
+export type WebhookReconciliationResult = {
+  deleted: Array<{ id: string; topic: string; callbackUrl: string }>;
+  kept: Array<{ id: string; topic: string; callbackUrl: string }>;
+  errors: string[];
 };
 
 async function graphqlRequest<T>(
@@ -113,22 +158,53 @@ export async function exchangeCodeForAccessToken(shop: string, code: string) {
   return payload;
 }
 
-export async function persistMerchantInstall(shop: string, accessToken: string): Promise<InstallResult> {
+/**
+ * Persists an install.
+ *
+ * `expires_in` and `refresh_token` are stored, not discarded: since `expiring: 1`
+ * was added above, the token Shopify returns here dies after an hour. Recording
+ * it as if it were the old non-expiring kind left `accessTokenExpiresAt` null,
+ * which made `ensureMerchantAccessToken` believe a dead token was still good and
+ * gave it no refresh token to recover with.
+ */
+export async function persistMerchantInstall(
+  shop: string,
+  token:
+    | string
+    | {
+        access_token: string;
+        expires_in?: number;
+        refresh_token?: string;
+        refresh_token_expires_in?: number;
+      }
+): Promise<InstallResult> {
+  const payload = typeof token === "string" ? { access_token: token } : token;
+  const now = Date.now();
+
   const shopData = await graphqlRequest<{
     shop: { id: string; myshopifyDomain: string };
-  }>(shop, accessToken, SHOP_INFO_QUERY);
+  }>(shop, payload.access_token, SHOP_INFO_QUERY);
+
+  const tokenFields = {
+    accessTokenEncrypted: encryptString(payload.access_token),
+    accessTokenExpiresAt: payload.expires_in ? new Date(now + payload.expires_in * 1000) : null,
+    refreshTokenEncrypted: payload.refresh_token ? encryptString(payload.refresh_token) : null,
+    refreshTokenExpiresAt: payload.refresh_token_expires_in
+      ? new Date(now + payload.refresh_token_expires_in * 1000)
+      : null
+  };
 
   const merchant = await db.merchant.upsert({
     where: { shopDomain: shop },
     update: {
       shopifyShopId: shopData.shop.id,
-      accessTokenEncrypted: encryptString(accessToken),
+      ...tokenFields,
       uninstalledAt: null
     },
     create: {
       shopDomain: shop,
       shopifyShopId: shopData.shop.id,
-      accessTokenEncrypted: encryptString(accessToken)
+      ...tokenFields
     }
   });
 
@@ -176,4 +252,90 @@ export async function registerWebhooks(shop: string, accessToken: string) {
   }
 
   return results;
+}
+
+/**
+ * Removes shop-scoped webhook subscriptions that the app configuration now owns.
+ *
+ * These two mechanisms are independent: subscriptions declared in
+ * shopify.app.toml are app-scoped and do not appear in `webhookSubscriptions`,
+ * which only returns the ones this app created through the Admin API. A store
+ * that was installed under the legacy flow therefore ends up subscribed twice
+ * to the same topic and receives every dispute event twice.
+ *
+ * The handlers upsert, so a duplicate is harmless - but it doubles the traffic
+ * and makes the logs lie about how many events Shopify actually sent.
+ *
+ * Deletes only subscriptions whose callback URL points at this app's own
+ * endpoints, so an unrelated subscription a merchant added by hand is untouched.
+ */
+export async function reconcileShopWebhooks(
+  shop: string,
+  accessToken: string
+): Promise<WebhookReconciliationResult> {
+  const result: WebhookReconciliationResult = { deleted: [], kept: [], errors: [] };
+
+  const appUrl = (process.env.SHOPIFY_APP_URL ?? "").replace(/\/+$/, "");
+  const ownedUrls = new Set(
+    installWebhookDefinitions.map((definition) => `${appUrl}${definition.path}`)
+  );
+
+  type SubscriptionNode = {
+    id: string;
+    topic: string;
+    endpoint: { __typename: string; callbackUrl?: string | null };
+  };
+
+  const subscriptions: SubscriptionNode[] = [];
+  let cursor: string | null = null;
+
+  do {
+    const page: {
+      webhookSubscriptions: {
+        pageInfo: { hasNextPage: boolean; endCursor: string | null };
+        nodes: SubscriptionNode[];
+      };
+    } = await graphqlRequest(shop, accessToken, WEBHOOK_SUBSCRIPTIONS_QUERY, { cursor });
+
+    subscriptions.push(...page.webhookSubscriptions.nodes);
+    cursor = page.webhookSubscriptions.pageInfo.hasNextPage
+      ? page.webhookSubscriptions.pageInfo.endCursor
+      : null;
+  } while (cursor);
+
+  for (const subscription of subscriptions) {
+    const callbackUrl = subscription.endpoint?.callbackUrl ?? "";
+    const entry = { id: subscription.id, topic: subscription.topic, callbackUrl };
+
+    if (!ownedUrls.has(callbackUrl)) {
+      result.kept.push(entry);
+      continue;
+    }
+
+    try {
+      const data = await graphqlRequest<{
+        webhookSubscriptionDelete: {
+          userErrors: Array<{ field: string[] | null; message: string }>;
+        };
+      }>(shop, accessToken, WEBHOOK_SUBSCRIPTION_DELETE_MUTATION, { id: subscription.id });
+
+      const userErrors = data.webhookSubscriptionDelete.userErrors;
+      if (userErrors.length > 0) {
+        result.errors.push(
+          `${subscription.topic}: ${userErrors.map((error) => error.message).join(", ")}`
+        );
+        result.kept.push(entry);
+        continue;
+      }
+
+      result.deleted.push(entry);
+    } catch (error) {
+      result.errors.push(
+        `${subscription.topic}: ${error instanceof Error ? error.message : "delete failed"}`
+      );
+      result.kept.push(entry);
+    }
+  }
+
+  return result;
 }

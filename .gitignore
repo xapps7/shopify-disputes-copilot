@@ -15,7 +15,7 @@ public/packets/*
 coverage
 dist
 *.log
-tsconfig.tsbuildinfo
+*.tsbuildinfo
 
 .claude-transfer/
 _to_delete/

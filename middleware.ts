@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { BOUNCE_PATH, buildBounceUrl, hasBounced } from "@/lib/shopify/bounce";
 import {
   SESSION_COOKIE,
   createSessionCookieValue,
@@ -12,7 +13,8 @@ import {
  * session cookie, so server-rendered navigations inside the admin iframe have
  * an authenticated identity without trusting `?shop=`.
  *
- * This middleware only ADDS identity. Enforcement lives in
+ * This middleware only ADDS identity - and, since the switch to Shopify-managed
+ * installation, recovers it. Enforcement lives in
  * `lib/shopify/request-context.ts`, which every route and page calls.
  */
 export const config = {
@@ -34,11 +36,35 @@ function withFrameAncestors(response: NextResponse, shopDomain: string | null) {
   return response;
 }
 
+/**
+ * Only full page loads can be bounced. An API call has no browser to run App
+ * Bridge in, and a health check must not be redirected - App Runner reads a 302
+ * on its health check path as a failing target and would cycle the deployment.
+ */
+function isDocumentRequest(request: NextRequest) {
+  if (request.method !== "GET") {
+    return false;
+  }
+
+  const dest = request.headers.get("sec-fetch-dest");
+  if (dest) {
+    return dest === "document" || dest === "iframe";
+  }
+
+  return (request.headers.get("accept") ?? "").includes("text/html");
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
 
-  // Webhooks authenticate by HMAC; the OAuth routes are the bootstrap path.
-  if (pathname.startsWith("/api/webhooks") || pathname.startsWith("/api/auth")) {
+  // Webhooks authenticate by HMAC. The OAuth routes are the legacy bootstrap
+  // path, kept as a rollback. The bounce page is what we redirect TO, so
+  // bouncing it would be a loop with no exit.
+  if (
+    pathname.startsWith("/api/webhooks") ||
+    pathname.startsWith("/api/auth") ||
+    pathname === BOUNCE_PATH
+  ) {
     return NextResponse.next();
   }
 
@@ -53,6 +79,19 @@ export async function middleware(request: NextRequest) {
     (bearer?.toLowerCase().startsWith("bearer ") ? bearer.slice(7).trim() : null);
 
   if (!token) {
+    // No token and no session: under managed install there is no OAuth
+    // redirect coming to fix this, so send the browser to App Bridge to get
+    // one. `hasBounced` makes this at most a single retry.
+    if (
+      !cookieShop &&
+      isDocumentRequest(request) &&
+      !hasBounced(searchParams) &&
+      !pathname.startsWith("/api/")
+    ) {
+      const bounce = new URL(buildBounceUrl(pathname, searchParams), request.nextUrl.origin);
+      return withFrameAncestors(NextResponse.redirect(bounce), null);
+    }
+
     return withFrameAncestors(NextResponse.next(), cookieShop);
   }
 
