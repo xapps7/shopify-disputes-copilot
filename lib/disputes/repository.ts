@@ -1,8 +1,5 @@
 import { db } from "@/lib/db";
 import { decryptString } from "@/lib/crypto";
-import {
-  getSampleDisputeDetail
-} from "@/lib/disputes/sample-data";
 import { createShopifyAdminClient } from "@/lib/shopify/client";
 import {
   buildEvidenceFieldStates,
@@ -356,9 +353,12 @@ export async function listDashboardDisputes(shopDomain?: string | null): Promise
   });
 }
 
-export async function getOverviewMetrics(shopDomain?: string | null): Promise<OverviewMetricsView> {
-  const disputes = await listDashboardDisputes(shopDomain);
+/** Metrics derived from an already-fetched list, so callers can avoid a second query. */
+export function deriveOverviewMetrics(disputes: DashboardDispute[]): OverviewMetricsView {
+  return buildOverviewMetrics(disputes);
+}
 
+function buildOverviewMetrics(disputes: DashboardDispute[]): OverviewMetricsView {
   return {
     openDisputes: disputes.filter((dispute) =>
       ["NEEDS_RESPONSE", "UNDER_REVIEW", "WARNING_NEEDS_RESPONSE"].includes(dispute.status)
@@ -371,6 +371,10 @@ export async function getOverviewMetrics(shopDomain?: string | null): Promise<Ov
     totalAmount: disputes.reduce((sum, dispute) => sum + Number(dispute.amount), 0),
     evidenceReady: disputes.filter((dispute) => dispute.completenessScore >= 75).length
   };
+}
+
+export async function getOverviewMetrics(shopDomain?: string | null): Promise<OverviewMetricsView> {
+  return buildOverviewMetrics(await listDashboardDisputes(shopDomain));
 }
 
 export async function listEvidenceLibrary(shopDomain?: string | null): Promise<EvidenceLibraryItemView[]> {
@@ -501,10 +505,10 @@ export async function getDisputeDetail(id: string, merchantId?: string): Promise
   });
 
   if (!dispute) {
-    if (!id.startsWith("local-")) {
-      throw new Error("Dispute not found.");
-    }
-    return getSampleDisputeDetail(id);
+    // The `local-` sample fallback used to live here. It rendered fabricated
+    // disputes, evidence and packets to a signed-in merchant, which is worse
+    // than an error because it looks real. Development can seed the database.
+    throw new Error("Dispute not found.");
   }
 
   const orderSnapshot = dispute.shopifyOrderId

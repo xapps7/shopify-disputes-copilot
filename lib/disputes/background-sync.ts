@@ -148,3 +148,25 @@ export async function syncIfStale(shopDomain: string) {
   const result = await sweepMerchant(shopDomain, merchant.id);
   return { ran: true as const, result };
 }
+
+/**
+ * Runs a sync inline the first time a merchant ever opens the app.
+ *
+ * Every other refresh happens in `after()`, off the response path. This one
+ * case is different: a freshly installed merchant with real disputes would see
+ * an empty queue and conclude the app does not work. It runs at most once per
+ * install, because after it there is always a SyncRun row.
+ */
+export async function syncIfNeverSynced(shopDomain: string) {
+  const merchant = await db.merchant.findUnique({
+    where: { shopDomain },
+    select: { id: true, _count: { select: { syncRuns: true } } }
+  });
+
+  if (!merchant || merchant._count.syncRuns > 0) {
+    return { ran: false as const, reason: "already synced" };
+  }
+
+  const result = await sweepMerchant(shopDomain, merchant.id);
+  return { ran: true as const, result };
+}

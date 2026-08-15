@@ -1,6 +1,19 @@
 "use client";
 
-import { Badge, Banner, BlockStack, Box, Card, DataTable, Divider, InlineStack, List, ProgressBar, Text } from "@shopify/polaris";
+import {
+  Badge,
+  Banner,
+  BlockStack,
+  Box,
+  Card,
+  DataTable,
+  Divider,
+  InlineGrid,
+  InlineStack,
+  List,
+  ProgressBar,
+  Text
+} from "@shopify/polaris";
 
 import { AdminPageLayout } from "@/components/admin-page-layout";
 import { formatMoney } from "@/lib/format/money";
@@ -407,8 +420,16 @@ export function AccountHealthPageShell({ health }: AccountHealthPageShellProps) 
         </Banner>
       ) : null}
 
-      {health.vamp ? <ProgramCard assessment={health.vamp} /> : <UnmeasurableProgramCard program="VAMP" health={health} />}
-      {health.ecm ? <ProgramCard assessment={health.ecm} /> : <UnmeasurableProgramCard program="ECM" health={health} />}
+      {/*
+        Side by side, not stacked. The two programmes are read against each
+        other - a shop can be healthy on one and over the threshold on the
+        other, and that comparison is the point. Stacked they were two screens
+        of scrolling with the comparison held in the merchant's head.
+      */}
+      <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
+        {health.vamp ? <ProgramCard assessment={health.vamp} /> : <UnmeasurableProgramCard program="VAMP" health={health} />}
+        {health.ecm ? <ProgramCard assessment={health.ecm} /> : <UnmeasurableProgramCard program="ECM" health={health} />}
+      </InlineGrid>
 
       <Card>
         <BlockStack gap="300">

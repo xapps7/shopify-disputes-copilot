@@ -10,12 +10,9 @@ const nextConfig = {
       {
         source: "/:path*",
         headers: [
-          {
-            // Shopify requires frame-ancestors on embedded apps; its absence is
-            // an explicit App Store rejection reason and allows clickjacking.
-            key: "Content-Security-Policy",
-            value: "frame-ancestors https://*.myshopify.com https://admin.shopify.com;"
-          },
+          // NOTE: frame-ancestors is set PER SHOP in middleware.ts. Shopify's
+          // docs require it to name the specific shop, not a wildcard, so it
+          // cannot live in static headers. Everything else below is static.
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },

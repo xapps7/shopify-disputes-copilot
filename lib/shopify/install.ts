@@ -91,7 +91,10 @@ export async function exchangeCodeForAccessToken(shop: string, code: string) {
     body: JSON.stringify({
       client_id: process.env.SHOPIFY_API_KEY,
       client_secret: process.env.SHOPIFY_API_SECRET,
-      code
+      code,
+      // Expiring offline tokens are mandatory for new public apps since
+      // 1 Apr 2026 and for all public apps from 1 Jan 2027.
+      expiring: 1
     })
   });
 
@@ -102,6 +105,9 @@ export async function exchangeCodeForAccessToken(shop: string, code: string) {
   const payload = (await response.json()) as {
     access_token: string;
     scope: string;
+    expires_in?: number;
+    refresh_token?: string;
+    refresh_token_expires_in?: number;
   };
 
   return payload;

@@ -32,8 +32,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: "Settings saved." });
   } catch (error) {
+    console.error("Settings save failed", error);
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Failed to save settings." },
+      // Never echo the raw error: the zod issue dump leaks internals to an
+      // unauthenticated caller.
+      { message: "Failed to save settings." },
       { status: 500 }
     );
   }

@@ -97,6 +97,58 @@ textarea {
 }
 
 /*
+ * The dispute page's reference rail.
+ *
+ * It holds the facts a merchant checks while writing - customer, address,
+ * amounts, tracking, deadline - so it has to stay on screen while the response
+ * builder beside it scrolls. Three things make that safe rather than clever:
+ *
+ *  - `align-self: start` stops the grid item stretching to the row height. A
+ *    sticky box inside a full-height item has nowhere to travel, so without
+ *    this the rail simply does not stick.
+ *  - `max-height` plus `overflow: auto` means a short window scrolls the rail's
+ *    own content instead of cutting the bottom rows off where nobody can reach
+ *    them. `overscroll-behavior` keeps that scroll from running on into the page.
+ *  - Below the Polaris `md` breakpoint the grid is already one column, so the
+ *    rail unsticks entirely and reads as an ordinary panel under the work.
+ *
+ * The same unsticking covers high zoom: at 400% the viewport is narrow enough
+ * in CSS pixels to be past the breakpoint, so nothing is pinned over content.
+ */
+.case-rail {
+  position: sticky;
+  top: 16px;
+  align-self: start;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Label and value pairs, dense, one per line. */
+.case-facts {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.case-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * Short windows (a laptop with the browser half-height, or a tall zoom level)
+ * leave too little room for a pinned panel to be worth the pinning.
+ */
+@media (max-height: 640px) {
+  .case-rail {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+/*
  * The response builder mirrors Shopify's evidence form field for field, so each
  * field names the Shopify field it maps to. Monospace signals "this is an API
  * name, not prose" without needing a sentence to explain it.
@@ -157,5 +209,18 @@ textarea {
 
   .app-shell :where(.Polaris-Page) {
     padding-inline: 8px;
+  }
+}
+
+/*
+ * Polaris' `md` breakpoint (48em) is where `InlineGrid` drops the dispute page
+ * to a single column. Below it the rail is an ordinary panel under the work, so
+ * it must not be pinned or scroll-boxed.
+ */
+@media (max-width: 47.9975em) {
+  .case-rail {
+    position: static;
+    max-height: none;
+    overflow: visible;
   }
 }

@@ -22,6 +22,7 @@ import {
 import { AdminPageLayout } from "@/components/admin-page-layout";
 import { DeadlineBadge, describeAutoSubmit, useNow, type AutoSubmitDescription } from "@/components/deadline-badge";
 import { EMPTY_STATE_IMAGE } from "@/components/empty-state-image";
+import { orderReference } from "@/components/order-label";
 import { SyncStatusBanner, useDisputeSync } from "@/components/sync-status";
 import { getReasonProfile } from "@/lib/disputes/reason-codes";
 import { formatCurrencyTotals, formatMoney, sumByCurrency } from "@/lib/format/money";
@@ -39,9 +40,10 @@ import type { DashboardDispute } from "@/lib/types";
  */
 
 /**
- * `DashboardDispute` carries `shopifyOrderId` but not the order's human name
- * ("#1024"). Reading `orderName` optionally means the queue shows the real name
- * the moment the data layer adds it, and falls back to the order number now.
+ * `DashboardDispute` carries `shopifyOrderId` but not always the order's human
+ * name ("#1024"). Reading `orderName` optionally means the queue shows the real
+ * name the moment the data layer has it, and shows a masked reference - never a
+ * raw 13-digit id - until then. See `components/order-label`.
  */
 type QueueDispute = DashboardDispute & { orderName?: string | null };
 
@@ -104,15 +106,6 @@ function readinessBucket(score: number): ReadinessBucket {
 
 function isClosed(status: string): boolean {
   return CLOSED_STATUSES.has(status);
-}
-
-function orderLabel(dispute: QueueDispute): string {
-  if (dispute.orderName?.trim()) {
-    return dispute.orderName.trim();
-  }
-
-  const orderNumber = dispute.shopifyOrderId?.split("/").pop();
-  return orderNumber ? `Order ${orderNumber}` : "Order unavailable";
 }
 
 function toTimestamp(value: string | null): number {
@@ -195,7 +188,7 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
           dueAt: toTimestamp(dispute.evidenceDueBy),
           amountValue: toAmount(dispute.amount),
           reasonLabel: getReasonProfile(dispute.reason).label,
-          order: orderLabel(dispute),
+          order: orderReference(dispute.orderName, dispute.shopifyOrderId),
           readiness: readinessBucket(dispute.completenessScore),
           disputeNumber: dispute.shopifyDisputeId.split("/").pop() ?? dispute.id
         };
@@ -456,26 +449,21 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
         <SyncStatusBanner result={syncResult} />
 
         <Card padding="0">
-          <Box padding="400">
-            <InlineStack align="space-between" blockAlign="start" gap="400" wrap>
-              <BlockStack gap="100">
-                <Text as="h2" variant="headingMd">
-                  Dispute queue
-                </Text>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  {openRows.length === 1
-                    ? "1 open dispute, soonest auto-submit first."
-                    : `${openRows.length} open disputes, soonest auto-submit first.`}
-                </Text>
-              </BlockStack>
-              <BlockStack gap="050" inlineAlign="end">
-                <Text as="p" variant="headingLg">
-                  {totalAtRisk}
-                </Text>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  Total at risk across open disputes
-                </Text>
-              </BlockStack>
+          {/*
+            One line, not a header block. "Dispute queue" restated the page
+            title, and the total at risk does not need to be set at headingLg to
+            be read - it is context for the table under it, not a headline.
+          */}
+          <Box padding="300" paddingInlineStart="400">
+            <InlineStack align="space-between" blockAlign="center" gap="400" wrap>
+              <Text as="h2" variant="headingSm">
+                {openRows.length === 1
+                  ? "1 open dispute, soonest auto-submit first"
+                  : `${openRows.length} open disputes, soonest auto-submit first`}
+              </Text>
+              <Text as="p" variant="bodySm" fontWeight="medium">
+                {`${totalAtRisk} at risk`}
+              </Text>
             </InlineStack>
           </Box>
           <Divider />
@@ -558,10 +546,17 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
           )}
         </Card>
 
-        <Text as="p" variant="bodySm" tone="subdued">
-          Shopify Admin has no disputes screen and sends no deadline reminder. When a deadline passes, Shopify
-          submits a response using whatever it holds against the order — usually tracking data and nothing else.
-        </Text>
+        {/*
+          Only when the banner above is absent: with urgent disputes on screen
+          the banner has already said this, in stronger terms and about specific
+          money. Saying it twice on one screen makes both copies furniture.
+        */}
+        {urgentRows.length === 0 ? (
+          <Text as="p" variant="bodySm" tone="subdued">
+            Shopify Admin has no disputes screen and sends no deadline reminder. When a deadline passes, Shopify
+            submits a response using whatever it holds against the order — usually tracking data and nothing else.
+          </Text>
+        ) : null}
       </BlockStack>
     </AdminPageLayout>
   );

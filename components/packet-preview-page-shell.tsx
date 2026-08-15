@@ -1,12 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   Banner,
   BlockStack,
-  Box,
-  Button,
   Card,
   Divider,
   InlineGrid,
@@ -78,38 +75,38 @@ export function PacketPreviewPageShell({ dispute }: PacketPreviewPageShellProps)
           <p>Banks and card issuers decide final outcomes. Review the evidence package before sending it onward.</p>
         </Banner>
 
-        <InlineGrid columns={{ xs: 1, md: 3 }} gap="400">
-          <Card>
-            <BlockStack gap="100">
-              <Text as="p" variant="bodySm" tone="subdued">
+        {/*
+          Three cards, each holding a single value, took a third of the screen
+          to say what one line says. Same three facts, one strip.
+        */}
+        <Card padding="300">
+          <InlineStack align="start" blockAlign="center" gap="800" wrap>
+            <BlockStack gap="050">
+              <Text as="p" variant="bodyXs" tone="subdued">
                 Current packet
               </Text>
-              <Text as="p" variant="headingMd">
+              <Text as="p" variant="bodyMd" fontWeight="medium">
                 {dispute.latestPacket ? `Version ${dispute.latestPacket.version}` : "Not generated"}
               </Text>
             </BlockStack>
-          </Card>
-          <Card>
-            <BlockStack gap="100">
-              <Text as="p" variant="bodySm" tone="subdued">
+            <BlockStack gap="050">
+              <Text as="p" variant="bodyXs" tone="subdued">
                 Dispute
               </Text>
-              <Text as="p" variant="headingMd">
+              <Text as="p" variant="bodyMd" fontWeight="medium">
                 {dispute.shopifyDisputeId.split("/").pop()}
               </Text>
             </BlockStack>
-          </Card>
-          <Card>
-            <BlockStack gap="100">
-              <Text as="p" variant="bodySm" tone="subdued">
+            <BlockStack gap="050">
+              <Text as="p" variant="bodyXs" tone="subdued">
                 Amount
               </Text>
-              <Text as="p" variant="headingMd">
+              <Text as="p" variant="bodyMd" fontWeight="medium">
                 {formatMoney(dispute.amount, dispute.currencyCode)}
               </Text>
             </BlockStack>
-          </Card>
-        </InlineGrid>
+          </InlineStack>
+        </Card>
 
         <InlineGrid columns={{ xs: 1, md: "2fr 1fr" }} gap="400">
           <Card>
@@ -174,26 +171,12 @@ export function PacketPreviewPageShell({ dispute }: PacketPreviewPageShellProps)
               </BlockStack>
             </Card>
 
-            <Card>
-              <BlockStack gap="200">
-                <Text as="h2" variant="headingMd">
-                  Actions
-                </Text>
-                <InlineStack gap="200" wrap>
-                  <Button url={disputeUrl}>Back to dispute</Button>
-                  {dispute.latestPacket ? (
-                    <Button url={`/api/disputes/${dispute.id}/packet/download`} target="_blank" variant="primary">
-                      Download packet
-                    </Button>
-                  ) : null}
-                </InlineStack>
-                <Box>
-                  <Link className="table-link" href={disputeUrl as never}>
-                    Return to evidence and submission workflow
-                  </Link>
-                </Box>
-              </BlockStack>
-            </Card>
+            {/*
+              The "Actions" card offered a third way back to the dispute (the
+              page already has a back action) and a second download button (the
+              page already has the primary action). Both are gone; nothing is
+              now reachable only from here.
+            */}
           </BlockStack>
         </InlineGrid>
       </BlockStack>

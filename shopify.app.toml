@@ -13,6 +13,18 @@ automatically_update_urls_on_dev = false
 api_version = "2026-01"
 
 [[webhooks.subscriptions]]
+topics = [ "disputes/create" ]
+uri = "/api/webhooks/disputes/create"
+
+[[webhooks.subscriptions]]
+topics = [ "disputes/update" ]
+uri = "/api/webhooks/disputes/update"
+
+[[webhooks.subscriptions]]
+topics = [ "app/uninstalled" ]
+uri = "/api/webhooks/app/uninstalled"
+
+[[webhooks.subscriptions]]
 compliance_topics = [ "customers/data_request" ]
 uri = "/api/webhooks/customers/data_request"
 

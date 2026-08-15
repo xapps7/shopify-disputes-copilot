@@ -47,9 +47,12 @@ export function EvidenceLibraryPageShell({ items, disputeOptions }: EvidenceLibr
       primaryAction={{ content: "View disputes", url: "/disputes" }}
       gap="300"
     >
-      <Text as="p" variant="bodySm" tone="subdued">
-        Use this library when the same carrier proof, support thread, policy capture, or refund record may need to support more than one dispute. For work on a single case, start in <strong>Disputes</strong>.
-      </Text>
+      {/*
+        The "when to use this" paragraph moved below the table. Someone who
+        opened the evidence library is already looking for a file; the guidance
+        matters to the person who arrived by accident, and they can read it
+        after the thing they came for.
+      */}
       <ResourceSection title="Evidence files" flush>
         <IndexFilters
           tabs={[
@@ -148,13 +151,16 @@ export function EvidenceLibraryPageShell({ items, disputeOptions }: EvidenceLibr
                   </p>
                 </EmptyState>
               )}
-              <Text as="p" variant="bodySm" tone="subdued">
-                Evidence items are organized by category, source, and linked dispute.
-              </Text>
             </BlockStack>
           </Box>
         )}
       </ResourceSection>
+
+      <Text as="p" variant="bodySm" tone="subdued">
+        Use this library when the same carrier proof, support thread, policy capture, or refund record may need to
+        support more than one dispute. For work on a single case, start in <strong>Disputes</strong>.
+      </Text>
+
       <EvidenceItemEditor
         item={editingItem}
         disputeOptions={disputeOptions}

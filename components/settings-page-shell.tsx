@@ -1,6 +1,6 @@
 "use client";
 
-import { BlockStack, Card, Text } from "@shopify/polaris";
+import { Card } from "@shopify/polaris";
 
 import { AdminPageLayout } from "@/components/admin-page-layout";
 import type { MerchantSettings } from "@/lib/settings";
@@ -26,14 +26,13 @@ export function SettingsPageShell({ settings }: SettingsPageShellProps) {
       mode="form"
       gap="400"
     >
+      {/*
+        The paragraph that used to open this card said what the page subtitle
+        already says - that these values feed packet drafts and evidence
+        narratives - and pushed the first field below it. The form leads.
+      */}
       <Card>
-        <BlockStack gap="400">
-          <Text as="p" tone="subdued">
-            These values are stored locally in the merchant record and feed packet drafts, support
-            context, and merchant-facing evidence narratives.
-          </Text>
-          <SettingsForm initialSettings={settings} />
-        </BlockStack>
+        <SettingsForm initialSettings={settings} />
       </Card>
     </AdminPageLayout>
   );

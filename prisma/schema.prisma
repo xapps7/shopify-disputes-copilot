@@ -58,9 +58,13 @@ model Merchant {
   id                    String                 @id @default(cuid())
   shopDomain            String                 @unique
   shopifyShopId         String?                @unique
-  /// Set when the token came from token exchange; null for legacy non-expiring OAuth tokens.
+  /// Set for expiring offline tokens; null for legacy non-expiring ones.
   accessTokenExpiresAt  DateTime?
   accessTokenEncrypted  String?
+  /// Refresh tokens are SINGLE USE - Shopify rotates them on every refresh, so
+  /// the new one must be persisted or the install is orphaned after 90 days.
+  refreshTokenEncrypted String?
+  refreshTokenExpiresAt DateTime?
   plan                  MerchantPlan           @default(STARTER)
   installedAt           DateTime               @default(now())
   uninstalledAt         DateTime?

@@ -2,7 +2,9 @@ import { shopifyConfig } from "@/lib/shopify/config";
 import {
   OFFLINE_TOKEN_TYPE,
   ONLINE_TOKEN_TYPE,
+  buildRefreshTokenBody,
   buildTokenExchangeBody,
+  buildTokenMigrationBody,
   parseTokenExchangeResponse,
   type TokenExchangeFailure,
   type TokenExchangeResult
@@ -11,7 +13,9 @@ import {
 export {
   OFFLINE_TOKEN_TYPE,
   ONLINE_TOKEN_TYPE,
+  buildRefreshTokenBody,
   buildTokenExchangeBody,
+  buildTokenMigrationBody,
   parseTokenExchangeResponse
 };
 export type { TokenExchangeFailure, TokenExchangeResult };
@@ -90,4 +94,92 @@ export function isTokenExchangeFailure(
   value: TokenExchangeResult | TokenExchangeFailure
 ): value is TokenExchangeFailure {
   return (value as TokenExchangeFailure).ok === false;
+}
+
+async function postTokenRequest(
+  shopDomain: string,
+  body: Record<string, unknown>
+): Promise<TokenExchangeResult | TokenExchangeFailure> {
+  let response: Response;
+
+  try {
+    response = await fetch(`https://${shopDomain}/admin/oauth/access_token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body)
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      status: null,
+      error: error instanceof Error ? error.message : "Token request failed.",
+      retryable: true
+    };
+  }
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    return {
+      ok: false,
+      status: response.status,
+      error: text || `Token request failed with status ${response.status}.`,
+      // 401 is terminal - the grant is gone. 5xx and 429 are worth retrying,
+      // and a refresh may safely be retried with the SAME refresh token for up
+      // to an hour, which is what makes a mid-rotation timeout recoverable.
+      retryable: response.status >= 500 || response.status === 429
+    };
+  }
+
+  const parsed = parseTokenExchangeResponse(await response.json().catch(() => null));
+
+  return (
+    parsed ?? {
+      ok: false as const,
+      status: response.status,
+      error: "Token request returned no access token.",
+      retryable: false
+    }
+  );
+}
+
+/** Rotates an expiring offline token. The returned refresh token MUST be stored. */
+export async function refreshAccessToken(options: {
+  shopDomain: string;
+  refreshToken: string;
+}): Promise<TokenExchangeResult | TokenExchangeFailure> {
+  if (!shopifyConfig.apiKey || !shopifyConfig.apiSecret) {
+    return { ok: false, status: null, error: "Shopify API credentials are not configured.", retryable: false };
+  }
+
+  return postTokenRequest(
+    options.shopDomain,
+    buildRefreshTokenBody({
+      refreshToken: options.refreshToken,
+      clientId: shopifyConfig.apiKey,
+      clientSecret: shopifyConfig.apiSecret
+    })
+  );
+}
+
+/**
+ * Swaps a legacy non-expiring token for an expiring one, without asking the
+ * merchant to reinstall. Shopify REVOKES the old token on success and the
+ * exchange is irreversible, so persist the result immediately.
+ */
+export async function migrateToExpiringToken(options: {
+  shopDomain: string;
+  nonExpiringAccessToken: string;
+}): Promise<TokenExchangeResult | TokenExchangeFailure> {
+  if (!shopifyConfig.apiKey || !shopifyConfig.apiSecret) {
+    return { ok: false, status: null, error: "Shopify API credentials are not configured.", retryable: false };
+  }
+
+  return postTokenRequest(
+    options.shopDomain,
+    buildTokenMigrationBody({
+      nonExpiringAccessToken: options.nonExpiringAccessToken,
+      clientId: shopifyConfig.apiKey,
+      clientSecret: shopifyConfig.apiSecret
+    })
+  );
 }

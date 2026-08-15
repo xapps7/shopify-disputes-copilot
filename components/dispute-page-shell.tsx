@@ -24,6 +24,7 @@ import { DisputeResponseDraft } from "@/components/dispute-response-draft";
 import { DisputeStrategyCard } from "@/components/dispute-strategy-card";
 import type { EvidenceFileRef } from "@/components/evidence-file-slots";
 import { GeneratePacketButton } from "@/components/generate-packet-button";
+import { orderReference, orderReferenceNote } from "@/components/order-label";
 import { OutcomeReviewForm } from "@/components/outcome-review-form";
 import { PacketQualityPanel } from "@/components/packet-quality-panel";
 import { ResponseBuilder } from "@/components/response-builder";
@@ -45,19 +46,22 @@ import type { AIPackageAssessmentView, DisputeDetailView, DisputeResponseDraftVi
 /**
  * One screen, one job: write the response before Shopify answers for you.
  *
- * This page used to carry five tabs - Case details, Evidence files, Coaching,
- * Packet and submission, Timeline and outcome - which put the work in one place
- * and the instructions for it in another. Two of them are gone entirely:
+ * This page used to carry five tabs, then one very long column. Collapsing the
+ * tabs fixed a navigation problem and created a scrolling one: the facts a
+ * merchant needs *while writing* - who the customer is, where it shipped, what
+ * the order was worth, when Shopify submits - ended up hundreds of pixels below
+ * the fields they inform, so writing the response meant scrolling up and down
+ * for every sentence.
  *
- *  - Coaching now renders against the slot it is coaching, inside the builder.
- *    Guidance a tab away from the box it explains is guidance nobody reads.
- *  - Evidence files is gone because each Shopify slot in the builder takes its
- *    own upload, so there is nothing left to do on a separate uploads screen,
- *    and asking the merchant to guess a category was how slots stayed empty.
+ * So the page is two columns. The left is the work: the strategy, the hand-off
+ * notice, the builder, the packet. The right is a sticky reference rail of case
+ * facts - dense, no prose, never something you act on. Below both sits "Case
+ * and history": the checklist, the timeline, the outcome. That is a record, not
+ * reference, and records belong at the bottom.
  *
- * What remains is the builder, the hand-off it ends in, and a single "Case and
- * history" tab holding the record: the details, the checklist as it stands, the
- * timeline, and the outcome.
+ * Two of the original tabs stay gone: coaching renders against the slot it is
+ * coaching inside the builder, and evidence uploads happen in the slot that
+ * needs them rather than on a screen of their own.
  */
 
 type DisputePageShellProps = {
@@ -69,8 +73,8 @@ type DisputePageShellProps = {
   /**
    * Server-built field states (saved values merged over generated drafts).
    * Optional so this component keeps rendering while the persistence layer for
-   * `/api/disputes/[id]/evidence-fields` lands; the fallback below drafts from
-   * the order snapshot the page already has.
+   * `/api/disputes/[id]/evidence-fields` lands; the fallbacks below prefer the
+   * states already on the detail view, then draft from the order snapshot.
    */
   evidenceFields?: EvidenceFieldState[];
 };
@@ -86,6 +90,22 @@ type EvidenceItemWithFileMeta = DisputeDetailView["evidenceItems"][number] & {
   fileSizeBytes?: number | null;
 };
 
+/**
+ * The order snapshot the repository builds internally already contains a
+ * flattened shipping address and tracking summaries, but `orderSummary` on the
+ * view does not expose them yet. Reading them optionally means the rail shows
+ * them the moment the data layer publishes them, and says "Not available" with
+ * a reason until then rather than rendering a blank row.
+ */
+type OrderSummaryWithLogistics = NonNullable<DisputeDetailView["orderSummary"]> & {
+  shippingAddress?: string | null;
+  trackingNumbers?: string[] | null;
+  trackingSummaries?: string[] | null;
+};
+
+/** Evidence categories that mean "there is proof of shipment on this case". */
+const SHIPPING_EVIDENCE_CATEGORIES = new Set(["SHIPPING_DOCUMENTATION", "DELIVERY_CONFIRMATION"]);
+
 function statusTone(status: string) {
   if (status.includes("WARNING") || status === "NEEDS_RESPONSE") return "warning" as const;
   if (status === "WON") return "success" as const;
@@ -97,10 +117,206 @@ function categoryLabel(category: string) {
   return category.replaceAll("_", " ").toLowerCase();
 }
 
+/** `PARTIALLY_FULFILLED` -> `Partially fulfilled`. */
+function humanise(value: string): string {
+  const words = value.replaceAll("_", " ").trim().toLowerCase();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : value;
+}
+
+function fieldValue(fields: EvidenceFieldState[], key: EvidenceFieldState["key"]): string | null {
+  const value = fields.find((field) => field.key === key)?.value?.trim();
+  return value ? value : null;
+}
+
+/**
+ * One row of the reference rail. A fact is either present or explicitly absent:
+ * a blank cell would read as "zero" or "none", which for a customer name or a
+ * tracking number is a different and much worse claim than "we do not have it".
+ */
+type CaseFact = {
+  label: string;
+  /** `null` renders the unavailable state instead. */
+  value: React.ReactNode | null;
+  /** One line naming why it is missing. Shown under "Not available". */
+  missingReason?: string;
+  /** Shown under a present value, e.g. that the order name is masked. */
+  note?: string | null;
+};
+
+function CaseFactRow({ fact }: { fact: CaseFact }) {
+  // An empty string counts as missing: a row reading "Customer:" followed by
+  // nothing is the blank stare this panel exists to avoid.
+  const isMissing = fact.value === null || fact.value === undefined || fact.value === "";
+
+  return (
+    <div>
+      <Text as="dt" variant="bodyXs" tone="subdued">
+        {fact.label}
+      </Text>
+      <Text as="dd" variant="bodySm">
+        {isMissing ? (
+          <Text as="span" variant="bodySm" tone="subdued">
+            Not available
+          </Text>
+        ) : (
+          fact.value
+        )}
+      </Text>
+      {isMissing && fact.missingReason ? (
+        <Text as="dd" variant="bodyXs" tone="subdued">
+          {fact.missingReason}
+        </Text>
+      ) : null}
+      {!isMissing && fact.note ? (
+        <Text as="dd" variant="bodyXs" tone="subdued">
+          {fact.note}
+        </Text>
+      ) : null}
+    </div>
+  );
+}
+
+type CaseFactsRailProps = {
+  dispute: DisputeDetailView;
+  fields: EvidenceFieldState[];
+  adminOrderUrl: string | null;
+  now: number | null;
+};
+
+/**
+ * The reference panel: everything a merchant checks while writing, and nothing
+ * they act on. Sticky on wide screens, stacked underneath the work on narrow
+ * ones - reference below the thing it informs is still useful; reference above
+ * it is just a wall between the merchant and the form.
+ */
+function CaseFactsRail({ dispute, fields, adminOrderUrl, now }: CaseFactsRailProps) {
+  const summary = (dispute.orderSummary ?? null) as OrderSummaryWithLogistics | null;
+  const orderCurrency = summary?.currencyCode ?? dispute.currencyCode;
+
+  const orderName = summary?.orderName ?? null;
+  const orderText = orderReference(orderName, dispute.shopifyOrderId);
+  const hasOrder = Boolean(orderName) || Boolean(dispute.shopifyOrderId);
+
+  // Customer details and the shipping address reach this page through the
+  // evidence fields (drafted from the order snapshot) before they reach
+  // `orderSummary`, so both sources are read, order-summary first.
+  const draftedName = [fieldValue(fields, "customerFirstName"), fieldValue(fields, "customerLastName")]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  const customerName = summary?.customerName?.trim() || draftedName || null;
+  const customerEmail = summary?.customerEmail?.trim() || fieldValue(fields, "customerEmailAddress");
+  const shippingAddress = summary?.shippingAddress ?? fieldValue(fields, "shippingAddress");
+
+  const trackingList = (summary?.trackingSummaries ?? summary?.trackingNumbers ?? []).filter(
+    (entry): entry is string => Boolean(entry && entry.trim())
+  );
+  const hasShippingEvidence = dispute.evidenceItems.some((item) =>
+    SHIPPING_EVIDENCE_CATEGORIES.has(item.category)
+  );
+
+  const protectedDataReason =
+    "Shopify has not shared customer details for this order. Protected customer data access is usually the reason.";
+
+  const facts: CaseFact[] = [
+    {
+      label: "Order",
+      value: hasOrder ? (
+        adminOrderUrl ? (
+          <a className="table-link" href={adminOrderUrl} rel="noreferrer" target="_blank">
+            {`${orderText} — open in Shopify Admin`}
+          </a>
+        ) : (
+          orderText
+        )
+      ) : null,
+      note: orderReferenceNote(orderName, dispute.shopifyOrderId),
+      missingReason: "No order is linked to this dispute yet, so there is nothing to open in Admin."
+    },
+    {
+      label: "Customer",
+      value: customerName,
+      missingReason: protectedDataReason
+    },
+    {
+      label: "Email",
+      value: customerEmail,
+      missingReason: protectedDataReason
+    },
+    {
+      label: "Shipping address",
+      value: shippingAddress,
+      missingReason: "No shipping address on the order sync. Digital and in-store orders never have one."
+    },
+    {
+      label: "Order total",
+      value: summary?.orderTotal ? formatMoney(summary.orderTotal, orderCurrency) : null,
+      missingReason: "The order has not synced far enough to carry its total."
+    },
+    {
+      label: "Disputed amount",
+      value: formatMoney(dispute.amount, dispute.currencyCode)
+    },
+    {
+      label: "Fulfilment status",
+      value: summary?.fulfillmentStatus ? humanise(summary.fulfillmentStatus) : null,
+      missingReason: "Shopify has not reported a fulfilment status for this order."
+    },
+    {
+      label: "Tracking",
+      value:
+        trackingList.length > 0 ? (
+          <BlockStack gap="050">
+            {trackingList.map((entry) => (
+              <Text as="span" key={entry} variant="bodySm">
+                {entry}
+              </Text>
+            ))}
+          </BlockStack>
+        ) : null,
+      missingReason: hasShippingEvidence
+        ? "No tracking number came through the order sync, but a shipping document is attached to this case."
+        : "No tracking number on the order sync. Add the carrier and number in the response if you have it."
+    },
+    {
+      label: "Reason given",
+      value: getReasonProfile(dispute.reason).label
+    }
+  ];
+
+  return (
+    <Card>
+      <BlockStack gap="300">
+        <InlineStack align="space-between" blockAlign="center" gap="200" wrap>
+          <Text as="h2" id="case-facts-heading" variant="headingSm">
+            Case facts
+          </Text>
+          <Badge tone={statusTone(dispute.status)}>{dispute.status.replaceAll("_", " ")}</Badge>
+        </InlineStack>
+
+        <BlockStack gap="100">
+          <Text as="p" variant="bodyXs" tone="subdued">
+            Shopify submits for you
+          </Text>
+          <DeadlineBadge dueBy={dispute.evidenceDueBy} now={now} />
+        </BlockStack>
+
+        <Divider />
+
+        <dl className="case-facts">
+          {facts.map((fact) => (
+            <CaseFactRow fact={fact} key={fact.label} />
+          ))}
+        </dl>
+      </BlockStack>
+    </Card>
+  );
+}
+
 /**
  * One tab, because there is one thing here that is not the response: the record
- * of the case. It stays a tab rather than becoming another card so the builder
- * keeps the top of the page to itself.
+ * of the case. It stays a tab rather than becoming another card so the work and
+ * the reference rail keep the top of the page to themselves.
  */
 const TABS = [{ id: "case-and-history", content: "Case and history", panelID: "case-and-history-panel" }];
 
@@ -123,8 +339,8 @@ export function DisputePageShell({
   const disputesUrl = `/disputes${embeddedQuery ? `?${embeddedQuery}` : ""}`;
   const evidenceUrl = `/evidence${embeddedQuery ? `?${embeddedQuery}` : ""}`;
   const packetUrl = `/packets/${dispute.id}${embeddedQuery ? `?${embeddedQuery}` : ""}`;
-  const adminDisputeUrl =
-    shopifyAdminOrderUrl(shopDomain, dispute.shopifyOrderId) ?? shopifyAdminOrdersUrl(shopDomain);
+  const adminOrderUrl = shopifyAdminOrderUrl(shopDomain, dispute.shopifyOrderId);
+  const adminDisputeUrl = adminOrderUrl ?? shopifyAdminOrdersUrl(shopDomain);
   const recordedSubmissionAt = dispute.latestPacket?.submittedAt ?? dispute.evidenceSentOn ?? null;
   const disputeAmount = formatMoney(dispute.amount, dispute.currencyCode);
   const gapInsights = buildEvidenceGapInsights(dispute);
@@ -180,7 +396,13 @@ export function DisputePageShell({
     [dispute.reason, dispute.currencyCode, dispute.orderSummary]
   );
 
-  const fields = evidenceFields ?? fallbackFields;
+  /**
+   * Prefer the explicit prop, then the states the detail view already carries
+   * (drafted server-side from the full order snapshot, so they hold the
+   * shipping address the rail wants), and only then the local draft.
+   */
+  const fields =
+    evidenceFields ?? (dispute.evidenceFields?.length ? dispute.evidenceFields : fallbackFields);
 
   const evidenceFileRefs: EvidenceFileRef[] = useMemo(
     () =>
@@ -255,174 +477,170 @@ export function DisputePageShell({
           </Banner>
         ) : null}
 
-        <DisputeStrategyCard strategy={dispute.strategy} />
-
-        <ShopifySubmissionNotice
-          shopDomain={shopDomain}
-          shopifyDisputeId={dispute.shopifyDisputeId}
-          shopifyOrderId={dispute.shopifyOrderId}
-          recordedAt={recordedSubmissionAt}
-        />
-
-        <ResponseBuilder
-          amount={dispute.amount}
-          currencyCode={dispute.currencyCode}
-          disputeId={dispute.id}
-          evidenceDueBy={dispute.evidenceDueBy}
-          evidenceFields={fields}
-          evidenceItems={evidenceFileRefs}
-          gaps={gapInsights}
-          locked={isLocked}
-          reason={dispute.reason}
-          shopDomain={shopDomain}
-          shopifyOrderId={dispute.shopifyOrderId}
-        />
-
-        <DisputeResponseDraft
-          disputeId={dispute.id}
-          initialAssessment={packageAssessment}
-          initialDraft={responseDraft}
-        />
-
-        <Card>
+        {/*
+          `alignItems="start"` is what makes the rail stick: a stretched grid
+          item is as tall as the row, and a sticky box inside something already
+          the height of its scroll container never moves. On xs the grid is one
+          column and the rail falls below the work, which is the right order -
+          the merchant meets the form before the footnotes.
+        */}
+        <InlineGrid alignItems="start" columns={{ xs: 1, md: ["twoThirds", "oneThird"] }} gap="400">
           <BlockStack gap="400">
-            <BlockStack gap="100">
-              <Text as="h2" variant="headingMd">
-                Packet and submission
-              </Text>
-              <Text as="p" variant="bodySm" tone="subdued">
-                The packet is an internal record and a download for your files. The response above is what
-                Shopify&rsquo;s form actually asks for.
-              </Text>
-            </BlockStack>
+            <DisputeStrategyCard strategy={dispute.strategy} />
 
-            <InlineStack gap="300" wrap>
-              <Link className="table-link" href={packetUrl as never}>
-                Open packet preview
-              </Link>
-              {dispute.latestPacket ? (
-                <a
-                  className="table-link"
-                  href={`/api/disputes/${dispute.id}/packet/download`}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  Download current packet
-                </a>
-              ) : null}
-            </InlineStack>
+            <ShopifySubmissionNotice
+              shopDomain={shopDomain}
+              shopifyDisputeId={dispute.shopifyDisputeId}
+              shopifyOrderId={dispute.shopifyOrderId}
+              recordedAt={recordedSubmissionAt}
+            />
 
-            {isLocked ? null : (
-              <InlineStack>
-                <GeneratePacketButton disputeId={dispute.id} />
-              </InlineStack>
-            )}
+            <ResponseBuilder
+              amount={dispute.amount}
+              currencyCode={dispute.currencyCode}
+              disputeId={dispute.id}
+              evidenceDueBy={dispute.evidenceDueBy}
+              evidenceFields={fields}
+              evidenceItems={evidenceFileRefs}
+              gaps={gapInsights}
+              locked={isLocked}
+              reason={dispute.reason}
+              shopDomain={shopDomain}
+              shopifyOrderId={dispute.shopifyOrderId}
+            />
 
-            <PacketQualityPanel review={packetReview} />
+            <DisputeResponseDraft
+              disputeId={dispute.id}
+              initialAssessment={packageAssessment}
+              initialDraft={responseDraft}
+            />
 
-            <Divider />
-
-            <div id="record-submission" ref={submissionSectionRef} tabIndex={-1}>
-              <BlockStack gap="200">
-                <Text as="h3" variant="headingSm">
-                  Record submission
-                </Text>
-                {isLocked ? (
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    {recordedSubmissionAt
-                      ? `Recorded as sent on ${formatDate(recordedSubmissionAt)}. This case is closed, so there is nothing left to record.`
-                      : "This case is closed, so there is nothing left to record."}
+            <Card>
+              <BlockStack gap="400">
+                <BlockStack gap="100">
+                  <Text as="h2" variant="headingMd">
+                    Packet and submission
                   </Text>
-                ) : (
-                  <SubmissionCenter
-                    disputeId={dispute.id}
-                    evidenceSentOn={dispute.evidenceSentOn}
-                    packetReady={packetReview.status !== "blocked" && Boolean(dispute.latestPacket)}
-                    packetStatus={dispute.latestPacket?.status ?? null}
-                    shopDomain={shopDomain}
-                    shopifyDisputeId={dispute.shopifyDisputeId}
-                    shopifyOrderId={dispute.shopifyOrderId}
-                    submittedAt={dispute.latestPacket?.submittedAt ?? null}
-                  />
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    The packet is an internal record and a download for your files. The response above is what
+                    Shopify&rsquo;s form actually asks for.
+                  </Text>
+                </BlockStack>
+
+                <InlineStack gap="300" wrap>
+                  <Link className="table-link" href={packetUrl as never}>
+                    Open packet preview
+                  </Link>
+                  {dispute.latestPacket ? (
+                    <a
+                      className="table-link"
+                      href={`/api/disputes/${dispute.id}/packet/download`}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      Download current packet
+                    </a>
+                  ) : null}
+                </InlineStack>
+
+                {isLocked ? null : (
+                  <InlineStack>
+                    <GeneratePacketButton disputeId={dispute.id} />
+                  </InlineStack>
                 )}
+
+                <PacketQualityPanel review={packetReview} />
+
+                <Divider />
+
+                <div id="record-submission" ref={submissionSectionRef} tabIndex={-1}>
+                  <BlockStack gap="200">
+                    <Text as="h3" variant="headingSm">
+                      Record submission
+                    </Text>
+                    {isLocked ? (
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        {recordedSubmissionAt
+                          ? `Recorded as sent on ${formatDate(recordedSubmissionAt)}. This case is closed, so there is nothing left to record.`
+                          : "This case is closed, so there is nothing left to record."}
+                      </Text>
+                    ) : (
+                      <SubmissionCenter
+                        disputeId={dispute.id}
+                        evidenceSentOn={dispute.evidenceSentOn}
+                        packetReady={packetReview.status !== "blocked" && Boolean(dispute.latestPacket)}
+                        packetStatus={dispute.latestPacket?.status ?? null}
+                        shopDomain={shopDomain}
+                        shopifyDisputeId={dispute.shopifyDisputeId}
+                        shopifyOrderId={dispute.shopifyOrderId}
+                        submittedAt={dispute.latestPacket?.submittedAt ?? null}
+                      />
+                    )}
+                  </BlockStack>
+                </div>
               </BlockStack>
-            </div>
+            </Card>
           </BlockStack>
-        </Card>
+
+          {/*
+            `tabIndex={0}` because the rail can become its own scroll container
+            on a short window: a scrollable region with no focusable child is
+            unreachable by keyboard in browsers that do not focus scrollers
+            automatically. It is one extra stop on a labelled landmark, and it
+            traps nothing - tab moves straight through into the page.
+          */}
+          <aside aria-labelledby="case-facts-heading" className="case-rail" tabIndex={0}>
+            <CaseFactsRail
+              adminOrderUrl={adminOrderUrl}
+              dispute={dispute}
+              fields={fields}
+              now={now}
+            />
+          </aside>
+        </InlineGrid>
 
         <Card padding="0">
           <Tabs onSelect={setSelectedTab} selected={selectedTab} tabs={TABS}>
             <Box padding="400">
               <BlockStack gap="400">
-                <BlockStack gap="200">
-                  <InlineStack gap="200" blockAlign="center" wrap>
-                    <Badge tone={statusTone(dispute.status)}>{dispute.status.replaceAll("_", " ")}</Badge>
-                    <Badge>
-                      {dispute.evidenceDueBy
-                        ? `Shopify sends ${formatDate(dispute.evidenceDueBy)}`
-                        : "No auto-submit date"}
-                    </Badge>
-                    <DeadlineBadge dueBy={dispute.evidenceDueBy} now={now} layout="inline" />
-                  </InlineStack>
+                {/*
+                  The order and payment tables that used to open this panel are
+                  gone: every figure in them is in the rail, next to the fields
+                  that need it. What is left here is the record - what the
+                  issuer said, what proof exists, what happened when.
+                */}
+                <BlockStack gap="100">
                   <Text as="h2" variant="headingMd">
-                    Case details
+                    Why the issuer says the charge is disputed
                   </Text>
                   <Text as="p" variant="bodyMd" tone="subdued">
                     {dispute.reasonDetails ?? "No additional issuer context is available yet."}
                   </Text>
                 </BlockStack>
 
-                <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
-                  <BlockStack gap="200">
-                    <Text as="h3" variant="headingSm">
-                      Order
-                    </Text>
-                    <DataTable
-                      columnContentTypes={["text", "text"]}
-                      headings={["Field", "Value"]}
-                      rows={[
-                        ["Order", dispute.orderSummary?.orderName ?? "Unavailable"],
-                        [
-                          "Order amount",
-                          dispute.orderSummary?.orderTotal
-                            ? formatMoney(
-                                dispute.orderSummary.orderTotal,
-                                dispute.orderSummary.currencyCode ?? dispute.currencyCode
-                              )
-                            : "Unavailable"
-                        ],
-                        ["Customer", dispute.orderSummary?.customerName ?? "Unavailable"],
-                        ["Email", dispute.orderSummary?.customerEmail ?? "Unavailable"],
-                        ["Fulfillment status", dispute.orderSummary?.fulfillmentStatus ?? "Unavailable"]
-                      ]}
-                    />
-                  </BlockStack>
-
-                  <BlockStack gap="200">
-                    <Text as="h3" variant="headingSm">
-                      Payment and refunds
-                    </Text>
-                    <DataTable
-                      columnContentTypes={["text", "text"]}
-                      headings={["Field", "Value"]}
-                      rows={[
-                        ["Disputed amount", disputeAmount],
-                        [
-                          "Refund proof",
-                          dispute.evidenceItems.some((item) => item.category === "REFUND_PROOF")
-                            ? "Present"
-                            : "Not linked"
-                        ],
-                        ["Delivery evidence", readyEvidence > 0 ? "Present in evidence record" : "Not yet linked"],
-                        ["Packet status", dispute.latestPacket?.status ?? "Not generated"],
-                        [
-                          "Missing evidence categories",
-                          String(dispute.evidenceChecklist.length - readyEvidence)
-                        ]
-                      ]}
-                    />
-                  </BlockStack>
-                </InlineGrid>
+                <BlockStack gap="200">
+                  <Text as="h3" variant="headingSm">
+                    Proof and packet
+                  </Text>
+                  <DataTable
+                    columnContentTypes={["text", "text"]}
+                    headings={["Field", "Value"]}
+                    rows={[
+                      [
+                        "Refund proof",
+                        dispute.evidenceItems.some((item) => item.category === "REFUND_PROOF")
+                          ? "Present"
+                          : "Not linked"
+                      ],
+                      ["Delivery evidence", readyEvidence > 0 ? "Present in evidence record" : "Not yet linked"],
+                      ["Packet status", dispute.latestPacket?.status ?? "Not generated"],
+                      [
+                        "Missing evidence categories",
+                        String(dispute.evidenceChecklist.length - readyEvidence)
+                      ]
+                    ]}
+                  />
+                </BlockStack>
 
                 <BlockStack gap="150">
                   <Text as="h3" variant="headingSm">
