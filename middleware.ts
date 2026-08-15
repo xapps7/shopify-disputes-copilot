@@ -27,6 +27,8 @@ export const config = {
  * every shop." A wildcard is explicitly disallowed and is a documented
  * rejection reason, so it is set per request rather than in next.config.
  */
+const SHOP_DOMAIN_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
+
 function withFrameAncestors(response: NextResponse, shopDomain: string | null) {
   const ancestors = shopDomain
     ? `https://${shopDomain} https://admin.shopify.com`
@@ -57,15 +59,23 @@ function isDocumentRequest(request: NextRequest) {
 export async function middleware(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
 
-  // Webhooks authenticate by HMAC. The OAuth routes are the legacy bootstrap
-  // path, kept as a rollback. The bounce page is what we redirect TO, so
-  // bouncing it would be a loop with no exit.
-  if (
-    pathname.startsWith("/api/webhooks") ||
-    pathname.startsWith("/api/auth") ||
-    pathname === BOUNCE_PATH
-  ) {
+  // Webhooks authenticate by HMAC; the OAuth routes are the legacy bootstrap
+  // path, kept as a rollback. Neither is framed, so neither needs a CSP.
+  if (pathname.startsWith("/api/webhooks") || pathname.startsWith("/api/auth")) {
     return NextResponse.next();
+  }
+
+  // The bounce page is what we redirect TO, so bouncing it would be a loop with
+  // no exit. It still renders inside the admin iframe, though, so it needs the
+  // per-shop frame-ancestors like every other page - Shopify's automated review
+  // checks for it, and without it the page falls back to being framable by
+  // anyone. The shop here is read from the query string and used for NOTHING
+  // but this header: no identity, no data access, so an attacker forging it
+  // only narrows the framing rules in their own browser.
+  if (pathname === BOUNCE_PATH) {
+    const claimed = searchParams.get("shop");
+    const shopForCsp = claimed && SHOP_DOMAIN_PATTERN.test(claimed) ? claimed : null;
+    return withFrameAncestors(NextResponse.next(), shopForCsp);
   }
 
   const cookieShop = await readSessionCookieValue(
