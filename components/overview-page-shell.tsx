@@ -5,330 +5,411 @@ import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Badge,
+  Banner,
   BlockStack,
   Box,
+  Button,
   Card,
   Divider,
   EmptyState,
-  IndexTable,
+  InlineGrid,
   InlineStack,
   Text
 } from "@shopify/polaris";
 
 import { AdminPageLayout } from "@/components/admin-page-layout";
-import { DeadlineBadge, describeAutoSubmit, useNow } from "@/components/deadline-badge";
+import { DeadlineBadge, useNow } from "@/components/deadline-badge";
 import { EMPTY_STATE_IMAGE } from "@/components/empty-state-image";
 import { orderReference } from "@/components/order-label";
 import { SyncStatusBanner, useDisputeSync } from "@/components/sync-status";
-import { getReasonProfile } from "@/lib/disputes/reason-codes";
-import { formatCurrencyTotals, formatMoney, sumByCurrency } from "@/lib/format/money";
-import { formatDate } from "@/lib/format/date";
-import type { DashboardDispute, OverviewMetricsView, PreventionRecommendationView } from "@/lib/types";
+import { describeConfidence } from "@/lib/economics/win-probability";
+import { formatMoney } from "@/lib/format/money";
+import { formatDateTime } from "@/lib/format/date";
+import type { TodayView } from "@/lib/disputes/today";
 
 /**
- * "What needs you today", not a dashboard.
+ * Today answers three questions the dispute queue structurally cannot:
+ * what changed while you were gone, what is the one thing to do now, and how
+ * much of the money in play is actually gettable.
  *
- * A merchant opening this app has exactly one question: what needs me? A table
- * answers that at a glance; a stack of cards makes them read three headlines
- * before they can see a single case. So the queue leads, full width, directly
- * under the title, with the disputes Shopify is about to answer for banded to
- * the top of it.
+ * It contains NO rows from the queue. The previous version rendered the first
+ * eight rows of /disputes above a strip of counts, which is why the two screens
+ * were indistinguishable - every figure on it could be counted off the table
+ * directly beneath it. Stephen Few's test for whether a summary earns its place
+ * is whether it CONSOLIDATES; a count of rows sitting above those rows does not.
  *
- * The counts that used to occupy two large cards are one thin strip. They are
- * context for the table, not a destination - nobody has ever done anything
- * differently because a number was rendered at 32px instead of 16px.
+ * The structure follows the epicenter: the single most consequential decision
+ * available right now leads, at full width. Everything else is context for it.
  */
 
-type OverviewDispute = DashboardDispute & { orderName?: string | null };
-
 type OverviewPageShellProps = {
-  metrics: OverviewMetricsView;
-  recentDisputes: OverviewDispute[];
-  recommendations: PreventionRecommendationView[];
+  today: TodayView;
 };
 
-const CLOSED_STATUSES = new Set(["WON", "LOST", "ACCEPTED", "CLOSED", "CHARGE_REFUNDED"]);
-
-/** The queue here is a preview; the full list lives on Disputes. */
-const MAX_ROWS = 8;
-
-function toTimestamp(value: string | null): number {
-  if (!value) {
-    return Number.POSITIVE_INFINITY;
+function relativeTime(iso: string | null, now: number | null): string | null {
+  if (!iso || now === null) {
+    return null;
   }
-  const parsed = new Date(value).getTime();
-  return Number.isNaN(parsed) ? Number.POSITIVE_INFINITY : parsed;
+
+  const minutes = Math.round((now - new Date(iso).getTime()) / 60_000);
+  if (!Number.isFinite(minutes) || minutes < 0) return "just now";
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
-function readinessLabel(score: number): { label: string; tone: "success" | "warning" | "critical" } {
-  if (score >= 75) return { label: `Ready · ${score}%`, tone: "success" };
-  if (score >= 50) return { label: `Half built · ${score}%`, tone: "warning" };
-  return { label: `Thin · ${score}%`, tone: "critical" };
-}
-
-/** One figure in the strip. Label under value, both small - this is not a KPI wall. */
-function MetricCell({ label, value }: { label: string; value: string }) {
+/**
+ * A figure that earns its place: a value, and the comparative that makes it
+ * mean something. Few's second pitfall is stating a number with no context -
+ * "compared to what? Is this good or bad?"
+ */
+function Measure({
+  label,
+  value,
+  context,
+  tone
+}: {
+  label: string;
+  value: string;
+  context: string;
+  tone?: "critical" | "success" | "subdued";
+}) {
   return (
-    <BlockStack gap="050">
-      <Text as="p" variant="headingMd">
+    <BlockStack gap="100">
+      <Text as="p" variant="bodySm" tone="subdued">
+        {label}
+      </Text>
+      <Text as="p" variant="headingLg" tone={tone === "subdued" ? "subdued" : tone}>
         {value}
       </Text>
-      <Text as="p" variant="bodyXs" tone="subdued">
-        {label}
+      <Text as="p" variant="bodySm" tone="subdued">
+        {context}
       </Text>
     </BlockStack>
   );
 }
 
-export function OverviewPageShell({ metrics, recentDisputes, recommendations }: OverviewPageShellProps) {
+export function OverviewPageShell({ today }: OverviewPageShellProps) {
   const searchParams = useSearchParams();
   const now = useNow();
   const { isSyncing, result: syncResult, runSync } = useDisputeSync();
+
   const embeddedQuery = searchParams.toString();
-  const disputesUrl = `/disputes${embeddedQuery ? `?${embeddedQuery}` : ""}`;
-  const evidenceUrl = `/evidence${embeddedQuery ? `?${embeddedQuery}` : ""}`;
-  const disputeUrl = (id: string) => `/disputes/${id}${embeddedQuery ? `?${embeddedQuery}` : ""}`;
+  const withQuery = (path: string) => `${path}${embeddedQuery ? `?${embeddedQuery}` : ""}`;
+  const stageUrl = (stage: string) =>
+    `/disputes${embeddedQuery ? `?${embeddedQuery}&stage=${stage}` : `?stage=${stage}`}`;
 
-  /** Soonest auto-submit first — the only order that matters here. */
-  const openDisputes = useMemo(
+  const syncedLabel = relativeTime(today.lastSyncedAt, now);
+
+  const primaryTotals = today.portfolio[0] ?? null;
+  const atRisk = useMemo(
     () =>
-      recentDisputes
-        .filter((dispute) => !CLOSED_STATUSES.has(dispute.status))
-        .sort((a, b) => toTimestamp(a.evidenceDueBy) - toTimestamp(b.evidenceDueBy)),
-    [recentDisputes]
+      today.portfolio.length === 0
+        ? null
+        : today.portfolio
+            .map((entry) => formatMoney(entry.atRisk, entry.currencyCode))
+            .join(" + "),
+    [today.portfolio]
+  );
+  const recoverable = useMemo(
+    () =>
+      today.portfolio.length === 0
+        ? null
+        : today.portfolio
+            .map((entry) => formatMoney(entry.recoverable, entry.currencyCode))
+            .join(" + "),
+    [today.portfolio]
   );
 
-  const urgent = useMemo(
-    () =>
-      now === null
-        ? []
-        : openDisputes.filter((dispute) => describeAutoSubmit(dispute.evidenceDueBy, now).isUrgent),
-    [now, openDisputes]
-  );
+  const worthFighting = today.portfolio.reduce((sum, entry) => sum + entry.worthFighting, 0);
+  const openCount = today.portfolio.reduce((sum, entry) => sum + entry.count, 0);
 
-  const urgentIds = useMemo(() => new Set(urgent.map((dispute) => dispute.id)), [urgent]);
-  const rest = useMemo(() => openDisputes.filter((dispute) => !urgentIds.has(dispute.id)), [openDisputes, urgentIds]);
-
-  // Mixed currencies are never added together: "$1,240.00 + €310.00" is the
-  // only honest way to state a total across them.
-  const totalAtRisk = useMemo(() => formatCurrencyTotals(sumByCurrency(openDisputes)), [openDisputes]);
-  const urgentAtRisk = useMemo(() => formatCurrencyTotals(sumByCurrency(urgent)), [urgent]);
-
-  const nextDeadline = openDisputes.find((dispute) => dispute.evidenceDueBy) ?? null;
-
-  /**
-   * Two bands, urgent first, so the rows Shopify is about to answer for cannot
-   * be scrolled past. Pre-mount there is no clock, so everything sits in one
-   * neutral band rather than being labelled with an urgency nobody has measured
-   * yet — the same approach the dispute queue takes.
-   */
-  const bands = useMemo(() => {
-    if (now === null) {
-      return [
-        {
-          key: "open",
-          title: "Open disputes",
-          description: "Soonest auto-submit first.",
-          rows: openDisputes.slice(0, MAX_ROWS)
-        }
-      ];
-    }
-
-    const urgentRows = urgent.slice(0, MAX_ROWS);
-    const restRows = rest.slice(0, Math.max(0, MAX_ROWS - urgentRows.length));
-
-    return [
-      {
-        key: "urgent",
-        title: "Needs you today · auto-submits within 48 hours",
-        description: `${urgentAtRisk} at risk. Shopify submits whatever it holds on these.`,
-        rows: urgentRows
-      },
-      {
-        key: "later",
-        title: "Coming up",
-        description: "Time to build a real response.",
-        rows: restRows
-      }
-    ].filter((band) => band.rows.length > 0);
-  }, [now, openDisputes, rest, urgent, urgentAtRisk]);
-
-  const visibleCount = bands.reduce((total, band) => total + band.rows.length, 0);
-
-  /**
-   * Subheaders and data rows share one `position` sequence: Polaris uses it for
-   * focus order, so a gap or a repeat breaks keyboard navigation through the
-   * table.
-   */
-  const tableRows: React.ReactNode[] = [];
-  let position = 0;
-
-  for (const band of bands) {
-    tableRows.push(
-      <IndexTable.Row id={`band-${band.key}`} key={`band-${band.key}`} position={position} rowType="subheader">
-        <IndexTable.Cell as="th" colSpan={5} id={`band-heading-${band.key}`} scope="colgroup">
-          <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
-            <Text as="span" variant="headingSm">
-              {`${band.title} (${band.rows.length})`}
-            </Text>
-            <Text as="span" variant="bodySm" tone="subdued">
-              {band.description}
-            </Text>
-          </InlineStack>
-        </IndexTable.Cell>
-      </IndexTable.Row>
-    );
-    position += 1;
-
-    for (const dispute of band.rows) {
-      const readiness = readinessLabel(dispute.completenessScore);
-      const isUrgent = band.key === "urgent";
-
-      tableRows.push(
-        <IndexTable.Row id={dispute.id} key={dispute.id} position={position}>
-          <IndexTable.Cell>
-            <BlockStack gap="050">
-              <Link className="table-link" href={disputeUrl(dispute.id) as never}>
-                {orderReference(dispute.orderName, dispute.shopifyOrderId)}
-              </Link>
-              {/* The word, not just the tone: "urgent" has to survive greyscale. */}
-              {isUrgent ? (
-                <Text as="span" variant="bodyXs" tone="critical" fontWeight="medium">
-                  Needs you today
-                </Text>
-              ) : null}
-            </BlockStack>
-          </IndexTable.Cell>
-          <IndexTable.Cell>
-            <DeadlineBadge dueBy={dispute.evidenceDueBy} now={now} />
-          </IndexTable.Cell>
-          <IndexTable.Cell>{getReasonProfile(dispute.reason).label}</IndexTable.Cell>
-          <IndexTable.Cell>
-            <Text as="span" variant="bodyMd" fontWeight="medium">
-              {formatMoney(dispute.amount, dispute.currencyCode)}
-            </Text>
-          </IndexTable.Cell>
-          <IndexTable.Cell>
-            <Badge tone={readiness.tone}>{readiness.label}</Badge>
-          </IndexTable.Cell>
-        </IndexTable.Row>
-      );
-      position += 1;
-    }
-  }
+  const next = today.nextAction;
 
   return (
     <AdminPageLayout
-      title="Disputes Co-Pilot"
+      title="Today"
       subtitle="What Shopify is about to send on your behalf, and how long you have to change it."
-      primaryAction={{ content: "Open the dispute queue", url: disputesUrl }}
-      secondaryActions={[
-        { content: "Open evidence library", url: evidenceUrl },
-        { content: isSyncing ? "Syncing disputes..." : "Sync disputes", onAction: runSync, disabled: isSyncing }
-      ]}
-      gap="300"
+      primaryAction={{
+        content: isSyncing ? "Syncing…" : "Sync disputes",
+        onAction: runSync,
+        loading: isSyncing
+      }}
+      secondaryActions={[{ content: "Open the queue", url: "/disputes" }]}
+      gap="400"
     >
-      <BlockStack gap="300">
-        <SyncStatusBanner result={syncResult} />
+      <BlockStack gap="400">
+        {/*
+          Built for Shopify 4.2.3: "Your homepage should clearly indicate if the
+          app is set up and working." One line, not a card - this is a reassurance,
+          not a destination.
+        */}
+        <Text as="p" variant="bodySm" tone="subdued">
+          {[
+            syncedLabel ? `Synced ${syncedLabel}` : "Not synced yet",
+            `${today.totalTracked} dispute${today.totalTracked === 1 ? "" : "s"} tracked`,
+            today.awaitingYou > 0
+              ? `${today.awaitingYou} waiting on you`
+              : "nothing waiting on you"
+          ].join(" · ")}
+        </Text>
 
-        {openDisputes.length === 0 ? (
+        {/* One banner maximum, per BFS 4.3.4. Sync failure outranks everything. */}
+        {today.lastSyncError && !syncResult ? (
+          <Banner tone="warning" title="The last sync did not complete cleanly">
+            <p>{today.lastSyncError}</p>
+          </Banner>
+        ) : (
+          <SyncStatusBanner result={syncResult} />
+        )}
+
+        {/* ---------- The epicenter ---------- */}
+        {next ? (
+          <Card>
+            <BlockStack gap="400">
+              <InlineStack align="space-between" blockAlign="start" gap="400" wrap>
+                <BlockStack gap="100">
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Do this next
+                  </Text>
+                  <Text as="h2" variant="headingLg">
+                    {orderReference(next.orderName, next.shopifyOrderId)} ·{" "}
+                    {formatMoney(next.amount, next.currencyCode)}
+                  </Text>
+                  <InlineStack gap="200" blockAlign="center" wrap>
+                    <Badge>{next.reasonLabel}</Badge>
+                    <DeadlineBadge dueBy={next.evidenceDueBy} now={now} />
+                  </InlineStack>
+                </BlockStack>
+                <Button variant="primary" url={withQuery(`/disputes/${next.id}`)}>
+                  Build the response
+                </Button>
+              </InlineStack>
+
+              <Text as="p" variant="bodyMd">
+                {next.theQuestion}
+              </Text>
+
+              <Divider />
+
+              <InlineGrid columns={{ xs: 1, md: "1fr 1fr" }} gap="400">
+                <BlockStack gap="200">
+                  <Text as="h3" variant="headingSm">
+                    {next.strategy.headline}
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {`Estimated ${Math.round(next.strategy.win.probability * 100)}% chance of winning (${Math.round(
+                      next.strategy.win.low * 100
+                    )}–${Math.round(next.strategy.win.high * 100)}%). ${describeConfidence(next.strategy.win)}`}
+                  </Text>
+                  {next.strategy.reasons.slice(0, 2).map((reason) => (
+                    <Text as="p" variant="bodySm" key={reason}>
+                      {reason}
+                    </Text>
+                  ))}
+                </BlockStack>
+
+                <BlockStack gap="200">
+                  {/*
+                    Named gaps, not a percentage. Stripe's recommended_evidence
+                    does this and it is the best pattern in the category: "add a
+                    tracking number" is actionable in a way "40% complete" is not.
+                  */}
+                  <Text as="h3" variant="headingSm">
+                    {next.missingEvidence.length === 0
+                      ? "Nothing missing"
+                      : `Still missing (${next.missingEvidence.length})`}
+                  </Text>
+                  {next.missingEvidence.length === 0 ? (
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Every item this reason code needs is attached.
+                    </Text>
+                  ) : (
+                    <BlockStack gap="100">
+                      {next.missingEvidence.map((item) => (
+                        <Text as="p" variant="bodySm" key={item}>
+                          {`· ${item}`}
+                        </Text>
+                      ))}
+                    </BlockStack>
+                  )}
+                </BlockStack>
+              </InlineGrid>
+            </BlockStack>
+          </Card>
+        ) : today.totalTracked === 0 ? (
           <Card>
             <Box padding="400">
+              {/*
+                First-run, not no-results. GitLab separates these deliberately:
+                telling a merchant with 400 records to "create your first record"
+                is the classic bug from merging them.
+              */}
               <EmptyState
-                heading="No open disputes"
+                heading="No disputes yet"
                 image={EMPTY_STATE_IMAGE}
                 action={{ content: "Sync disputes", onAction: runSync, loading: isSyncing }}
               >
                 <p>
-                  Nothing is waiting on you. Shopify does not notify you when a chargeback opens, so sync
-                  regularly — the deadline clock starts without warning.
+                  Shopify does not notify you when a chargeback opens, and it answers on your behalf when the
+                  deadline passes. Syncing is what puts that deadline somewhere you can see it.
                 </p>
               </EmptyState>
             </Box>
           </Card>
         ) : (
-          <>
-            {/*
-              The strip. Three figures, one row, above the table because they
-              frame it: how much is exposed, how many cases, and how many of
-              them Shopify answers for inside two days.
-            */}
-            <Card padding="300">
-              <InlineStack align="start" blockAlign="center" gap="800" wrap>
-                <MetricCell label="Total at risk across open disputes" value={totalAtRisk} />
-                <MetricCell label="Open disputes" value={String(metrics.openDisputes)} />
-                <MetricCell
-                  label="Auto-submitting within 48 hours"
-                  value={now === null ? "—" : `${urgent.length}${urgent.length > 0 ? ` · ${urgentAtRisk}` : ""}`}
-                />
-              </InlineStack>
-            </Card>
-
-            <Card padding="0">
-              <Box padding="300" paddingInlineStart="400">
-                <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
-                  <Text as="h2" variant="headingMd">
-                    {now !== null && urgent.length > 0
-                      ? urgent.length === 1
-                        ? "1 dispute needs you today"
-                        : `${urgent.length} disputes need you today`
-                      : "Your queue, soonest auto-submit first"}
-                  </Text>
-                  <Link className="table-link" href={disputesUrl as never}>
-                    {openDisputes.length > visibleCount
-                      ? `View all ${openDisputes.length} disputes`
-                      : "View all disputes"}
-                  </Link>
-                </InlineStack>
-              </Box>
-              <Divider />
-
-              <IndexTable
-                headings={[
-                  { title: "Order" },
-                  { title: "Shopify sends" },
-                  { title: "Reason" },
-                  { title: "Amount at risk", alignment: "end" },
-                  { title: "Your response" }
-                ]}
-                itemCount={visibleCount}
-                selectable={false}
-              >
-                {tableRows}
-              </IndexTable>
-            </Card>
-
-            {now !== null && urgent.length === 0 ? (
-              <Text as="p" variant="bodySm" tone="subdued">
-                {nextDeadline
-                  ? `Nothing auto-submits in the next 48 hours. The soonest is ${orderReference(
-                      nextDeadline.orderName,
-                      nextDeadline.shopifyOrderId
-                    )} on ${formatDate(nextDeadline.evidenceDueBy, { fallback: "an unpublished date" })}.`
-                  : "Nothing auto-submits in the next 48 hours, and none of your open disputes has a published deadline yet."}
+          <Card>
+            <BlockStack gap="200">
+              <Text as="h2" variant="headingMd">
+                Nothing is waiting on you
               </Text>
-            ) : null}
-          </>
+              <Text as="p" variant="bodyMd" tone="subdued">
+                {today.nextDeadline
+                  ? `Every open dispute has had its response built. The next one Shopify sends is ${today.nextDeadline.orderLabel}, on ${formatDateTime(today.nextDeadline.evidenceDueBy, { fallback: "an unpublished date" })}.`
+                  : "Every open dispute has had its response built, and none of them has a published deadline yet."}
+              </Text>
+            </BlockStack>
+          </Card>
         )}
 
-        {recommendations.length > 0 ? (
-          <Card>
-            <BlockStack gap="150">
-              <Text as="h2" variant="headingSm">
-                Prevention insights
-              </Text>
-              {recommendations.slice(0, 2).map((item, index) => (
-                <Box key={item.id}>
-                  <BlockStack gap="050">
-                    <Text as="p" variant="bodySm" fontWeight="semibold">
-                      {item.category.replaceAll("_", " ")}
-                    </Text>
+        {/* ---------- Money and pipeline ---------- */}
+        {openCount > 0 || today.netRecovery.decidedCount > 0 ? (
+          <InlineGrid columns={{ xs: 1, md: "2fr 1fr" }} gap="400">
+            <Card>
+              <BlockStack gap="400">
+                <Text as="h2" variant="headingMd">
+                  The money
+                </Text>
+
+                <InlineGrid columns={{ xs: 1, sm: 2 }} gap="400">
+                  <Measure
+                    label="At risk right now"
+                    value={atRisk ?? "—"}
+                    context={`Across ${openCount} open dispute${openCount === 1 ? "" : "s"}.`}
+                  />
+                  <Measure
+                    label="Realistically recoverable"
+                    value={recoverable ?? "—"}
+                    context={
+                      worthFighting === 0
+                        ? "None of these are worth the fee and the effort."
+                        : `${worthFighting} of ${openCount} worth fighting, after fees and the odds.`
+                    }
+                    tone="success"
+                  />
+                </InlineGrid>
+
+                <Divider />
+
+                {/*
+                  Net recovery rate: money returned over money EVER disputed,
+                  including the cases nobody contested. The industry quotes win
+                  rate, which counts only the cases you chose to fight - 44.6%
+                  first-cycle against a net recovery of about 10.7%. Nobody in
+                  the category shows the honest one.
+                */}
+                <BlockStack gap="100">
+                  <Text as="h3" variant="headingSm">
+                    Net recovery rate
+                  </Text>
+                  {today.netRecovery.rate === null ? (
                     <Text as="p" variant="bodySm" tone="subdued">
-                      {item.recommendationText}
+                      {`${today.netRecovery.decidedCount} dispute${today.netRecovery.decidedCount === 1 ? "" : "s"} decided so far. This needs at least 10 before the number means anything, so it is withheld rather than shown as a confident figure built on nothing.`}
                     </Text>
-                  </BlockStack>
-                  {index < Math.min(recommendations.length, 2) - 1 ? <Divider /> : null}
-                </Box>
+                  ) : (
+                    <BlockStack gap="100">
+                      <Text as="p" variant="headingLg">
+                        {`${Math.round(today.netRecovery.rate * 100)}%`}
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        {`Of every ${formatMoney(100, today.netRecovery.disputedTotals[0]?.currencyCode ?? null)} disputed, you have kept ${formatMoney(
+                          Math.round(today.netRecovery.rate * 100),
+                          today.netRecovery.disputedTotals[0]?.currencyCode ?? null
+                        )}. This counts disputes nobody contested, so it runs well below a win rate — the published industry average is about 10%.`}
+                      </Text>
+                    </BlockStack>
+                  )}
+                </BlockStack>
+              </BlockStack>
+            </Card>
+
+            <Card>
+              <BlockStack gap="300">
+                <Text as="h2" variant="headingMd">
+                  Where the work is
+                </Text>
+
+                {/*
+                  Stage counts as doorways, not decoration. A tile that is not
+                  obviously a link into a filtered view emits no information
+                  scent and gets ignored.
+                */}
+                <BlockStack gap="0">
+                  {today.stages.map((stage, index) => (
+                    <Box key={stage.stage}>
+                      {index > 0 ? <Divider /> : null}
+                      <Box paddingBlock="200">
+                        <InlineStack align="space-between" blockAlign="center" gap="200">
+                          {stage.count > 0 ? (
+                            <Link className="table-link" href={stageUrl(stage.stage) as never}>
+                              {stage.label}
+                            </Link>
+                          ) : (
+                            <Text as="span" variant="bodyMd" tone="subdued">
+                              {stage.label}
+                            </Text>
+                          )}
+                          <Text
+                            as="span"
+                            variant="bodyMd"
+                            fontWeight={stage.actor === "merchant" && stage.count > 0 ? "semibold" : "regular"}
+                            tone={stage.count === 0 ? "subdued" : undefined}
+                          >
+                            {stage.count}
+                          </Text>
+                        </InlineStack>
+                      </Box>
+                    </Box>
+                  ))}
+                </BlockStack>
+
+                <Divider />
+
+                <BlockStack gap="100">
+                  <Text as="h3" variant="headingSm">
+                    Account health
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {`${today.disputesThisMonth} dispute${today.disputesThisMonth === 1 ? "" : "s"} opened this month. Winning a dispute recovers the money and does nothing to this ratio.`}
+                  </Text>
+                  <Link className="table-link" href={withQuery("/account-health") as never}>
+                    See the VAMP and ECM ratios
+                  </Link>
+                </BlockStack>
+              </BlockStack>
+            </Card>
+          </InlineGrid>
+        ) : null}
+
+        {/* ---------- Resumption ---------- */}
+        {today.changes.length > 0 ? (
+          <Card>
+            <BlockStack gap="200">
+              <Text as="h2" variant="headingSm">
+                {`Since you were last here`}
+              </Text>
+              {today.changes.map((change) => (
+                <Text as="p" variant="bodySm" key={`${change.kind}-${change.id}`}>
+                  <Link className="table-link" href={withQuery(`/disputes/${change.id}`) as never}>
+                    {change.label}
+                  </Link>
+                  {` ${change.detail}.`}
+                </Text>
               ))}
             </BlockStack>
           </Card>

@@ -24,6 +24,12 @@ import { DeadlineBadge, describeAutoSubmit, useNow, type AutoSubmitDescription }
 import { EMPTY_STATE_IMAGE } from "@/components/empty-state-image";
 import { orderReference } from "@/components/order-label";
 import { SyncStatusBanner, useDisputeSync } from "@/components/sync-status";
+import {
+  STAGE_META,
+  STAGE_ORDER,
+  resolveStage,
+  type DisputeStage
+} from "@/lib/disputes/lifecycle";
 import { getReasonProfile } from "@/lib/disputes/reason-codes";
 import { formatCurrencyTotals, formatMoney, sumByCurrency } from "@/lib/format/money";
 import type { DashboardDispute } from "@/lib/types";
@@ -98,6 +104,25 @@ const READINESS_FILTER_OPTIONS = [
   { label: READINESS_LABEL.thin, value: "thin" }
 ];
 
+/**
+ * Stage answers "what is owed on this", which the deadline bands do not.
+ * A dispute due tomorrow whose response is already built needs nothing; one due
+ * in three weeks with nothing attached needs work today. Without this column
+ * those two rows look identical.
+ */
+const STAGE_FILTER_OPTIONS = STAGE_ORDER.map((stage) => ({
+  label: STAGE_META[stage].label,
+  value: stage
+}));
+
+const STAGE_TONE: Record<DisputeStage, "critical" | "warning" | "success" | "info" | undefined> = {
+  NEW: "critical",
+  BUILDING: "warning",
+  READY: "success",
+  SUBMITTED: "info",
+  DECIDED: undefined
+};
+
 function readinessBucket(score: number): ReadinessBucket {
   if (score >= 75) return "ready";
   if (score >= 50) return "partial";
@@ -130,12 +155,13 @@ type QueueRow = {
   reasonLabel: string;
   order: string;
   readiness: ReadinessBucket;
+  stage: DisputeStage;
   disputeNumber: string;
 };
 
 /** Column indexes the table can be sorted by. */
 const DEADLINE_COLUMN = 1;
-const AMOUNT_COLUMN = 3;
+const AMOUNT_COLUMN = 4;
 
 /** Polaris does not re-export `IndexTableSortDirection`, so mirror it here. */
 type SortDirection = "ascending" | "descending";
@@ -150,6 +176,12 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
   const [queryValue, setQueryValue] = useState("");
   const [reasonFilter, setReasonFilter] = useState<string[]>([]);
   const [readinessFilter, setReadinessFilter] = useState<string[]>([]);
+  // Today links here with ?stage=NEW. Seeding state from the URL is what makes
+  // those counts doorways rather than decoration.
+  const [stageFilter, setStageFilter] = useState<string[]>(() => {
+    const requested = searchParams.get("stage");
+    return requested && (STAGE_ORDER as string[]).includes(requested) ? [requested] : [];
+  });
   const [sortColumnIndex, setSortColumnIndex] = useState(DEADLINE_COLUMN);
   const [sortDirection, setSortDirection] = useState<SortDirection>("ascending");
 
@@ -190,6 +222,12 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
           reasonLabel: getReasonProfile(dispute.reason).label,
           order: orderReference(dispute.orderName, dispute.shopifyOrderId),
           readiness: readinessBucket(dispute.completenessScore),
+          stage: resolveStage({
+            status: dispute.status,
+            evidenceSentOn: dispute.evidenceSentOn,
+            completenessScore: dispute.completenessScore,
+            hasEvidence: dispute.hasEvidence
+          }),
           disputeNumber: dispute.shopifyDisputeId.split("/").pop() ?? dispute.id
         };
       }),
@@ -259,6 +297,10 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
         return false;
       }
 
+      if (stageFilter.length > 0 && !stageFilter.includes(row.stage)) {
+        return false;
+      }
+
       return readinessFilter.length === 0 || readinessFilter.includes(row.readiness);
     });
 
@@ -277,7 +319,7 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
       }
       return b.amountValue - a.amountValue;
     });
-  }, [queryValue, readinessFilter, reasonFilter, rows, selectedTab, sortColumnIndex, sortDirection]);
+  }, [queryValue, readinessFilter, reasonFilter, rows, selectedTab, sortColumnIndex, sortDirection, stageFilter]);
 
   const groups = useMemo(
     () =>
@@ -303,6 +345,13 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
       onRemove: () => setReasonFilter([])
     });
   }
+  if (stageFilter.length > 0) {
+    appliedFilters.push({
+      key: "stage",
+      label: `Stage: ${stageFilter.map((value) => STAGE_META[value as DisputeStage]?.label ?? value).join(", ")}`,
+      onRemove: () => setStageFilter([])
+    });
+  }
   if (readinessFilter.length > 0) {
     appliedFilters.push({
       key: "readiness",
@@ -314,6 +363,21 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
   }
 
   const filters: IndexFiltersProps["filters"] = [
+    {
+      key: "stage",
+      label: "Stage",
+      filter: (
+        <ChoiceList
+          allowMultiple
+          choices={STAGE_FILTER_OPTIONS}
+          onChange={setStageFilter}
+          selected={stageFilter}
+          title="Stage"
+          titleHidden
+        />
+      ),
+      shortcut: true
+    },
     {
       key: "reason",
       label: "Reason",
@@ -350,10 +414,15 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
     setQueryValue("");
     setReasonFilter([]);
     setReadinessFilter([]);
+    setStageFilter([]);
   }
 
   const isNarrowed =
-    queryValue.trim().length > 0 || reasonFilter.length > 0 || readinessFilter.length > 0 || selectedTab !== 0;
+    queryValue.trim().length > 0 ||
+    reasonFilter.length > 0 ||
+    readinessFilter.length > 0 ||
+    stageFilter.length > 0 ||
+    selectedTab !== 0;
 
   /**
    * Subheaders and data rows share one `position` sequence: Polaris uses it for
@@ -366,7 +435,7 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
   for (const band of groups) {
     tableRows.push(
       <IndexTable.Row id={`band-${band.key}`} key={`band-${band.key}`} position={position} rowType="subheader">
-        <IndexTable.Cell as="th" colSpan={5} id={`band-heading-${band.key}`} scope="colgroup">
+        <IndexTable.Cell as="th" colSpan={6} id={`band-heading-${band.key}`} scope="colgroup">
           <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
             <Text as="span" variant="headingSm">
               {`${band.title} (${band.rows.length})`}
@@ -397,6 +466,13 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
           </IndexTable.Cell>
           <IndexTable.Cell>
             <DeadlineBadge dueBy={row.dispute.evidenceDueBy} now={now} />
+          </IndexTable.Cell>
+          <IndexTable.Cell>
+            {/*
+              Word plus tone, never tone alone: WCAG 1.4.1 is Level A and its
+              F81 failure covers exactly the "colour means overdue" case.
+            */}
+            <Badge tone={STAGE_TONE[row.stage]}>{STAGE_META[row.stage].label}</Badge>
           </IndexTable.Cell>
           <IndexTable.Cell>{row.reasonLabel}</IndexTable.Cell>
           <IndexTable.Cell>
@@ -496,13 +572,14 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
               headings={[
                 { title: "Order" },
                 { title: "Shopify sends" },
+                { title: "Stage" },
                 { title: "Reason" },
                 { title: "Amount at risk", alignment: "end" },
                 { title: "Your response" }
               ]}
               itemCount={visibleRows.length}
               selectable={false}
-              sortable={[false, true, false, true, false]}
+              sortable={[false, true, false, false, true, false]}
               sortColumnIndex={sortColumnIndex}
               sortDirection={sortDirection}
               defaultSortDirection="ascending"
@@ -546,17 +623,6 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
           )}
         </Card>
 
-        {/*
-          Only when the banner above is absent: with urgent disputes on screen
-          the banner has already said this, in stronger terms and about specific
-          money. Saying it twice on one screen makes both copies furniture.
-        */}
-        {urgentRows.length === 0 ? (
-          <Text as="p" variant="bodySm" tone="subdued">
-            Shopify Admin has no disputes screen and sends no deadline reminder. When a deadline passes, Shopify
-            submits a response using whatever it holds against the order — usually tracking data and nothing else.
-          </Text>
-        ) : null}
       </BlockStack>
     </AdminPageLayout>
   );

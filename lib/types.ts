@@ -12,6 +12,10 @@ export type DashboardDispute = {
   amount: string;
   currencyCode: string | null;
   evidenceDueBy: string | null;
+  /** Set once Shopify has a submission on record; the dispute is frozen after this. */
+  evidenceSentOn: string | null;
+  /** Any evidence at all - an uploaded file or a written field. */
+  hasEvidence: boolean;
   completenessScore: number;
 };
 

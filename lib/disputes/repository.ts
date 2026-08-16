@@ -187,7 +187,7 @@ async function fetchRecentOrderSummaries(
   );
 }
 
-function buildChecklist(rawReason: string | null, categories: Set<string>) {
+export function buildChecklist(rawReason: string | null, categories: Set<string>) {
   // Shopify's enum value is FRAUDULENT, not FRAUD. Comparing against "FRAUD"
   // meant this branch never ran and every fraud dispute got the generic list.
   const reason = normalizeReasonCode(rawReason);
@@ -342,6 +342,8 @@ export async function listDashboardDisputes(shopDomain?: string | null): Promise
       amount,
       currencyCode,
       evidenceDueBy: dispute.evidenceDueBy?.toISOString() ?? null,
+      evidenceSentOn: dispute.evidenceSentOn?.toISOString() ?? null,
+      hasEvidence: dispute.evidenceItems.length > 0 || Boolean(dispute.evidenceFieldsJson),
       // Coverage of the categories this reason code actually needs - the old
       // score was evidenceItems.length * 25, so four irrelevant uploads read
       // as fully ready.
