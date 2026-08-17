@@ -43,8 +43,11 @@ export function EvidenceLibraryPageShell({ items, disputeOptions }: EvidenceLibr
   return (
     <AdminPageLayout
       title="Evidence library"
-      subtitle="Search and organize uploaded files across disputes."
-      primaryAction={{ content: "View disputes", url: "/disputes" }}
+      subtitle="Every file attached to a dispute, searchable across all of them."
+      // "View disputes" was the primary action here: navigation dressed up as a
+      // page action, in the slot reserved for the most useful thing you can DO.
+      // Going back to the parent is a backAction.
+      backAction={{ content: "Disputes", url: "/disputes" }}
       gap="300"
     >
       {/*

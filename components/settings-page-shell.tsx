@@ -19,10 +19,6 @@ export function SettingsPageShell({ settings }: SettingsPageShellProps) {
     <AdminPageLayout
       title="Settings"
       subtitle="Configure merchant context used in evidence packets and dispute workflows."
-      // The evidence library came off the primary nav: it is a filing cabinet,
-      // not a destination. This is one of its two ways in - the other is the
-      // dispute that needs a file, where the slot takes the upload directly.
-      secondaryActions={[{ content: "Open evidence library", url: "/evidence" }]}
       mode="form"
       gap="400"
     >

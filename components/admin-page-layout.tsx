@@ -18,6 +18,11 @@ type AdminPageLayoutProps = {
   subtitle?: string;
   primaryAction?: PageAction;
   secondaryActions?: PageAction[];
+  /**
+   * Names the parent of a sub-page. Without it a page reached from elsewhere
+   * looks top-level, and the merchant has to guess which tab owns it.
+   */
+  backAction?: { content: string; url: string };
   banner?: React.ReactNode;
   mode?: "resource" | "form";
   gap?: "200" | "300" | "400" | "500" | "600";
@@ -29,6 +34,7 @@ export function AdminPageLayout({
   subtitle,
   primaryAction,
   secondaryActions,
+  backAction,
   banner,
   mode = "resource",
   gap = "500",
@@ -64,6 +70,9 @@ export function AdminPageLayout({
     <Page
       title={title}
       subtitle={subtitle}
+      backAction={
+        backAction ? { ...backAction, url: withEmbeddedParams(backAction.url) as string } : undefined
+      }
       primaryAction={resolvedPrimaryAction}
       secondaryActions={resolvedSecondaryActions}
     >

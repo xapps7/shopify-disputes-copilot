@@ -25,8 +25,11 @@ type AppShellProps = {
  * Recommendations, because prevention is ratio work - as a tab of its own
  * nobody visited it.
  *
- * Evidence library is off the primary nav: it is a filing cabinet, reached from
- * Settings or from the dispute that needs a file, not a place to go.
+ * Evidence library is off the primary nav - it is a filing cabinet, not a
+ * destination - but it belongs to Disputes, not Settings. Every row in it is
+ * attached to a dispute. It sat under Settings for a while, which meant the nav
+ * told a merchant browsing their own evidence that they were configuring the
+ * app.
  *
  * `matches` keeps a route that has no tab of its own highlighting the tab that
  * owns it, so the nav never claims the merchant is somewhere they are not, and
@@ -39,7 +42,12 @@ const NAV_ITEMS = [
     href: "/disputes",
     label: "Disputes",
     matches: (pathname: string) =>
-      pathname === "/disputes" || pathname.startsWith("/disputes/") || pathname.startsWith("/packets/")
+      pathname === "/disputes" ||
+      pathname.startsWith("/disputes/") ||
+      pathname.startsWith("/packets/") ||
+      // The evidence library is a cross-dispute view of dispute files.
+      pathname === "/evidence" ||
+      pathname.startsWith("/evidence/")
   },
   {
     href: "/account-health",
@@ -56,12 +64,7 @@ const NAV_ITEMS = [
     href: "/settings",
     label: "Settings",
     matches: (pathname: string) =>
-      pathname === "/settings" ||
-      pathname.startsWith("/settings/") ||
-      // The evidence library is reached from Settings, so it keeps that tab lit
-      // rather than leaving the nav pointing nowhere.
-      pathname === "/evidence" ||
-      pathname.startsWith("/evidence/")
+      pathname === "/settings" || pathname.startsWith("/settings/")
   }
   // `as const` keeps each href a literal, which is what Next's typed routes
   // check `router.push` against - a widened `string` fails that check.
