@@ -6,15 +6,13 @@ import {
   Badge,
   Banner,
   BlockStack,
-  Box,
+  Button,
   Card,
-  DataTable,
+  Collapsible,
   Divider,
   InlineGrid,
   InlineStack,
   Page,
-  ProgressBar,
-  Tabs,
   Text
 } from "@shopify/polaris";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -26,7 +24,6 @@ import type { EvidenceFileRef } from "@/components/evidence-file-slots";
 import { GeneratePacketButton } from "@/components/generate-packet-button";
 import { orderReference, orderReferenceNote } from "@/components/order-label";
 import { OutcomeReviewForm } from "@/components/outcome-review-form";
-import { PacketQualityPanel } from "@/components/packet-quality-panel";
 import { ResponseBuilder } from "@/components/response-builder";
 import { ShopifySubmissionNotice } from "@/components/shopify-submission-notice";
 import { SubmissionCenter } from "@/components/submission-center";
@@ -40,34 +37,36 @@ import {
   draftEvidenceFields,
   type EvidenceFieldState
 } from "@/lib/disputes/evidence-fields";
-import { assessPacketQuality, buildEvidenceGapInsights } from "@/lib/disputes/workflow";
+import { buildEvidenceGapInsights } from "@/lib/disputes/workflow";
 import type { AIPackageAssessmentView, DisputeDetailView, DisputeResponseDraftView } from "@/lib/types";
 
 /**
  * One screen, one job: write the response before Shopify answers for you.
  *
- * This page used to carry five tabs, then one very long column. Collapsing the
- * tabs fixed a navigation problem and created a scrolling one: the facts a
- * merchant needs *while writing* - who the customer is, where it shipped, what
- * the order was worth, when Shopify submits - ended up hundreds of pixels below
- * the fields they inform, so writing the response meant scrolling up and down
- * for every sentence.
+ * The page carried four separate readiness scores - key fields ready, evidence
+ * category coverage, packet quality, and an AI package score - with different
+ * denominators, and a line of copy explaining why two of them disagreed. A
+ * merchant cannot act on that, and cannot tell which one Shopify reads. Three
+ * are gone; the one that survives counts the fields Shopify's form actually has.
  *
- * So the page is two columns. The left is the work: the strategy, the hand-off
- * notice, the builder, the packet. The right is a sticky reference rail of case
- * facts - dense, no prose, never something you act on. Below both sits "Case
- * and history": the checklist, the timeline, the outcome. That is a record, not
- * reference, and records belong at the bottom.
+ * Also gone: an evidence checklist whose every item said "add this in the
+ * response above", pointing a thousand pixels back up the page at the slot that
+ * already takes the upload; a four-row table derivable from the list beneath it;
+ * and a Tabs control with one tab.
  *
- * Two of the original tabs stay gone: coaching renders against the slot it is
- * coaching inside the builder, and evidence uploads happen in the slot that
- * needs them rather than on a screen of their own.
+ * The research says consolidate rather than split. A merchant working a
+ * chargeback queue is a repeat professional, not someone filling one form once,
+ * and for that user a single grouped page beats a wizard (JMIR 2021: SUS 76 vs
+ * 67, and the shortest completion time). GOV.UK writes the same exception into
+ * its own one-thing-per-page rule.
+ *
+ * So: decide, write, send - three sections in the order the work happens, with
+ * a sticky rail of case facts beside them. The record is collapsed, because it
+ * is the only section holding no required field and nothing needed to finish.
  */
 
 type DisputePageShellProps = {
   dispute: DisputeDetailView;
-  readinessScore: number;
-  readyEvidence: number;
   responseDraft: DisputeResponseDraftView;
   packageAssessment: AIPackageAssessmentView;
   /**
@@ -111,10 +110,6 @@ function statusTone(status: string) {
   if (status === "WON") return "success" as const;
   if (status === "LOST" || status === "ACCEPTED") return "critical" as const;
   return "info" as const;
-}
-
-function categoryLabel(category: string) {
-  return category.replaceAll("_", " ").toLowerCase();
 }
 
 /** `PARTIALLY_FULFILLED` -> `Partially fulfilled`. */
@@ -313,17 +308,8 @@ function CaseFactsRail({ dispute, fields, adminOrderUrl, now }: CaseFactsRailPro
   );
 }
 
-/**
- * One tab, because there is one thing here that is not the response: the record
- * of the case. It stays a tab rather than becoming another card so the work and
- * the reference rail keep the top of the page to themselves.
- */
-const TABS = [{ id: "case-and-history", content: "Case and history", panelID: "case-and-history-panel" }];
-
 export function DisputePageShell({
   dispute,
-  readinessScore,
-  readyEvidence,
   responseDraft,
   packageAssessment,
   evidenceFields
@@ -332,24 +318,19 @@ export function DisputePageShell({
   const shopDomain = useShopDomain();
   const now = useNow();
   const submissionSectionRef = useRef<HTMLDivElement | null>(null);
-  const [selectedTab, setSelectedTab] = useState(0);
   const [pendingSubmissionFocus, setPendingSubmissionFocus] = useState(false);
+  const [recordOpen, setRecordOpen] = useState(false);
 
   const embeddedQuery = searchParams.toString();
   const disputesUrl = `/disputes${embeddedQuery ? `?${embeddedQuery}` : ""}`;
-  const evidenceUrl = `/evidence${embeddedQuery ? `?${embeddedQuery}` : ""}`;
   const packetUrl = `/packets/${dispute.id}${embeddedQuery ? `?${embeddedQuery}` : ""}`;
   const adminOrderUrl = shopifyAdminOrderUrl(shopDomain, dispute.shopifyOrderId);
   const adminDisputeUrl = adminOrderUrl ?? shopifyAdminOrdersUrl(shopDomain);
   const recordedSubmissionAt = dispute.latestPacket?.submittedAt ?? dispute.evidenceSentOn ?? null;
   const disputeAmount = formatMoney(dispute.amount, dispute.currencyCode);
   const gapInsights = buildEvidenceGapInsights(dispute);
-  const packetReview = assessPacketQuality(dispute);
   const isLocked = dispute.lock.locked;
 
-  // Record submission is a section on this page now, not a tab: the focus
-  // request still waits for an effect so the node is mounted and scrolled
-  // before it takes focus.
   useEffect(() => {
     if (!pendingSubmissionFocus) {
       return;
@@ -396,11 +377,6 @@ export function DisputePageShell({
     [dispute.reason, dispute.currencyCode, dispute.orderSummary]
   );
 
-  /**
-   * Prefer the explicit prop, then the states the detail view already carries
-   * (drafted server-side from the full order snapshot, so they hold the
-   * shipping address the rail wants), and only then the local draft.
-   */
   const fields =
     evidenceFields ?? (dispute.evidenceFields?.length ? dispute.evidenceFields : fallbackFields);
 
@@ -420,47 +396,31 @@ export function DisputePageShell({
     [dispute.evidenceItems]
   );
 
-  const evidenceByCategory = dispute.evidenceItems.reduce<Record<string, DisputeDetailView["evidenceItems"]>>(
-    (acc, item) => {
-      acc[item.category] = [...(acc[item.category] ?? []), item];
-      return acc;
-    },
-    {}
-  );
+  const orderTitle = orderReference(dispute.orderSummary?.orderName ?? null, dispute.shopifyOrderId);
 
   return (
     <Page
-      fullWidth
-      title={`Dispute ${dispute.shopifyDisputeId.split("/").pop()}`}
-      subtitle={`${(dispute.reason ?? "Unknown").replaceAll("_", " ")} · ${disputeAmount}`}
+      title={`${orderTitle} · ${disputeAmount}`}
+      subtitle={`${getReasonProfile(dispute.reason).label} · dispute ${dispute.shopifyDisputeId.split("/").pop()}`}
       backAction={{ content: "Disputes", url: disputesUrl }}
       primaryAction={
-        adminDisputeUrl
-          ? {
-              content: "Open in Shopify Admin",
-              url: adminDisputeUrl,
-              external: true
-            }
+        isLocked
+          ? undefined
           : {
               content: "Record submission",
               onAction: goToRecordSubmission
             }
       }
       secondaryActions={[
+        ...(adminDisputeUrl
+          ? [{ content: "Open order in Shopify Admin", url: adminDisputeUrl, external: true }]
+          : []),
         ...(dispute.latestPacket
           ? [
               {
                 content: "Download packet",
                 url: `/api/disputes/${dispute.id}/packet/download`,
                 external: true
-              }
-            ]
-          : []),
-        ...(adminDisputeUrl
-          ? [
-              {
-                content: "Record submission",
-                onAction: goToRecordSubmission
               }
             ]
           : [])
@@ -477,23 +437,10 @@ export function DisputePageShell({
           </Banner>
         ) : null}
 
-        {/*
-          `alignItems="start"` is what makes the rail stick: a stretched grid
-          item is as tall as the row, and a sticky box inside something already
-          the height of its scroll container never moves. On xs the grid is one
-          column and the rail falls below the work, which is the right order -
-          the merchant meets the form before the footnotes.
-        */}
         <InlineGrid alignItems="start" columns={{ xs: 1, md: ["twoThirds", "oneThird"] }} gap="400">
           <BlockStack gap="400">
+            {/* Decide -> write -> send. Three sections, in the order the work happens. */}
             <DisputeStrategyCard strategy={dispute.strategy} />
-
-            <ShopifySubmissionNotice
-              shopDomain={shopDomain}
-              shopifyDisputeId={dispute.shopifyDisputeId}
-              shopifyOrderId={dispute.shopifyOrderId}
-              recordedAt={recordedSubmissionAt}
-            />
 
             <ResponseBuilder
               amount={dispute.amount}
@@ -515,278 +462,152 @@ export function DisputePageShell({
               initialDraft={responseDraft}
             />
 
+            {/*
+              One hand-off surface, not two. The warning that this app cannot
+              press Submit for you lives HERE, beside the action it qualifies,
+              rather than as a permanent wall above the form. A warning that is
+              always on screen stops being read - the same reason NN/g rations
+              confirmation dialogs.
+            */}
             <Card>
               <BlockStack gap="400">
-                <BlockStack gap="100">
-                  <Text as="h2" variant="headingMd">
-                    Packet and submission
-                  </Text>
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    The packet is an internal record and a download for your files. The response above is what
-                    Shopify&rsquo;s form actually asks for.
-                  </Text>
-                </BlockStack>
+                <Text as="h2" variant="headingMd">
+                  Send it, then record it
+                </Text>
 
-                <InlineStack gap="300" wrap>
-                  <Link className="table-link" href={packetUrl as never}>
-                    Open packet preview
-                  </Link>
-                  {dispute.latestPacket ? (
-                    <a
-                      className="table-link"
-                      href={`/api/disputes/${dispute.id}/packet/download`}
-                      rel="noreferrer"
-                      target="_blank"
-                    >
-                      Download current packet
-                    </a>
-                  ) : null}
-                </InlineStack>
+                <ShopifySubmissionNotice
+                  shopDomain={shopDomain}
+                  shopifyDisputeId={dispute.shopifyDisputeId}
+                  shopifyOrderId={dispute.shopifyOrderId}
+                  recordedAt={recordedSubmissionAt}
+                />
 
-                {isLocked ? null : (
-                  <InlineStack>
-                    <GeneratePacketButton disputeId={dispute.id} />
-                  </InlineStack>
-                )}
-
-                <PacketQualityPanel review={packetReview} />
+                <div id="record-submission" ref={submissionSectionRef} tabIndex={-1}>
+                  {isLocked ? (
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      {recordedSubmissionAt
+                        ? `Recorded as sent on ${formatDate(recordedSubmissionAt)}. This case is closed, so there is nothing left to record.`
+                        : "This case is closed, so there is nothing left to record."}
+                    </Text>
+                  ) : (
+                    <SubmissionCenter
+                      disputeId={dispute.id}
+                      evidenceSentOn={dispute.evidenceSentOn}
+                      packetReady={Boolean(dispute.latestPacket)}
+                      packetStatus={dispute.latestPacket?.status ?? null}
+                      shopDomain={shopDomain}
+                      shopifyDisputeId={dispute.shopifyDisputeId}
+                      shopifyOrderId={dispute.shopifyOrderId}
+                      submittedAt={dispute.latestPacket?.submittedAt ?? null}
+                    />
+                  )}
+                </div>
 
                 <Divider />
 
-                <div id="record-submission" ref={submissionSectionRef} tabIndex={-1}>
-                  <BlockStack gap="200">
-                    <Text as="h3" variant="headingSm">
-                      Record submission
-                    </Text>
-                    {isLocked ? (
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        {recordedSubmissionAt
-                          ? `Recorded as sent on ${formatDate(recordedSubmissionAt)}. This case is closed, so there is nothing left to record.`
-                          : "This case is closed, so there is nothing left to record."}
+                {/*
+                  The packet is an archive, not the deliverable - Shopify's form
+                  is. It gets a link, not a section of its own.
+                */}
+                <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    A PDF copy for your own records. Shopify never reads it.
+                  </Text>
+                  <InlineStack gap="300" wrap>
+                    <Link className="table-link" href={packetUrl as never}>
+                      Preview packet
+                    </Link>
+                    {isLocked ? null : <GeneratePacketButton disputeId={dispute.id} />}
+                  </InlineStack>
+                </InlineStack>
+              </BlockStack>
+            </Card>
+
+            {/*
+              The record, collapsed. The only section on this page safe to hide:
+              it holds no required field and nothing here is needed to finish the
+              response. Baymard's testing is blunt about the risk otherwise -
+              participants "repeatedly overlook core page content" behind tabs,
+              including while actively looking for it.
+            */}
+            <Card>
+              <BlockStack gap="300">
+                <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
+                  <Text as="h2" variant="headingMd">
+                    Case record
+                  </Text>
+                  <Button
+                    ariaExpanded={recordOpen}
+                    ariaControls="case-record-panel"
+                    disclosure={recordOpen ? "up" : "down"}
+                    onClick={() => setRecordOpen((open) => !open)}
+                    variant="tertiary"
+                  >
+                    {recordOpen ? "Hide" : "Show"}
+                  </Button>
+                </InlineStack>
+
+                <Collapsible id="case-record-panel" open={recordOpen}>
+                  <BlockStack gap="400">
+                    <BlockStack gap="100">
+                      <Text as="h3" variant="headingSm">
+                        Why the issuer says the charge is disputed
                       </Text>
-                    ) : (
-                      <SubmissionCenter
-                        disputeId={dispute.id}
-                        evidenceSentOn={dispute.evidenceSentOn}
-                        packetReady={packetReview.status !== "blocked" && Boolean(dispute.latestPacket)}
-                        packetStatus={dispute.latestPacket?.status ?? null}
-                        shopDomain={shopDomain}
-                        shopifyDisputeId={dispute.shopifyDisputeId}
-                        shopifyOrderId={dispute.shopifyOrderId}
-                        submittedAt={dispute.latestPacket?.submittedAt ?? null}
-                      />
-                    )}
+                      <Text as="p" variant="bodyMd" tone="subdued">
+                        {dispute.reasonDetails ?? "No additional issuer context is available yet."}
+                      </Text>
+                    </BlockStack>
+
+                    <Divider />
+
+                    <BlockStack gap="200">
+                      <Text as="h3" variant="headingSm">
+                        Timeline
+                      </Text>
+                      {dispute.timeline.length > 0 ? (
+                        <BlockStack gap="200">
+                          {dispute.timeline.map((event, index) => (
+                            <BlockStack gap="100" key={event.id}>
+                              <InlineStack align="space-between" gap="200" wrap>
+                                <Text as="p" variant="bodyMd" fontWeight="medium">
+                                  {event.eventType.replaceAll("_", " ")}
+                                </Text>
+                                <Text as="p" variant="bodySm" tone="subdued">
+                                  {formatDate(event.eventTimestamp)}
+                                </Text>
+                              </InlineStack>
+                              <Text as="p" variant="bodySm" tone="subdued">
+                                {event.source}
+                              </Text>
+                              {index < dispute.timeline.length - 1 ? <Divider /> : null}
+                            </BlockStack>
+                          ))}
+                        </BlockStack>
+                      ) : (
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          Uploads, packet generation, sync updates, and recorded submissions appear here as they
+                          happen.
+                        </Text>
+                      )}
+                    </BlockStack>
+
+                    <Divider />
+
+                    <OutcomeReviewForm
+                      currentStatus={dispute.status}
+                      disputeId={dispute.id}
+                      recommendations={dispute.recommendations}
+                    />
                   </BlockStack>
-                </div>
+                </Collapsible>
               </BlockStack>
             </Card>
           </BlockStack>
 
-          {/*
-            `tabIndex={0}` because the rail can become its own scroll container
-            on a short window: a scrollable region with no focusable child is
-            unreachable by keyboard in browsers that do not focus scrollers
-            automatically. It is one extra stop on a labelled landmark, and it
-            traps nothing - tab moves straight through into the page.
-          */}
           <aside aria-labelledby="case-facts-heading" className="case-rail" tabIndex={0}>
-            <CaseFactsRail
-              adminOrderUrl={adminOrderUrl}
-              dispute={dispute}
-              fields={fields}
-              now={now}
-            />
+            <CaseFactsRail adminOrderUrl={adminOrderUrl} dispute={dispute} fields={fields} now={now} />
           </aside>
         </InlineGrid>
-
-        <Card padding="0">
-          <Tabs onSelect={setSelectedTab} selected={selectedTab} tabs={TABS}>
-            <Box padding="400">
-              <BlockStack gap="400">
-                {/*
-                  The order and payment tables that used to open this panel are
-                  gone: every figure in them is in the rail, next to the fields
-                  that need it. What is left here is the record - what the
-                  issuer said, what proof exists, what happened when.
-                */}
-                <BlockStack gap="100">
-                  <Text as="h2" variant="headingMd">
-                    Why the issuer says the charge is disputed
-                  </Text>
-                  <Text as="p" variant="bodyMd" tone="subdued">
-                    {dispute.reasonDetails ?? "No additional issuer context is available yet."}
-                  </Text>
-                </BlockStack>
-
-                <BlockStack gap="200">
-                  <Text as="h3" variant="headingSm">
-                    Proof and packet
-                  </Text>
-                  <DataTable
-                    columnContentTypes={["text", "text"]}
-                    headings={["Field", "Value"]}
-                    rows={[
-                      [
-                        "Refund proof",
-                        dispute.evidenceItems.some((item) => item.category === "REFUND_PROOF")
-                          ? "Present"
-                          : "Not linked"
-                      ],
-                      ["Delivery evidence", readyEvidence > 0 ? "Present in evidence record" : "Not yet linked"],
-                      ["Packet status", dispute.latestPacket?.status ?? "Not generated"],
-                      [
-                        "Missing evidence categories",
-                        String(dispute.evidenceChecklist.length - readyEvidence)
-                      ]
-                    ]}
-                  />
-                </BlockStack>
-
-                <BlockStack gap="150">
-                  <Text as="h3" variant="headingSm">
-                    Evidence category coverage
-                  </Text>
-                  <ProgressBar
-                    progress={readinessScore}
-                    tone={readinessScore < 60 ? "critical" : readinessScore === 100 ? "success" : "primary"}
-                  />
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    {`${readyEvidence} of ${dispute.evidenceChecklist.length} required categories are ready. This counts uploaded files by category; the readiness meter above the response counts the fields Shopify actually asks for.`}
-                  </Text>
-                </BlockStack>
-
-                <Divider />
-
-                <BlockStack gap="300">
-                  <BlockStack gap="100">
-                    <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
-                      <Text as="h3" variant="headingSm">
-                        Evidence checklist
-                      </Text>
-                      <Link className="table-link" href={evidenceUrl as never}>
-                        Open evidence library
-                      </Link>
-                    </InlineStack>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      Where this case stands on proof. Anything still missing is also flagged against the Shopify
-                      slot that would carry it, up in the response, with how to get it.
-                    </Text>
-                  </BlockStack>
-
-                  <BlockStack gap="200">
-                    {dispute.evidenceChecklist.map((item, index) => (
-                      <BlockStack gap="200" key={item.label}>
-                        <InlineStack align="space-between" blockAlign="start" gap="300" wrap>
-                          <BlockStack gap="050">
-                            <Text as="p" variant="bodyMd" fontWeight="medium">
-                              {item.label}
-                            </Text>
-                            <Text as="p" variant="bodySm">
-                              {item.whyItMatters}
-                            </Text>
-                            {item.state === "ready" ? (
-                              (evidenceByCategory[item.category] ?? []).length > 0 ? (
-                                <InlineStack gap="200" wrap>
-                                  {(evidenceByCategory[item.category] ?? []).map((evidence) =>
-                                    evidence.fileUrl ? (
-                                      <a
-                                        className="table-link"
-                                        href={evidence.fileUrl}
-                                        key={evidence.id}
-                                        rel="noreferrer"
-                                        target="_blank"
-                                      >
-                                        {evidence.title}
-                                      </a>
-                                    ) : (
-                                      <Text as="span" key={evidence.id} variant="bodySm">
-                                        {evidence.title}
-                                      </Text>
-                                    )
-                                  )}
-                                </InlineStack>
-                              ) : (
-                                <Text as="p" variant="bodySm" tone="subdued">
-                                  Marked ready from the case record, but no standalone file is linked yet.
-                                </Text>
-                              )
-                            ) : isLocked ? (
-                              <Text as="p" variant="bodySm" tone="subdued">
-                                {`Went to the bank without this. Best source next time: ${item.bestSource}`}
-                              </Text>
-                            ) : (
-                              <Text as="p" variant="bodySm">
-                                <strong>Next step:</strong> add this in the response above, under the slot for{" "}
-                                <strong>{categoryLabel(item.category)}</strong>.
-                              </Text>
-                            )}
-                          </BlockStack>
-                          <Badge tone={item.state === "ready" ? "success" : "attention"}>
-                            {item.state === "ready" ? "Ready" : "Missing"}
-                          </Badge>
-                        </InlineStack>
-                        {index < dispute.evidenceChecklist.length - 1 ? <Divider /> : null}
-                      </BlockStack>
-                    ))}
-                  </BlockStack>
-                </BlockStack>
-
-                <Divider />
-
-                <BlockStack gap="200">
-                  <Text as="h3" variant="headingSm">
-                    Timeline
-                  </Text>
-                  {dispute.timeline.length > 0 ? (
-                    <BlockStack gap="200">
-                      {dispute.timeline.map((event, index) => (
-                        <BlockStack gap="100" key={event.id}>
-                          <InlineStack align="space-between" gap="200" wrap>
-                            <Text as="p" variant="bodyMd" fontWeight="medium">
-                              {event.eventType.replaceAll("_", " ")}
-                            </Text>
-                            <Text as="p" variant="bodySm" tone="subdued">
-                              {formatDate(event.eventTimestamp)}
-                            </Text>
-                          </InlineStack>
-                          <Text as="p" variant="bodySm" tone="subdued">
-                            {event.source}
-                          </Text>
-                          {index < dispute.timeline.length - 1 ? <Divider /> : null}
-                        </BlockStack>
-                      ))}
-                    </BlockStack>
-                  ) : (
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      Uploads, packet generation, sync updates, and recorded submissions appear here as they happen.
-                    </Text>
-                  )}
-                </BlockStack>
-
-                <Divider />
-
-                <BlockStack gap="200">
-                  <Text as="h3" variant="headingSm">
-                    What this case changes for next time
-                  </Text>
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    {dispute.recommendations.length > 0
-                      ? dispute.recommendations[0].recommendationText
-                      : "Record the outcome below and the pattern behind it turns into a prevention action under Account health."}
-                  </Text>
-                </BlockStack>
-
-                <Divider />
-
-                <OutcomeReviewForm
-                  currentStatus={dispute.status}
-                  disputeId={dispute.id}
-                  recommendations={dispute.recommendations}
-                />
-              </BlockStack>
-            </Box>
-          </Tabs>
-        </Card>
       </BlockStack>
     </Page>
   );

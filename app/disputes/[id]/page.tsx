@@ -54,17 +54,9 @@ export default async function DisputeDetailPage({ params, searchParams }: Disput
 
   const responseDraft = generateDisputeResponseDraft(dispute);
   const packageAssessment = generatePackageAssessment(dispute);
-  const readyEvidence = dispute.evidenceChecklist.filter((item) => item.state === "ready").length;
-  const readinessScore =
-    dispute.evidenceChecklist.length > 0
-      ? Math.round((readyEvidence / dispute.evidenceChecklist.length) * 100)
-      : 0;
-
   return (
     <DisputePageShell
       dispute={dispute}
-      readinessScore={readinessScore}
-      readyEvidence={readyEvidence}
       responseDraft={responseDraft}
       packageAssessment={packageAssessment}
     />
