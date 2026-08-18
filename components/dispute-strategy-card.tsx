@@ -7,6 +7,7 @@ import type { StrategyRecommendation } from "@/lib/economics/strategy";
 
 const ACTION_TONE: Record<string, "success" | "warning" | "critical" | "info"> = {
   FIGHT: "success",
+  COVERED_BY_PROTECT: "success",
   FIGHT_BUT_PRIORITISE_PREVENTION: "warning",
   RESPOND_TO_INQUIRY: "success",
   ACCEPT: "info",
@@ -16,6 +17,7 @@ const ACTION_TONE: Record<string, "success" | "warning" | "critical" | "info"> =
 
 const ACTION_LABEL: Record<string, string> = {
   FIGHT: "Fight this",
+  COVERED_BY_PROTECT: "Shopify already paid this",
   FIGHT_BUT_PRIORITISE_PREVENTION: "Fight, but your ratio matters more",
   RESPOND_TO_INQUIRY: "Answer now — this one is free",
   ACCEPT: "Not worth fighting",

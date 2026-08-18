@@ -20,6 +20,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { DeadlineBadge, useNow } from "@/components/deadline-badge";
 import { DisputeResponseDraft } from "@/components/dispute-response-draft";
 import { DisputeStrategyCard } from "@/components/dispute-strategy-card";
+import { COVERAGE_CRITERIA } from "@/lib/disputes/shopify-protect";
 import type { EvidenceFileRef } from "@/components/evidence-file-slots";
 import { GeneratePacketButton } from "@/components/generate-packet-button";
 import { orderReference, orderReferenceNote } from "@/components/order-label";
@@ -441,6 +442,59 @@ export function DisputePageShell({
           <BlockStack gap="400">
             {/* Decide -> write -> send. Three sections, in the order the work happens. */}
             <DisputeStrategyCard strategy={dispute.strategy} />
+
+            {/*
+              Shopify Protect, only when it says something. Silent for every
+              merchant outside the US, where Protect never applies and a
+              permanent "not covered" badge would imply a loss that was never
+              possible.
+            */}
+            {dispute.protect ? (
+              <Card>
+                <BlockStack gap="300">
+                  <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
+                    <Text as="h2" variant="headingSm">
+                      {dispute.protect.headline}
+                    </Text>
+                    <Badge
+                      tone={
+                        dispute.protect.tone === "success"
+                          ? "success"
+                          : dispute.protect.tone === "warning"
+                            ? "warning"
+                            : "info"
+                      }
+                    >
+                      Shopify Protect
+                    </Badge>
+                  </InlineStack>
+
+                  <Text as="p" variant="bodyMd">
+                    {dispute.protect.detail}
+                  </Text>
+
+                  {dispute.protect.showCriteria ? (
+                    <BlockStack gap="150">
+                      <Text as="h3" variant="headingSm">
+                        What coverage requires
+                      </Text>
+                      {/*
+                        Shopify returns a status and NOT a reason - there is no
+                        field saying which requirement was missed. So this is a
+                        checklist to compare against the order, never a diagnosis.
+                      */}
+                      <BlockStack gap="050">
+                        {COVERAGE_CRITERIA.map((criterion) => (
+                          <Text as="p" variant="bodySm" key={criterion} tone="subdued">
+                            {`\u00b7 ${criterion}`}
+                          </Text>
+                        ))}
+                      </BlockStack>
+                    </BlockStack>
+                  ) : null}
+                </BlockStack>
+              </Card>
+            ) : null}
 
             <ResponseBuilder
               amount={dispute.amount}

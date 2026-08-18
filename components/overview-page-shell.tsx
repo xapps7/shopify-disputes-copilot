@@ -387,6 +387,22 @@ export function OverviewPageShell({ today }: OverviewPageShellProps) {
                   <Text as="p" variant="bodySm" tone="subdued">
                     {`${today.disputesThisMonth} dispute${today.disputesThisMonth === 1 ? "" : "s"} opened this month. Winning a dispute recovers the money and does nothing to this ratio.`}
                   </Text>
+                  {/*
+                    Only shown when it is non-zero. Zero is the normal reading,
+                    and for a merchant outside the US it is the permanent one -
+                    Shopify Protect is US-only, so a standing "0 lost" line would
+                    be a fact about a scheme they cannot join.
+                  */}
+                  {today.lostCoverageCount > 0 ? (
+                    <Text as="p" variant="bodySm">
+                      {`${today.lostCoverageCount} ${
+                        today.lostCoverageCount === 1 ? "order" : "orders"
+                      } had Shopify Protect coverage and lost it, so you carry the full amount on ${
+                        today.lostCoverageCount === 1 ? "it" : "them"
+                      }.`}
+                    </Text>
+                  ) : null}
+
                   <Link className="table-link" href={withQuery("/account-health") as never}>
                     See the VAMP and ECM ratios
                   </Link>

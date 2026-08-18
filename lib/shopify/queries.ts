@@ -32,6 +32,15 @@ export const DISPUTE_SYNC_QUERY = `#graphql
         }
         displayFinancialStatus
         displayFulfillmentStatus
+        # Whether Shopify already reimbursed this chargeback. Needs only
+        # read_orders. Absent on API versions before 2023-10, so every
+        # reader treats a missing value as UNKNOWN rather than "not covered".
+        shopifyProtect {
+          status
+          eligibility {
+            status
+          }
+        }
       }
     }
   }
@@ -317,6 +326,15 @@ export const ORDER_DETAILS_BY_ID_QUERY = `#graphql
       id
       name
       displayFulfillmentStatus
+      # Whether Shopify already reimbursed this chargeback. Needs only
+      # read_orders. Absent on API versions before 2023-10, so every
+      # reader treats a missing value as UNKNOWN rather than "not covered".
+      shopifyProtect {
+        status
+        eligibility {
+          status
+        }
+      }
       currentTotalPriceSet {
         shopMoney {
           amount
@@ -567,6 +585,15 @@ export const DISPUTE_SYNC_NO_CUSTOMER_QUERY = `#graphql
         name
         displayFinancialStatus
         displayFulfillmentStatus
+        # Whether Shopify already reimbursed this chargeback. Needs only
+        # read_orders. Absent on API versions before 2023-10, so every
+        # reader treats a missing value as UNKNOWN rather than "not covered".
+        shopifyProtect {
+          status
+          eligibility {
+            status
+          }
+        }
         currentTotalPriceSet {
           shopMoney {
             amount
@@ -667,6 +694,15 @@ export const ORDER_DETAILS_NO_CUSTOMER_BY_ID_QUERY = `#graphql
       createdAt
       displayFinancialStatus
       displayFulfillmentStatus
+      # Whether Shopify already reimbursed this chargeback. Needs only
+      # read_orders. Absent on API versions before 2023-10, so every
+      # reader treats a missing value as UNKNOWN rather than "not covered".
+      shopifyProtect {
+        status
+        eligibility {
+          status
+        }
+      }
       currentTotalPriceSet {
         shopMoney {
           amount

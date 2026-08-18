@@ -9,6 +9,7 @@ import {
   type StageCount
 } from "@/lib/disputes/lifecycle";
 import { getReasonProfile } from "@/lib/disputes/reason-codes";
+import { isLostCoverage, readProtectFromOrderJson } from "@/lib/disputes/shopify-protect";
 import { recommendStrategy, summarisePortfolio, type StrategyRecommendation } from "@/lib/economics/strategy";
 import type { WinFactors } from "@/lib/economics/win-probability";
 
@@ -101,6 +102,12 @@ export type TodayView = {
    * network call that can fail.
    */
   disputesThisMonth: number;
+  /**
+   * Orders that HAD Shopify Protect coverage and lost it. Not the same as
+   * "ineligible" - most orders are ineligible and always were. Zero is the
+   * normal reading, and the surface stays silent on zero.
+   */
+  lostCoverageCount: number;
   nextAction: TodayNextAction | null;
   stages: StageCount[];
   portfolio: PortfolioTotals[];
@@ -117,6 +124,7 @@ function emptyView(shopDomain: string | null): TodayView {
     totalTracked: 0,
     awaitingYou: 0,
     disputesThisMonth: 0,
+    lostCoverageCount: 0,
     nextAction: null,
     stages: countByStage([]),
     portfolio: [],
@@ -180,6 +188,12 @@ export async function getTodayView(shopDomain?: string | null): Promise<TodayVie
   const orderNames = new Map(
     merchant.orderSnapshots.map((snapshot) => [snapshot.shopifyOrderId, snapshot.orderName])
   );
+  const protectByOrder = new Map(
+    merchant.orderSnapshots.map((snapshot) => [
+      snapshot.shopifyOrderId,
+      readProtectFromOrderJson(snapshot.orderJson)
+    ])
+  );
 
   const latestSync = merchant.syncRuns[0] ?? null;
   const now = Date.now();
@@ -200,6 +214,7 @@ export async function getTodayView(shopDomain?: string | null): Promise<TodayVie
   let wonCount = 0;
   let awaitingYou = 0;
   let disputesThisMonth = 0;
+  let lostCoverageCount = 0;
   let best: { rank: number; action: TodayNextAction } | null = null;
   let nextDeadline: TodayView["nextDeadline"] = null;
 
@@ -222,6 +237,13 @@ export async function getTodayView(shopDomain?: string | null): Promise<TodayVie
     // Every dispute ever opened is the denominator for net recovery. Restricting
     // it to contested ones is exactly the flattery this metric exists to avoid.
     sumInto(disputedByCurrency, dispute.currencyCode, amount);
+
+    if (dispute.shopifyOrderId) {
+      const protect = protectByOrder.get(dispute.shopifyOrderId);
+      if (protect && isLostCoverage(protect.status)) {
+        lostCoverageCount += 1;
+      }
+    }
 
     const openedAt = (dispute.initiatedAt ?? dispute.createdAt).getTime();
     if (openedAt >= monthStart) {
@@ -349,6 +371,7 @@ export async function getTodayView(shopDomain?: string | null): Promise<TodayVie
     totalTracked: merchant.disputes.length,
     awaitingYou,
     disputesThisMonth,
+    lostCoverageCount,
     nextAction: best?.action ?? null,
     stages: countByStage(stages),
     portfolio: summarisePortfolio(openForPortfolio),

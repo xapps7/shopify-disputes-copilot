@@ -6,6 +6,7 @@ import {
   draftEvidenceFields,
   type EvidenceFieldKey
 } from "@/lib/disputes/evidence-fields";
+import { describeProtect, readProtectFromOrderJson } from "@/lib/disputes/shopify-protect";
 import { getReasonProfile, normalizeReasonCode } from "@/lib/disputes/reason-codes";
 import { evaluateLock } from "@/lib/disputes/locking";
 import { recommendStrategy } from "@/lib/economics/strategy";
@@ -644,6 +645,18 @@ export async function getDisputeDetail(id: string, merchantId?: string): Promise
     ? (dispute.evidenceDueBy.getTime() - Date.now()) / 3_600_000
     : null;
 
+  // Shopify Protect status comes from the order, not the dispute. PROTECTED is
+  // the only value that means money already came back; every other value -
+  // including a null column on a store that has never synced it - leaves the
+  // decision untouched.
+  // Read from the stored order payload rather than a dedicated column. The sync
+  // now selects `order.shopifyProtect`, so it rides along inside orderJson - no
+  // migration for the merchant to run, and nothing to keep in step. At 200
+  // disputes per merchant the cost of parsing is not measurable.
+  const protect = readProtectFromOrderJson(orderSnapshot?.orderJson ?? null);
+
+  const protectSignal = describeProtect(protect);
+
   const strategy = recommendStrategy({
     disputeType: dispute.disputeType?.toUpperCase() === "INQUIRY" ? "INQUIRY" : "CHARGEBACK",
     status: dispute.status,
@@ -651,7 +664,8 @@ export async function getDisputeDetail(id: string, merchantId?: string): Promise
     currencyCode: dispute.currencyCode,
     hoursUntilAutoSubmit,
     factors: winFactors,
-    observed: { wins: observedWins, losses: observedLosses }
+    observed: { wins: observedWins, losses: observedLosses },
+    reimbursedByShopifyProtect: protect.status === "PROTECTED"
   });
 
   return {
@@ -686,6 +700,9 @@ export async function getDisputeDetail(id: string, merchantId?: string): Promise
         }
       : null,
     strategy,
+    // Null rather than a "nothing to report" object: the caller renders nothing,
+    // and Protect is silent for every merchant outside the US.
+    protect: protectSignal.show ? protectSignal : null,
     lock: evaluateLock({
       status: dispute.status,
       evidenceSentOn: dispute.evidenceSentOn,

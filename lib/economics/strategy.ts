@@ -22,6 +22,7 @@ import type { RatioAssessment } from "./ratios.ts";
 
 export type DisputeAction =
   | "RESPOND_TO_INQUIRY"
+  | "COVERED_BY_PROTECT"
   | "FIGHT"
   | "FIGHT_BUT_PRIORITISE_PREVENTION"
   | "ACCEPT"
@@ -85,10 +86,31 @@ export function recommendStrategy(input: StrategyInput): StrategyRecommendation 
     };
   }
 
+  /**
+   * Shopify already paid. This used to be a warning stapled to a FIGHT or ACCEPT
+   * recommendation, which was incoherent: you cannot recover money you have
+   * already been given, so the expected value of fighting is zero, not
+   * `win.probability * amount`. It is its own outcome.
+   *
+   * Checked after TERMINAL_STATUSES and before everything else, because it
+   * removes the money from the decision entirely - and the money is what every
+   * branch below is weighing.
+   */
   if (input.reimbursedByShopifyProtect) {
-    warnings.push(
-      "Shopify Protect reimbursed this one, so the money is not at risk - but the card networks still count it toward the ratios that decide whether you keep card processing."
-    );
+    return {
+      action: "COVERED_BY_PROTECT",
+      headline: "Shopify reimbursed this one. There is nothing to recover by responding.",
+      expectedValue: 0,
+      amountAtRisk: 0,
+      fee,
+      win,
+      reasons: [
+        "Shopify Protect covered the full amount, so responding cannot win back money you already have."
+      ],
+      warnings: [
+        "The card networks still count this chargeback toward the ratios that decide whether you keep card processing. Reimbursement protects the money, not your account standing."
+      ]
+    };
   }
 
   // An inquiry is free to answer and never reaches the ratio. Nothing else in

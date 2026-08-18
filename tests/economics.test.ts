@@ -219,9 +219,34 @@ test("says plainly when Shopify has already auto-submitted", () => {
   assert.equal(result.action, "TOO_LATE");
 });
 
-test("flags a Protect-covered dispute as a ratio problem, not a money problem", () => {
+test("a Protect-covered dispute is a ratio problem, not a money problem", () => {
   const result = recommendStrategy(input({ reimbursedByShopifyProtect: true }));
-  assert.match(result.warnings.join(" "), /still count it toward the ratios/);
+
+  // This used to be a warning stapled onto a FIGHT recommendation, which was
+  // incoherent - you cannot win back money you have already been given, so the
+  // expected value of fighting is zero, not probability * amount.
+  assert.equal(result.action, "COVERED_BY_PROTECT");
+  assert.equal(result.expectedValue, 0, "nothing to recover");
+  assert.equal(result.amountAtRisk, 0, "the money is not at risk");
+
+  // But the chargeback still counts against the ratios, which is the entire
+  // reason this distinction exists.
+  assert.match(result.warnings.join(" "), /still count this chargeback toward the ratios/);
+});
+
+test("Protect coverage outranks the money, but not a closed case", () => {
+  // A decided dispute stays decided: reimbursement does not reopen anything.
+  const decided = recommendStrategy(
+    input({ status: "WON", reimbursedByShopifyProtect: true })
+  );
+  assert.equal(decided.action, "ALREADY_DECIDED");
+
+  // Otherwise coverage is checked before the deadline, because it removes the
+  // money from the decision that every other branch is weighing.
+  const expired = recommendStrategy(
+    input({ hoursUntilAutoSubmit: -2, reimbursedByShopifyProtect: true })
+  );
+  assert.equal(expired.action, "COVERED_BY_PROTECT");
 });
 
 test("portfolio totals never mix currencies", () => {

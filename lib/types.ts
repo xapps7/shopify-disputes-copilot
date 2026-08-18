@@ -1,6 +1,8 @@
 import type { EvidenceFieldState } from "@/lib/disputes/evidence-fields";
 import type { StrategyRecommendation } from "@/lib/economics/strategy";
 
+import type { ProtectSignal } from "@/lib/disputes/shopify-protect";
+
 export type DashboardDispute = {
   id: string;
   shopifyDisputeId: string;
@@ -85,6 +87,8 @@ export type DisputeDetailView = {
   evidenceFields: EvidenceFieldState[];
   /** Fight, accept, or prevent - with the money and the reasoning behind it. */
   strategy: StrategyRecommendation;
+  /** Shopify Protect signal, or null when there is nothing worth saying. */
+  protect: ProtectSignal | null;
   /** Set once nothing can reach Shopify any more; the record becomes read-only. */
   lock: { locked: boolean; reason: string | null; cause: "decided" | "submitted" | "auto-submitted" | null };
   timeline: Array<{
