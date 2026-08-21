@@ -1,5 +1,7 @@
 import { db } from "@/lib/db";
 import { deliverAlerts, evaluateDisputeAlerts, recordAlerts } from "@/lib/disputes/alerts";
+import { resolveStage } from "@/lib/disputes/lifecycle";
+import { buildChecklist } from "@/lib/disputes/repository";
 import { runDisputeSyncWithRetry } from "@/lib/disputes/sync-runs";
 
 /**
@@ -20,6 +22,17 @@ export type SweepResult = {
   error: string | null;
 };
 
+/** The same reason-aware coverage the queue badge and Today use. */
+function reasonAwareScore(reason: string | null, categories: Set<string>) {
+  const checklist = buildChecklist(reason, categories);
+  if (checklist.length === 0) {
+    return 0;
+  }
+
+  const ready = checklist.filter((item) => item.state === "ready").length;
+  return Math.round((ready / checklist.length) * 100);
+}
+
 async function evaluateAlertsForMerchant(merchantId: string, shopDomain: string) {
   const disputes = await db.dispute.findMany({
     where: { merchantId },
@@ -31,7 +44,11 @@ async function evaluateAlertsForMerchant(merchantId: string, shopDomain: string)
       evidenceDueBy: true,
       evidenceSentOn: true,
       shopifyOrderId: true,
-      _count: { select: { evidenceItems: true } }
+      reason: true,
+      evidenceFieldsJson: true,
+      // Categories, not just a count: "ready" is coverage of what THIS reason
+      // code needs, and four uploads of the wrong thing is not readiness.
+      evidenceItems: { select: { category: true } }
     }
   });
 
@@ -70,7 +87,20 @@ async function evaluateAlertsForMerchant(merchantId: string, shopDomain: string)
         evidenceDueBy: dispute.evidenceDueBy,
         evidenceSentOn: dispute.evidenceSentOn,
         status: dispute.status,
-        hasEvidence: dispute._count.evidenceItems > 0
+        hasEvidence: dispute.evidenceItems.length > 0 || Boolean(dispute.evidenceFieldsJson),
+        // Suppresses reminders. A merchant whose response already meets the bar
+        // does not need chasing, and chasing them is how the next email gets
+        // ignored.
+        responseReady:
+          resolveStage({
+            status: dispute.status,
+            evidenceSentOn: dispute.evidenceSentOn?.toISOString() ?? null,
+            completenessScore: reasonAwareScore(
+              dispute.reason,
+              new Set(dispute.evidenceItems.map((item) => item.category))
+            ),
+            hasEvidence: dispute.evidenceItems.length > 0 || Boolean(dispute.evidenceFieldsJson)
+          }) === "READY"
       },
       now,
       alreadySent

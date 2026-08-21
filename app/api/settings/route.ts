@@ -15,6 +15,7 @@ const settingsSchema = z.object({
   evidenceRetentionDays: z.string(),
   notifyDueSoon: z.boolean(),
   notifyMissingEvidence: z.boolean(),
+  notifyDecided: z.boolean(),
   allowManualSubmissionRecording: z.boolean()
 });
 

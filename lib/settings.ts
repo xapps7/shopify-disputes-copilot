@@ -11,6 +11,7 @@ export type MerchantSettings = {
   evidenceRetentionDays: string;
   notifyDueSoon: boolean;
   notifyMissingEvidence: boolean;
+  notifyDecided: boolean;
   allowManualSubmissionRecording: boolean;
 };
 
@@ -25,6 +26,7 @@ export const defaultMerchantSettings: MerchantSettings = {
   evidenceRetentionDays: "365",
   notifyDueSoon: true,
   notifyMissingEvidence: true,
+  notifyDecided: true,
   allowManualSubmissionRecording: true
 };
 

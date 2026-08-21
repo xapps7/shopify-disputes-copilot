@@ -23,6 +23,7 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
   const [evidenceRetentionDays, setEvidenceRetentionDays] = useState(initialSettings.evidenceRetentionDays);
   const [notifyDueSoon, setNotifyDueSoon] = useState(initialSettings.notifyDueSoon);
   const [notifyMissingEvidence, setNotifyMissingEvidence] = useState(initialSettings.notifyMissingEvidence);
+  const [notifyDecided, setNotifyDecided] = useState(initialSettings.notifyDecided);
   const [allowManualSubmissionRecording, setAllowManualSubmissionRecording] = useState(
     initialSettings.allowManualSubmissionRecording
   );
@@ -50,6 +51,7 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
         evidenceRetentionDays,
         notifyDueSoon,
         notifyMissingEvidence,
+        notifyDecided,
         allowManualSubmissionRecording
       })
     });
@@ -159,19 +161,37 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
           </InlineGrid>
 
           <BlockStack gap="200">
+            <Text as="h3" variant="headingSm">
+              Email reminders
+            </Text>
+            {/*
+              These three can be switched off. Two cannot, and are not listed as
+              choices: the notice that a chargeback has opened, and the notice
+              that Shopify has already answered. Both report facts Shopify tells
+              a merchant nowhere else, and an app whose core warning is optional
+              is an app that gets blamed for silence it was told to keep.
+            */}
+            <Text as="p" variant="bodySm" tone="subdued">
+              You are always told when a chargeback opens and when Shopify has answered for you. These are the
+              reminders in between.
+            </Text>
             <Checkbox
-              disabled
-              helpText="Not active yet — no alert is sent."
-              label="Alert when disputes are due within 48 hours"
+              helpText="Sent 3 days and 24 hours before Shopify answers — and not sent at all once your response is ready."
+              label="Remind me before Shopify answers"
               checked={notifyDueSoon}
               onChange={setNotifyDueSoon}
             />
             <Checkbox
-              disabled
-              helpText="Not active yet — no alert is sent."
-              label="Alert when evidence is missing on active cases"
+              helpText="A sharper version of the reminder above, for cases where nothing has been added yet."
+              label="Warn me when nothing has been added"
               checked={notifyMissingEvidence}
               onChange={setNotifyMissingEvidence}
+            />
+            <Checkbox
+              helpText="One email when a dispute is won, lost, or accepted."
+              label="Tell me the outcome"
+              checked={notifyDecided}
+              onChange={setNotifyDecided}
             />
           </BlockStack>
         </BlockStack>
