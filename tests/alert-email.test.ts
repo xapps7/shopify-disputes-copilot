@@ -2,7 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { buildAlertEmail, escapeHtml, type EmailAlert } from "../lib/notifications/alert-email.ts";
-import { isPlausibleAddress } from "../lib/notifications/email.ts";
+import {
+  buildEmailRequest,
+  isPlausibleAddress,
+  isRetryableStatus,
+  readEmailConfig
+} from "../lib/notifications/email.ts";
 
 function alert(overrides: Partial<EmailAlert> = {}): EmailAlert {
   return {
@@ -100,4 +105,101 @@ test("recipient sanity check rejects what would fail the whole batch", () => {
   assert.equal(isPlausibleAddress("not-an-address"), false);
   assert.equal(isPlausibleAddress("no@tld"), false);
   assert.equal(isPlausibleAddress("two addresses@a.com b@c.com"), false);
+});
+
+/* ------------------------------------------------------------------ *
+ * Provider selection and wire format
+ *
+ * The provider is whichever account the company already has - an established
+ * sending domain beats anything about an API surface. So both wire formats have
+ * to be right, and neither can be the one that only gets tested in production.
+ * ------------------------------------------------------------------ */
+
+test("no from address means no email, whatever keys are set", () => {
+  assert.equal(readEmailConfig({ SENDGRID_API_KEY: "k", RESEND_API_KEY: "k" }), null);
+});
+
+test("either key alone is enough", () => {
+  assert.deepEqual(readEmailConfig({ RESEND_API_KEY: "r", ALERT_EMAIL_FROM: "a@b.com" }), {
+    provider: "resend",
+    apiKey: "r",
+    from: "a@b.com"
+  });
+
+  assert.deepEqual(readEmailConfig({ SENDGRID_API_KEY: "s", ALERT_EMAIL_FROM: "a@b.com" }), {
+    provider: "sendgrid",
+    apiKey: "s",
+    from: "a@b.com"
+  });
+});
+
+test("with both keys, SendGrid wins - because having the key means having the account", () => {
+  const config = readEmailConfig({
+    SENDGRID_API_KEY: "s",
+    RESEND_API_KEY: "r",
+    ALERT_EMAIL_FROM: "a@b.com"
+  });
+  assert.equal(config?.provider, "sendgrid");
+});
+
+test("EMAIL_PROVIDER overrides, and does not silently fall through", () => {
+  const chosen = readEmailConfig({
+    EMAIL_PROVIDER: "resend",
+    SENDGRID_API_KEY: "s",
+    RESEND_API_KEY: "r",
+    ALERT_EMAIL_FROM: "a@b.com"
+  });
+  assert.equal(chosen?.provider, "resend");
+
+  // Asking for a provider whose key is absent must fail rather than quietly
+  // sending through the other one - that is how mail leaves from a domain
+  // nobody verified.
+  assert.equal(
+    readEmailConfig({ EMAIL_PROVIDER: "resend", SENDGRID_API_KEY: "s", ALERT_EMAIL_FROM: "a@b.com" }),
+    null
+  );
+});
+
+test("the Resend request matches its API", () => {
+  const request = buildEmailRequest(
+    { provider: "resend", apiKey: "key", from: "alerts@shop.com" },
+    { to: "  owner@shop.com ", subject: "Subject", text: "Body", html: "<p>Body</p>" }
+  );
+
+  assert.equal(request.url, "https://api.resend.com/emails");
+  assert.equal(request.headers.Authorization, "Bearer key");
+
+  const body = JSON.parse(request.body);
+  assert.equal(body.from, "alerts@shop.com");
+  assert.deepEqual(body.to, ["owner@shop.com"], "recipient is trimmed");
+  assert.equal(body.text, "Body");
+  assert.equal(body.html, "<p>Body</p>");
+});
+
+test("the SendGrid request matches its API, with text before html", () => {
+  const request = buildEmailRequest(
+    { provider: "sendgrid", apiKey: "key", from: "alerts@shop.com" },
+    { to: "owner@shop.com", subject: "Subject", text: "Body", html: "<p>Body</p>" }
+  );
+
+  assert.equal(request.url, "https://api.sendgrid.com/v3/mail/send");
+
+  const body = JSON.parse(request.body);
+  assert.deepEqual(body.personalizations, [{ to: [{ email: "owner@shop.com" }] }]);
+  assert.deepEqual(body.from, { email: "alerts@shop.com" });
+
+  // SendGrid uses content ORDER to pick the fallback part. Inverted, a
+  // text-only client shows raw HTML.
+  assert.equal(body.content[0].type, "text/plain");
+  assert.equal(body.content[1].type, "text/html");
+});
+
+test("only transient failures are retried", () => {
+  for (const status of [429, 500, 502, 503]) {
+    assert.equal(isRetryableStatus(status), true, `${status} should be retried`);
+  }
+  // A bad key or an unverified domain fails identically forever.
+  for (const status of [400, 401, 403, 404, 422]) {
+    assert.equal(isRetryableStatus(status), false, `${status} should not be retried`);
+  }
 });
