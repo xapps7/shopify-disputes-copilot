@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   ALERT_THRESHOLD_HOURS,
+  OPENING_FRESHNESS_HOURS,
   alertToggleKey,
   evaluateDisputeAlerts,
   sortByUrgency,
@@ -36,6 +37,7 @@ function dispute(overrides: Partial<AlertDisputeInput> = {}): AlertDisputeInput 
     status: "NEEDS_RESPONSE",
     hasEvidence: false,
     responseReady: false,
+    openedAt: hoursFromNow(-2),
     ...overrides
   };
 }
@@ -231,4 +233,69 @@ test("a batch leads with the worst news", () => {
 
   assert.equal(batch[0].kind, "AUTO_SUBMITTED", "the subject line should reflect the worst state");
   assert.equal(batch[batch.length - 1].kind, "DISPUTE_DECIDED");
+});
+
+
+/* ------------------------------------------------------------------ *
+ * History is not news
+ *
+ * The first sweep after shipping the opening email sees every dispute already
+ * in the database. Announcing those as newly opened would make the very first
+ * email a merchant ever receives a set of false alarms about cases that closed
+ * weeks ago - and there is no recovering the channel's credibility after that.
+ * ------------------------------------------------------------------ */
+
+test("a dispute older than the freshness window is never announced as new", () => {
+  const stale = dispute({
+    openedAt: hoursFromNow(-(OPENING_FRESHNESS_HOURS + 1)),
+    evidenceDueBy: hoursFromNow(100)
+  });
+
+  assert.deepEqual(evaluateDisputeAlerts(stale, NOW, new Set()), []);
+});
+
+test("a dispute with no known open date is treated as stale, not new", () => {
+  assert.deepEqual(
+    evaluateDisputeAlerts(dispute({ openedAt: null, evidenceDueBy: hoursFromNow(100) }), NOW, new Set()),
+    []
+  );
+});
+
+test("but a stale dispute still gets its reminders and its outcome", () => {
+  const stale = { openedAt: hoursFromNow(-1000) };
+
+  // Never announced, but the deadline still matters.
+  const reminder = evaluateDisputeAlerts(
+    dispute({ ...stale, evidenceDueBy: hoursFromNow(20) }),
+    NOW,
+    new Set()
+  );
+  assert.equal(reminder[0].kind, "EVIDENCE_MISSING");
+
+  const decided = evaluateDisputeAlerts(dispute({ ...stale, status: "WON" }), NOW, new Set());
+  assert.equal(decided[0].kind, "DISPUTE_DECIDED");
+});
+
+test("a passed deadline outranks the opening notice", () => {
+  // Even for a dispute we have never announced: telling someone to act on a
+  // case they can no longer change is worse than telling them it is gone.
+  const [alert] = evaluateDisputeAlerts(
+    dispute({ evidenceDueBy: hoursFromNow(-1) }),
+    NOW,
+    new Set()
+  );
+
+  assert.equal(alert.kind, "AUTO_SUBMITTED");
+});
+
+test("the freshness window is a week", () => {
+  assert.equal(OPENING_FRESHNESS_HOURS, 168);
+
+  // Just inside it is still news.
+  const [alert] = evaluateDisputeAlerts(
+    dispute({ openedAt: hoursFromNow(-(OPENING_FRESHNESS_HOURS - 1)), evidenceDueBy: hoursFromNow(100) }),
+    NOW,
+    new Set()
+  );
+  assert.equal(alert.kind, "DISPUTE_OPENED");
 });

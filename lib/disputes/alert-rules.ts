@@ -60,7 +60,23 @@ export type AlertDisputeInput = {
    * Suppresses deadline reminders, because there is nothing left to ask for.
    */
   responseReady: boolean;
+  /**
+   * When the dispute was opened, so history is not announced as news. Null is
+   * treated as stale: a dispute we cannot date is not one to declare "new".
+   */
+  openedAt: Date | null;
 };
+
+/**
+ * How recently a dispute must have opened to be announced as new.
+ *
+ * Without this, the first sweep after shipping the opening email announces every
+ * dispute in the database - including ones already lost weeks ago. "A chargeback
+ * was opened" about a case that closed in July is not a warning, it is evidence
+ * that the alerts cannot be trusted, and it arrives at the worst possible moment:
+ * the first email a merchant ever gets from us.
+ */
+export const OPENING_FRESHNESS_HOURS = 7 * 24;
 
 const TERMINAL_STATUSES = new Set(["WON", "LOST", "ACCEPTED", "CHARGE_REFUNDED", "CLOSED"]);
 
@@ -145,37 +161,18 @@ export function evaluateDisputeAlerts(
     ];
   }
 
-  // 2. First contact. Shopify sends nothing when a chargeback opens, so this is
-  //    the email that exists because the platform has no equivalent. It carries
-  //    the deadline, so a dispute that arrives already urgent still says so in
-  //    one message rather than two.
-  if (!alreadySent.has(`${dispute.id}:DISPUTE_OPENED`)) {
-    const deadline = dispute.evidenceDueBy
-      ? `Shopify answers for you ${describeDeadline(dispute.evidenceDueBy, now)} unless you respond first.`
-      : "Shopify has not published a deadline for this one yet.";
-
-    return [
-      alert(
-        dispute.id,
-        "DISPUTE_OPENED",
-        null,
-        `${label}: a chargeback was opened`,
-        `${money} is at stake. ${deadline}`
-      )
-    ];
-  }
-
-  // Everything below needs a deadline, and stops once the response has gone.
-  if (!dispute.evidenceDueBy || dispute.evidenceSentOn) {
+  // Response already sent: nothing below applies.
+  if (dispute.evidenceSentOn) {
     return [];
   }
 
-  const remaining = hoursUntil(dispute.evidenceDueBy, now);
+  const remaining = dispute.evidenceDueBy ? hoursUntil(dispute.evidenceDueBy, now) : null;
 
-  // 3. Missed. Worth saying plainly - it is the outcome the app exists to
-  //    prevent, and the merchant should learn it from us rather than from a
-  //    statement.
-  if (remaining <= 0) {
+  // 2. Missed. Checked BEFORE the opening notice, because for a dispute whose
+  //    deadline has already gone, "Shopify has answered" is both the accurate
+  //    message and the more useful one. Announcing such a case as newly opened
+  //    would be telling a merchant to act on something they can no longer change.
+  if (remaining !== null && remaining <= 0) {
     if (alreadySent.has(`${dispute.id}:AUTO_SUBMITTED`)) {
       return [];
     }
@@ -189,6 +186,39 @@ export function evaluateDisputeAlerts(
         `The deadline passed, so Shopify submitted a response using whatever it held. ${money} was at stake.`
       )
     ];
+  }
+
+  // 3. First contact. Shopify sends nothing when a chargeback opens, so this is
+  //    the email that exists because the platform has no equivalent. It carries
+  //    the deadline, so a dispute that arrives already urgent says so in one
+  //    message rather than two.
+  //
+  //    Only for disputes that are actually recent. Everything older is history,
+  //    and history announced as news is how an alert channel loses its
+  //    credibility on the first message.
+  if (!alreadySent.has(`${dispute.id}:DISPUTE_OPENED`)) {
+    const ageHours = dispute.openedAt ? hoursUntil(dispute.openedAt, now) * -1 : Number.POSITIVE_INFINITY;
+
+    if (ageHours <= OPENING_FRESHNESS_HOURS) {
+      const deadline = dispute.evidenceDueBy
+        ? `Shopify answers for you ${describeDeadline(dispute.evidenceDueBy, now)} unless you respond first.`
+        : "Shopify has not published a deadline for this one yet.";
+
+      return [
+        alert(
+          dispute.id,
+          "DISPUTE_OPENED",
+          null,
+          `${label}: a chargeback was opened`,
+          `${money} is at stake. ${deadline}`
+        )
+      ];
+    }
+  }
+
+  // Reminders need a clock.
+  if (remaining === null) {
+    return [];
   }
 
   // 4. Reminders - and the suppression that keeps this list short. A response

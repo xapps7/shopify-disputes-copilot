@@ -44,6 +44,8 @@ async function evaluateAlertsForMerchant(merchantId: string, shopDomain: string)
       evidenceDueBy: true,
       evidenceSentOn: true,
       shopifyOrderId: true,
+      initiatedAt: true,
+      createdAt: true,
       reason: true,
       evidenceFieldsJson: true,
       // Categories, not just a count: "ready" is coverage of what THIS reason
@@ -87,6 +89,9 @@ async function evaluateAlertsForMerchant(merchantId: string, shopDomain: string)
         evidenceDueBy: dispute.evidenceDueBy,
         evidenceSentOn: dispute.evidenceSentOn,
         status: dispute.status,
+        // Shopify's own initiation time when we have it, else when we first saw
+        // it. Used only to avoid announcing old disputes as new.
+        openedAt: dispute.initiatedAt ?? dispute.createdAt,
         hasEvidence: dispute.evidenceItems.length > 0 || Boolean(dispute.evidenceFieldsJson),
         // Suppresses reminders. A merchant whose response already meets the bar
         // does not need chasing, and chasing them is how the next email gets
