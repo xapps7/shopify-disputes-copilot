@@ -9,6 +9,7 @@ import {
 } from "@/lib/disputes/alert-rules";
 import { buildAlertEmail } from "@/lib/notifications/alert-email";
 import { isPlausibleAddress, readEmailConfig, sendEmail } from "@/lib/notifications/email";
+import { buildWebhookPayload, checkWebhookUrl } from "@/lib/notifications/webhook";
 import { getMerchantSettings } from "@/lib/settings";
 
 export { ALERT_THRESHOLD_HOURS, alertToggleKey, evaluateDisputeAlerts, sortByUrgency };
@@ -157,30 +158,18 @@ export async function deliverAlerts(shopDomain: string, alerts: PendingAlert[]):
     }
   }
 
-  // --- Webhook mirror, for merchants who would rather have this in Slack ---
-  const webhookUrl = process.env.ALERT_WEBHOOK_URL?.trim();
-  if (webhookUrl) {
-    try {
-      const response = await fetch(webhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          shopDomain,
-          text: wanted.map((alert) => `${alert.title} - ${alert.body}`).join("\n"),
-          alerts: wanted
-        })
-      });
-
-      if (response.ok) {
-        channels.push("webhook");
-      } else {
-        problems.push(`Webhook responded ${response.status}.`);
-        retryable = retryable || response.status === 429 || response.status >= 500;
-      }
-    } catch (error) {
-      problems.push(error instanceof Error ? error.message : "Webhook request failed.");
-      retryable = true;
-    }
+  // --- Webhook, for merchants who would rather have this in Slack ---
+  //
+  // Per merchant, from their own settings. This used to read a single
+  // ALERT_WEBHOOK_URL from the environment, which in a multi-tenant app means
+  // every merchant's dispute data going to whichever endpoint the operator
+  // configured. That is not a preference, it is a leak.
+  const webhook = await postWebhook(shopDomain, settings.alertWebhookUrl, wanted);
+  if (webhook.posted) {
+    channels.push("webhook");
+  } else if (webhook.reason) {
+    problems.push(webhook.reason);
+    retryable = retryable || webhook.retryable;
   }
 
   return {
@@ -189,4 +178,66 @@ export async function deliverAlerts(shopDomain: string, alerts: PendingAlert[]):
     retryable,
     channels
   };
+}
+
+export type WebhookPostResult = { posted: boolean; reason: string | null; retryable: boolean };
+
+/**
+ * POSTs to the merchant's webhook, if they have set a usable one.
+ *
+ * An unset URL is not a failure and reports nothing - most merchants will never
+ * use this. An INVALID url is worth reporting, because a merchant who pasted
+ * something wrong should find out from the app rather than from silence.
+ *
+ * Redirects are not followed: a permitted public host that 302s to
+ * 169.254.169.254 is the standard way around a host allowlist.
+ */
+export async function postWebhook(
+  shopDomain: string,
+  rawUrl: string | null | undefined,
+  alerts: PendingAlert[]
+): Promise<WebhookPostResult> {
+  if (!rawUrl?.trim()) {
+    return { posted: false, reason: null, retryable: false };
+  }
+
+  const check = checkWebhookUrl(rawUrl);
+  if (!check.ok) {
+    return { posted: false, reason: `Webhook not sent: ${check.message}`, retryable: false };
+  }
+
+  try {
+    const response = await fetch(check.url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      redirect: "manual",
+      body: JSON.stringify(buildWebhookPayload({ shopDomain, alerts }))
+    });
+
+    if (response.ok) {
+      return { posted: true, reason: null, retryable: false };
+    }
+
+    // A manual-redirect response is opaque with status 0. Treat it as refused:
+    // following it is exactly the bypass the host checks exist to stop.
+    if (response.status === 0 || (response.status >= 300 && response.status < 400)) {
+      return {
+        posted: false,
+        reason: "Webhook not sent: the URL redirected, which is not followed for security.",
+        retryable: false
+      };
+    }
+
+    return {
+      posted: false,
+      reason: `Webhook responded ${response.status}.`,
+      retryable: response.status === 429 || response.status >= 500
+    };
+  } catch (error) {
+    return {
+      posted: false,
+      reason: error instanceof Error ? error.message : "Webhook request failed.",
+      retryable: true
+    };
+  }
 }

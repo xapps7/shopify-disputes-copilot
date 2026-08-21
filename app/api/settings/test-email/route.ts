@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { resolveRecipient } from "@/lib/disputes/alerts";
+import { postWebhook, resolveRecipient } from "@/lib/disputes/alerts";
 import { buildAlertEmail } from "@/lib/notifications/alert-email";
 import { readEmailConfig, sendEmail } from "@/lib/notifications/email";
 import { getMerchantSettings } from "@/lib/settings";
@@ -26,24 +26,14 @@ export async function POST(request: Request) {
     const settings = await getMerchantSettings(shopDomain);
 
     const config = readEmailConfig();
-    if (!config) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message:
-            "Email is not configured on this install. Whoever operates the app needs to set ALERT_EMAIL_FROM and an API key."
-        },
-        { status: 503 }
-      );
-    }
-
     const recipient = resolveRecipient(settings);
-    if (!recipient) {
+    const hasWebhook = Boolean(settings.alertWebhookUrl?.trim());
+
+    // Nothing configured at all is the one case worth refusing outright, so a
+    // merchant is not told "sent" when there was nowhere to send to.
+    if (!recipient && !hasWebhook) {
       return NextResponse.json(
-        {
-          ok: false,
-          message: "Add an alert email address above and save, then try again."
-        },
+        { ok: false, message: "Add an alert email address or a webhook URL above, save, then try again." },
         { status: 400 }
       );
     }
@@ -70,31 +60,54 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: "Could not build the test message." }, { status: 500 });
     }
 
-    const result = await sendEmail({
-      to: recipient,
-      subject: message.subject,
-      text: message.text,
-      html: message.html,
-      config
-    });
+    const delivered: string[] = [];
+    const problems: string[] = [];
 
-    if (result.sent) {
+    // --- Email ---
+    if (recipient && config) {
+      const result = await sendEmail({
+        to: recipient,
+        subject: message.subject,
+        text: message.text,
+        html: message.html,
+        config
+      });
+
+      if (result.sent) {
+        delivered.push(`email to ${recipient}`);
+      } else {
+        // Verbatim: "You can only send testing emails to your own email
+        // address" is actionable in a way "delivery failed" is not.
+        problems.push(result.reason);
+      }
+    } else if (recipient && !config) {
+      problems.push("Email is not configured on this install, so only the webhook was tried.");
+    }
+
+    // --- Webhook ---
+    if (hasWebhook) {
+      const result = await postWebhook(shopDomain, settings.alertWebhookUrl, [
+        { disputeId: "test", kind: "DISPUTE_OPENED", thresholdHours: null, title: message.subject, body: message.text, urgency: 0 }
+      ]);
+
+      if (result.posted) {
+        delivered.push("webhook");
+      } else if (result.reason) {
+        problems.push(result.reason);
+      }
+    }
+
+    if (delivered.length > 0) {
       return NextResponse.json({
         ok: true,
-        message: `Sent to ${recipient} via ${result.provider}. If it does not arrive within a minute, check spam.`,
-        provider: result.provider,
-        id: result.id
+        message:
+          `Sent: ${delivered.join(" and ")}.` +
+          (problems.length > 0 ? ` One thing did not work: ${problems.join(" ")}` : " If it does not arrive within a minute, check spam.")
       });
     }
 
     return NextResponse.json(
-      {
-        ok: false,
-        // Verbatim: "You can only send testing emails to your own email address"
-        // is actionable in a way "delivery failed" is not.
-        message: result.reason,
-        retryable: result.retryable
-      },
+      { ok: false, message: problems.join(" ") || "Nothing could be delivered." },
       { status: 502 }
     );
   } catch (error) {

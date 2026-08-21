@@ -8,6 +8,7 @@ export type MerchantSettings = {
   statementDescriptor: string;
   packetFooter: string;
   alertEmail: string;
+  alertWebhookUrl: string;
   evidenceRetentionDays: string;
   notifyDueSoon: boolean;
   notifyMissingEvidence: boolean;
@@ -23,6 +24,7 @@ export const defaultMerchantSettings: MerchantSettings = {
   statementDescriptor: "",
   packetFooter: "",
   alertEmail: "",
+  alertWebhookUrl: "",
   evidenceRetentionDays: "365",
   notifyDueSoon: true,
   notifyMissingEvidence: true,

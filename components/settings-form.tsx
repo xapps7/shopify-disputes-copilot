@@ -22,6 +22,7 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
   const [statementDescriptor, setStatementDescriptor] = useState(initialSettings.statementDescriptor);
   const [packetFooter, setPacketFooter] = useState(initialSettings.packetFooter);
   const [alertEmail, setAlertEmail] = useState(initialSettings.alertEmail);
+  const [alertWebhookUrl, setAlertWebhookUrl] = useState(initialSettings.alertWebhookUrl);
   const [evidenceRetentionDays, setEvidenceRetentionDays] = useState(initialSettings.evidenceRetentionDays);
   const [notifyDueSoon, setNotifyDueSoon] = useState(initialSettings.notifyDueSoon);
   const [notifyMissingEvidence, setNotifyMissingEvidence] = useState(initialSettings.notifyMissingEvidence);
@@ -50,6 +51,7 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
         statementDescriptor,
         packetFooter,
         alertEmail,
+        alertWebhookUrl,
         evidenceRetentionDays,
         notifyDueSoon,
         notifyMissingEvidence,
@@ -226,17 +228,33 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
             />
 
             {/*
-              Save first, then test. The endpoint reads the SAVED address, so
-              testing an unsaved edit would report on the old one and look like
-              a bug in the email rather than in the order of operations.
+              One field. A merchant pastes a Slack or Discord URL and is done -
+              the payload leads with a `text` key precisely so no mapping or
+              template is needed. Anything more configurable stops being the
+              thing you can set up while a deadline is running.
+            */}
+            <TextField
+              autoComplete="url"
+              helpText="Optional. Paste a Slack, Discord, Zapier or n8n URL and the same alerts are posted there. Must be https."
+              label="Webhook URL"
+              name="alertWebhookUrl"
+              onChange={setAlertWebhookUrl}
+              placeholder="https://hooks.slack.com/services/..."
+              value={alertWebhookUrl}
+            />
+
+            {/*
+              Save first, then test. The endpoint reads the SAVED values, so
+              testing an unsaved edit would report on the old ones and look like
+              a bug in the delivery rather than in the order of operations.
             */}
             <BlockStack gap="200">
               <Text as="p" variant="bodySm" tone="subdued">
-                Save your changes first, then send yourself a test to confirm the alerts will actually arrive.
+                Save your changes first, then send yourself a test to confirm the alerts will actually arrive - by email, webhook, or both.
               </Text>
               <div>
                 <Button loading={isTesting} onClick={handleTestEmail}>
-                  Send a test email
+                  Send a test alert
                 </Button>
               </div>
               {testResult ? (

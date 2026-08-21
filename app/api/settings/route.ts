@@ -13,6 +13,7 @@ const settingsSchema = z.object({
   packetFooter: z.string(),
   alertEmail: z.string(),
   evidenceRetentionDays: z.string(),
+  alertWebhookUrl: z.string(),
   notifyDueSoon: z.boolean(),
   notifyMissingEvidence: z.boolean(),
   notifyDecided: z.boolean(),
