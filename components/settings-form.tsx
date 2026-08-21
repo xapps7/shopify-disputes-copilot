@@ -158,23 +158,17 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
         />
 
         <BlockStack gap="300">
-          <Text as="h3" variant="headingSm">
-            Not active yet
-          </Text>
-          <Banner tone="warning" title="These settings are saved but not used yet">
-            <p>
-              Disputes Co-Pilot does not send any email and does not delete files on a schedule. The values below are
-              stored on your merchant record so they are ready when those features ship — until then, nothing here
-              will alert you before Shopify auto-submits a response for you. The dispute queue is the only place that
-              countdown appears, so check it.
-            </p>
-          </Banner>
-
           <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
+            {/*
+              This field was `disabled` under a banner reading "Disputes
+              Co-Pilot does not send any email" - which stayed there after the
+              email actually shipped. A merchant could not type an address, so
+              alerts silently fell back to the support email, and a test send
+              reported success to an address they had never chosen for alerts.
+            */}
             <TextField
               autoComplete="email"
-              disabled
-              helpText="Not active yet — no email is sent."
+              helpText="Where deadline alerts are sent. Falls back to your support email if this is empty."
               label="Alert email"
               name="alertEmail"
               onChange={setAlertEmail}
@@ -184,6 +178,8 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
             <TextField
               autoComplete="off"
               disabled
+              // Genuinely still inactive: nothing expires evidence on a
+              // schedule yet. Saying so is the point of the disabled state.
               helpText="Not active yet — files are never deleted automatically."
               label="Evidence retention days"
               name="evidenceRetentionDays"
