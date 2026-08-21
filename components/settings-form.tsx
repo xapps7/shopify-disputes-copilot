@@ -13,6 +13,8 @@ type SettingsFormProps = {
 export function SettingsForm({ initialSettings }: SettingsFormProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [returnPolicyUrl, setReturnPolicyUrl] = useState(initialSettings.returnPolicyUrl);
   const [refundPolicyUrl, setRefundPolicyUrl] = useState(initialSettings.refundPolicyUrl);
   const [supportEmail, setSupportEmail] = useState(initialSettings.supportEmail);
@@ -59,6 +61,35 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
     const payload = (await response.json().catch(() => null)) as { message?: string } | null;
     setMessage(payload?.message ?? (response.ok ? "Settings saved." : "Save failed."));
     setIsSaving(false);
+  }
+
+  /**
+   * Proves the email path before a chargeback depends on it.
+   *
+   * Surfaces the provider's own message rather than a generic failure: every
+   * likely fault here is one only the merchant can fix - an address that is not
+   * theirs, an unverified sending domain, a revoked key - and "could not send"
+   * tells them none of that.
+   */
+  async function handleTestEmail() {
+    setIsTesting(true);
+    setTestResult(null);
+
+    try {
+      const response = await authenticatedFetch("/api/settings/test-email", { method: "POST" });
+      const payload = (await response.json().catch(() => null)) as
+        | { ok?: boolean; message?: string }
+        | null;
+
+      setTestResult({
+        ok: Boolean(payload?.ok),
+        message: payload?.message ?? "The app could not reach the email provider."
+      });
+    } catch {
+      setTestResult({ ok: false, message: "The request failed before it reached the app." });
+    } finally {
+      setIsTesting(false);
+    }
   }
 
   return (
@@ -193,6 +224,27 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
               checked={notifyDecided}
               onChange={setNotifyDecided}
             />
+
+            {/*
+              Save first, then test. The endpoint reads the SAVED address, so
+              testing an unsaved edit would report on the old one and look like
+              a bug in the email rather than in the order of operations.
+            */}
+            <BlockStack gap="200">
+              <Text as="p" variant="bodySm" tone="subdued">
+                Save your changes first, then send yourself a test to confirm the alerts will actually arrive.
+              </Text>
+              <div>
+                <Button loading={isTesting} onClick={handleTestEmail}>
+                  Send a test email
+                </Button>
+              </div>
+              {testResult ? (
+                <Banner tone={testResult.ok ? "success" : "warning"}>
+                  <p>{testResult.message}</p>
+                </Banner>
+              ) : null}
+            </BlockStack>
           </BlockStack>
         </BlockStack>
 
