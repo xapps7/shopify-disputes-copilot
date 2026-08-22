@@ -1,6 +1,11 @@
 import { db } from "@/lib/db";
 import { decryptString } from "@/lib/crypto";
-import { assessEcm, assessVamp, protectedButStillCounted, type RatioAssessment } from "@/lib/economics/ratios";
+import { assessEcm, assessVamp, protectedButStillCounted, type RatioAssessment,
+  assessMatchRisk,
+  assessShopify,
+  mostUrgent
+} from "@/lib/economics/ratios";
+import { recommendProtection, type ProtectionAdvice } from "@/lib/economics/protection";
 import { recommendStrategy } from "@/lib/economics/strategy";
 import { getReasonProfile } from "@/lib/disputes/reason-codes";
 import { createShopifyAdminClient } from "@/lib/shopify/client";
@@ -25,6 +30,14 @@ export type AccountHealth = {
   disputesThisMonth: number;
   vamp: RatioAssessment | null;
   ecm: RatioAssessment | null;
+  /** Shopify's own 1% over 90 days - the threshold that bites before any network's. */
+  shopify: RatioAssessment | null;
+  /** The five-year one. Absent when we cannot see enough volume to judge. */
+  matchRisk: RatioAssessment | null;
+  /** Nearest real consequence, not worst ratio. What the page should lead with. */
+  urgent: RatioAssessment | null;
+  /** Which protection tool is worth buying at this position, and which is not. */
+  protection: ProtectionAdvice | null;
   caveats: string[];
   protectWarning: string | null;
   recommendations: Array<{ id: string; title: string; detail: string; priority: string; state: string }>;
@@ -63,6 +76,23 @@ async function countOrders(
   }
 
   return { count: result.count, estimated: result.precision !== "EXACT" };
+}
+
+
+/** Disputes opened inside a rolling window, by Shopify's own initiation time when we have it. */
+function withinDays(when: Date | null | undefined, now: Date, days: number): boolean {
+  if (!when) {
+    return false;
+  }
+  return now.getTime() - when.getTime() <= days * 86_400_000;
+}
+
+function disputesInWindow(
+  disputes: Array<{ initiatedAt: Date | null; createdAt: Date }>,
+  now: Date,
+  days: number
+): number {
+  return disputes.filter((dispute) => withinDays(dispute.initiatedAt ?? dispute.createdAt, now, days)).length;
 }
 
 export async function getAccountHealth(shopDomain: string | null): Promise<AccountHealth | null> {
@@ -168,6 +198,62 @@ export async function getAccountHealth(shopDomain: string | null): Promise<Accou
         })
       : null;
 
+  /**
+   * Shopify's own limit, and the one to lead with. It is a rolling 90 days at
+   * 1%, far below anything the networks enforce, and it is what actually costs a
+   * merchant money first - reserves held against payouts.
+   *
+   * Order counts here are monthly, so 90 days is approximated as three months of
+   * the current run rate. Stated rather than hidden, because a merchant checking
+   * this against Shopify's own figure deserves to know why they differ slightly.
+   */
+  const disputesLast90 = disputesInWindow(disputes, now, 90);
+  const ordersLast90 = ordersThisMonth !== null ? Math.round(ordersThisMonth * 3) : null;
+
+  const disputesPerDay = disputesLast90 / 90;
+  const transactionsPerDay = ordersLast90 !== null ? ordersLast90 / 90 : 0;
+
+  const shopify =
+    ordersLast90 && ordersLast90 > 0
+      ? assessShopify({
+          disputesLast90Days: disputesLast90,
+          eligibleTransactionsLast90Days: ordersLast90,
+          disputesPerDay,
+          transactionsPerDay
+        })
+      : null;
+
+  const matchRisk =
+    ordersLast90 && ordersLast90 > 0
+      ? assessMatchRisk({
+          chargebackCount: disputesLast90,
+          chargebackAmount: disputes
+            .filter((dispute) => withinDays(dispute.initiatedAt ?? dispute.createdAt, now, 90))
+            .reduce((sum, dispute) => sum + Number(dispute.amount?.toString() ?? "0"), 0),
+          transactionCount: ordersLast90
+        })
+      : null;
+
+  const urgent = mostUrgent([shopify, matchRisk, vamp, ecm].filter((entry): entry is RatioAssessment => Boolean(entry)));
+
+  const fraudDisputes = disputes.filter((dispute) =>
+    ["FRAUDULENT", "UNRECOGNIZED"].includes((dispute.reason ?? "").toUpperCase())
+  ).length;
+
+  const protection =
+    urgent && disputes.length > 0
+      ? recommendProtection({
+          fraudShare: disputes.length > 0 ? fraudDisputes / disputes.length : 0,
+          monthlyDisputes: chargebacksThisMonth,
+          averageDisputeAmount:
+            disputes.length > 0
+              ? disputes.reduce((sum, dispute) => sum + Number(dispute.amount?.toString() ?? "0"), 0) / disputes.length
+              : 0,
+          nearestThresholdDays: urgent.daysUntilBreach,
+          status: urgent.status
+        })
+      : null;
+
   if (ordersPriorMonth !== null && ordersThisMonth !== null && ordersPriorMonth > ordersThisMonth / Math.max(elapsed, 0.01)) {
     caveats.push(
       "Your sales are lower than last month. Mastercard divides this month's chargebacks by last month's volume, so your ratio worsens even if nothing else changes."
@@ -231,6 +317,10 @@ export async function getAccountHealth(shopDomain: string | null): Promise<Accou
     disputesThisMonth: startedThisMonth.length,
     vamp,
     ecm,
+    shopify,
+    matchRisk,
+    urgent,
+    protection,
     caveats,
     // We cannot tell from the API which disputes Shopify Protect covered, so
     // this is framed as a standing warning rather than a count we do not have.

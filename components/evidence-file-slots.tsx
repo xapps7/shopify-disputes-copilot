@@ -27,6 +27,7 @@ import {
   MAX_TOTAL_EVIDENCE_BYTES
 } from "@/lib/disputes/evidence-fields";
 import type { EvidenceGapInsight } from "@/lib/disputes/workflow";
+import { EvidenceFileActions } from "@/components/evidence-file-actions";
 
 /**
  * Shopify's file slots, made honest.
@@ -721,9 +722,20 @@ export function EvidenceFileSlots({
                     ) : null}
 
                     {selectedItem?.fileUrl ? (
-                      <a className="table-link" href={selectedItem.fileUrl} rel="noreferrer" target="_blank">
-                        {`Open ${selectedItem.title}`}
-                      </a>
+                      <BlockStack gap="100">
+                        {/*
+                          Shopify's slot is a file picker with no URL field, so
+                          the merchant needs the bytes on their own disk before
+                          they can attach anything. Download leads for that
+                          reason; the link is for quoting the file in the
+                          response text, where Shopify has no slot for it.
+                        */}
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          Download this, then attach it in Shopify under
+                          {` "${slot.label}"`}.
+                        </Text>
+                        <EvidenceFileActions fileUrl={selectedItem.fileUrl} title={selectedItem.title} />
+                      </BlockStack>
                     ) : null}
                   </BlockStack>
                 )}

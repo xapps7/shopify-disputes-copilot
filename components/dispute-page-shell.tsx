@@ -26,6 +26,7 @@ import { GeneratePacketButton } from "@/components/generate-packet-button";
 import { orderReference, orderReferenceNote } from "@/components/order-label";
 import { OutcomeReviewForm } from "@/components/outcome-review-form";
 import { ResponseBuilder } from "@/components/response-builder";
+import { ShopifyFormGuide } from "@/components/shopify-form-guide";
 import { ShopifySubmissionNotice } from "@/components/shopify-submission-notice";
 import { SubmissionCenter } from "@/components/submission-center";
 import { useShopDomain } from "@/components/use-shop-domain";
@@ -509,6 +510,14 @@ export function DisputePageShell({
               shopDomain={shopDomain}
               shopifyOrderId={dispute.shopifyOrderId}
             />
+
+            {/*
+              Placed after the builder rather than before it: a merchant who has
+              just prepared four slots is exactly the person who benefits from
+              being told which four Shopify fills in for them, and putting it
+              first would read as more work rather than less.
+            */}
+            <ShopifyFormGuide />
 
             <DisputeResponseDraft
               disputeId={dispute.id}
