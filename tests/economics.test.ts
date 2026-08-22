@@ -2,7 +2,17 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { chargebackFee, FEE_RECOVERY_ON_WIN } from "../lib/economics/fees.ts";
-import { assessEcm, assessVamp, protectedButStillCounted, VAMP_THRESHOLDS } from "../lib/economics/ratios.ts";
+import {
+  assessEcm,
+  assessMatchRisk,
+  assessShopify,
+  assessVamp,
+  daysUntilBreach,
+  mostUrgent,
+  projectEcmNextMonth,
+  protectedButStillCounted,
+  VAMP_THRESHOLDS
+} from "../lib/economics/ratios.ts";
 import { recommendStrategy, summarisePortfolio } from "../lib/economics/strategy.ts";
 import {
   estimateWinProbability,
@@ -123,9 +133,36 @@ test("VAMP combines fraud reports and disputes in one numerator", () => {
   assert.ok(Math.abs(assessment.ratio - 0.015) < 1e-9);
 });
 
-test("VAMP threshold is the 1.5% that took effect in April 2026", () => {
-  assert.equal(VAMP_THRESHOLDS.STANDARD.ratio, 0.015);
-  assert.equal(VAMP_THRESHOLDS.CEMEA.ratio, 0.022);
+test("VAMP is assessed at the tier a real merchant can actually reach", () => {
+  // This test previously asserted 1.5% with a count floor of 1,500 - the
+  // "excessive" tier. Reaching that needs roughly 100,000 Visa transactions a
+  // month, so the app reported "healthy" to every merchant it will ever have.
+  //
+  // The tier that bites is non-compliant: 0.5% with a count floor of 5.
+  assert.equal(VAMP_THRESHOLDS.STANDARD.noncompliant.ratio, 0.005);
+  assert.equal(VAMP_THRESHOLDS.STANDARD.noncompliant.count, 5);
+
+  // Excessive is kept for completeness and is not what assessVamp measures.
+  assert.equal(VAMP_THRESHOLDS.STANDARD.excessive.ratio, 0.015);
+  assert.equal(VAMP_THRESHOLDS.STANDARD.excessive.count, 1500);
+});
+
+test("a store that would have read healthy against the old bar now reads over", () => {
+  // 40 disputes in 5,000 transactions is 0.8%. Against the excessive tier that
+  // is comfortably fine; against the tier Visa actually applies it is a breach.
+  const assessment = assessVamp({ fraudReports: 0, disputes: 40, settledTransactionsThisMonth: 5000 });
+
+  assert.equal(assessment.status, "breach");
+  assert.equal(assessment.isFloor, true, "we cannot see TC40, so every VAMP figure is a floor");
+});
+
+test("every VAMP figure admits it is a floor", () => {
+  // Shopify exposes no fraud-report API, and Visa counts a fraudulent order in
+  // both its fraud and dispute reports. Presenting our number as the true VAMP
+  // ratio would understate a fraud-heavy store by close to half.
+  const assessment = assessVamp({ fraudReports: 0, disputes: 1, settledTransactionsThisMonth: 1000 });
+  assert.equal(assessment.isFloor, true);
+  assert.match(assessment.explanation, /counted twice|close to double/i);
 });
 
 test("a tiny store with a bad ratio is not called a breach", () => {
@@ -148,8 +185,8 @@ test("ECM divides by the PRIOR month — the trap that catches shrinking stores"
 
 test("headroom says how many more disputes fit before breaching", () => {
   const assessment = assessVamp({ fraudReports: 0, disputes: 10, settledTransactionsThisMonth: 10000 });
-  // 1.5% of 10,000 = 150 allowed, 10 used.
-  assert.equal(assessment.headroom, 140);
+  // 0.5% of 10,000 = 50 allowed, 10 used.
+  assert.equal(assessment.headroom, 40);
 });
 
 test("warns that Shopify Protect refunds money but not the ratio", () => {
@@ -314,4 +351,111 @@ test("stays open while there is still time to act", async () => {
   });
   assert.equal(lock.locked, false);
   assert.equal(lock.reason, null);
+});
+
+/* ------------------------------------------------- account health --- */
+
+test("Shopify's own 1% over 90 days is the threshold that bites first", () => {
+  // Far below any network programme, and the one that actually costs a real
+  // merchant money - reserves held against payouts.
+  const over = assessShopify({ disputesLast90Days: 12, eligibleTransactionsLast90Days: 1000 });
+  assert.equal(over.status, "breach");
+  assert.match(over.consequence, /reserve/i);
+
+  const fine = assessShopify({ disputesLast90Days: 3, eligibleTransactionsLast90Days: 1000 });
+  assert.equal(fine.status, "healthy");
+});
+
+test("MATCH needs both conditions, because the amount floor is what makes it reachable", () => {
+  // 1% of sales alone is not a listing. 1% AND $5,000 is, and ten bad orders
+  // can clear that - this is the five-year one.
+  const both = assessMatchRisk({ chargebackCount: 15, chargebackAmount: 6000, transactionCount: 1000 });
+  assert.equal(both.status, "breach");
+  assert.match(both.consequence, /five years|five-year/i);
+
+  const ratioOnly = assessMatchRisk({ chargebackCount: 15, chargebackAmount: 900, transactionCount: 1000 });
+  assert.notEqual(ratioOnly.status, "breach", "a high ratio on small amounts is not a listing");
+});
+
+test("days until breach: disputes have to be outrunning sales", () => {
+  // 0.5% threshold. At 40 transactions/day the ratio only worsens above
+  // 0.2 disputes/day, so a slower arrival rate never breaches.
+  const worsening = daysUntilBreach({
+    count: 10,
+    denominator: 4000,
+    ratioThreshold: 0.005,
+    countThreshold: 5,
+    disputesPerDay: 2,
+    transactionsPerDay: 40
+  });
+  assert.ok(worsening !== null && worsening > 0, "a store adding disputes faster than sales should get a date");
+
+  const improving = daysUntilBreach({
+    count: 10,
+    denominator: 4000,
+    ratioThreshold: 0.005,
+    countThreshold: 5,
+    disputesPerDay: 0.1,
+    transactionsPerDay: 40
+  });
+  assert.equal(improving, null, "a falling ratio must not produce a scary date");
+});
+
+test("no forecast beyond the horizon, and none without data", () => {
+  // "You breach in 4 years" is arithmetic, not a warning. Saying it is how an
+  // alert channel teaches people to ignore it.
+  assert.equal(
+    daysUntilBreach({
+      count: 1,
+      denominator: 100000,
+      ratioThreshold: 0.005,
+      countThreshold: 5,
+      disputesPerDay: 0.51,
+      transactionsPerDay: 100
+    }),
+    null
+  );
+
+  assert.equal(
+    daysUntilBreach({
+      count: 10,
+      denominator: 1000,
+      ratioThreshold: 0.005,
+      countThreshold: 5,
+      disputesPerDay: 0,
+      transactionsPerDay: 40
+    }),
+    null,
+    "no disputes arriving means no breach coming"
+  );
+});
+
+test("the Mastercard denominator trap is visible a month early", () => {
+  // Next month divides by THIS month's sales. A store whose sales fell knows
+  // today what its ratio becomes on the 1st, and nobody tells them.
+  const falling = projectEcmNextMonth({
+    chargebacksThisMonth: 30,
+    capturedPaymentsThisMonth: 2000,
+    capturedPaymentsPriorMonth: 4000
+  });
+
+  assert.equal(falling.nextRatio, 0.015);
+  assert.ok(falling.salesChange < -0.4);
+  assert.match(falling.warning ?? "", /sales fell 50%/);
+
+  // Steady sales at a healthy ratio is not news.
+  const steady = projectEcmNextMonth({
+    chargebacksThisMonth: 2,
+    capturedPaymentsThisMonth: 4100,
+    capturedPaymentsPriorMonth: 4000
+  });
+  assert.equal(steady.warning, null);
+});
+
+test("the nearest real consequence leads, not the worst ratio", () => {
+  const shopifyBreach = assessShopify({ disputesLast90Days: 12, eligibleTransactionsLast90Days: 1000 });
+  const vampHealthy = assessVamp({ fraudReports: 0, disputes: 1, settledTransactionsThisMonth: 5000 });
+
+  assert.equal(mostUrgent([vampHealthy, shopifyBreach])?.program, "SHOPIFY");
+  assert.equal(mostUrgent([]), null);
 });

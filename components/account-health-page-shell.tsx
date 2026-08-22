@@ -57,18 +57,27 @@ type PreventionAction = AccountHealth["recommendations"][number];
 const RATIO_LOCALE = "en-US";
 
 const NETWORK_NAME: Record<RatioAssessment["program"], string> = {
-  VAMP: "Visa",
+  SHOPIFY: "Shopify",
+  MATCH: "Mastercard",
+  VAMP_NONCOMPLIANT: "Visa",
+  VAMP_EXCESSIVE: "Visa",
   ECM: "Mastercard"
 };
 
 const PROGRAM_TITLE: Record<RatioAssessment["program"], string> = {
-  VAMP: "Visa VAMP",
+  SHOPIFY: "Shopify chargeback rate",
+  MATCH: "MATCH listing risk",
+  VAMP_NONCOMPLIANT: "Visa VAMP",
+  VAMP_EXCESSIVE: "Visa VAMP (excessive)",
   ECM: "Mastercard ECM"
 };
 
 /** What the programme actually counts, so the numerator is never a mystery. */
 const COUNTED_NOUN: Record<RatioAssessment["program"], { one: string; many: string }> = {
-  VAMP: { one: "dispute or fraud report", many: "disputes and fraud reports" },
+  SHOPIFY: { one: "dispute", many: "disputes" },
+  MATCH: { one: "chargeback", many: "chargebacks" },
+  VAMP_NONCOMPLIANT: { one: "dispute or fraud report", many: "disputes and fraud reports" },
+  VAMP_EXCESSIVE: { one: "dispute or fraud report", many: "disputes and fraud reports" },
   ECM: { one: "chargeback", many: "chargebacks" }
 };
 
@@ -224,7 +233,7 @@ function buildVerdict(health: AccountHealth): Verdict {
 
 /** Why a ratio could not be produced, in terms of the volume that was missing. */
 function missingRatioReason(program: RatioAssessment["program"], health: AccountHealth): string {
-  if (program === "VAMP") {
+  if (program === "VAMP_NONCOMPLIANT") {
     return health.ordersThisMonth === null
       ? `Visa divides this month's disputes and fraud reports by this month's settled card-not-present transactions. We could not read your order volume for ${health.periodLabel}, so there is no denominator and no honest ratio to show.`
       : `Visa's ratio could not be calculated for ${health.periodLabel}. Rather than show you a number we cannot stand behind, this meter stays empty.`;
@@ -427,7 +436,7 @@ export function AccountHealthPageShell({ health }: AccountHealthPageShellProps) 
         of scrolling with the comparison held in the merchant's head.
       */}
       <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
-        {health.vamp ? <ProgramCard assessment={health.vamp} /> : <UnmeasurableProgramCard program="VAMP" health={health} />}
+        {health.vamp ? <ProgramCard assessment={health.vamp} /> : <UnmeasurableProgramCard program="VAMP_NONCOMPLIANT" health={health} />}
         {health.ecm ? <ProgramCard assessment={health.ecm} /> : <UnmeasurableProgramCard program="ECM" health={health} />}
       </InlineGrid>
 
