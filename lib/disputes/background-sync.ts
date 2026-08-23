@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { deliverAlerts, evaluateDisputeAlerts, recordAlerts } from "@/lib/disputes/alerts";
 import { resolveStage } from "@/lib/disputes/lifecycle";
+import { refreshAccountHealth } from "@/lib/economics/health-cache";
 import { buildChecklist } from "@/lib/disputes/repository";
 import { runDisputeSyncWithRetry } from "@/lib/disputes/sync-runs";
 
@@ -133,6 +134,10 @@ export async function sweepMerchant(shopDomain: string, merchantId: string): Pro
 
   try {
     const result = await runDisputeSyncWithRetry(shopDomain);
+
+    // Recompute account health while we are already talking to Shopify. This is
+    // what lets Today lead with a ratio without waiting on a network call.
+    await refreshAccountHealth(shopDomain);
     synced = result.synced;
   } catch (syncError) {
     error = syncError instanceof Error ? syncError.message : "Sync failed.";

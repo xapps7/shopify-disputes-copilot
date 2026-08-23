@@ -388,6 +388,51 @@ export function OverviewPageShell({ today }: OverviewPageShellProps) {
                     {`${today.disputesThisMonth} dispute${today.disputesThisMonth === 1 ? "" : "s"} opened this month. Winning a dispute recovers the money and does nothing to this ratio.`}
                   </Text>
                   {/*
+                    The ratio, when we have one. Read from a cache the hourly
+                    sweep fills, so this never makes the home screen wait on
+                    Shopify. A cold cache falls back to the count below, which
+                    is true and useful rather than a spinner.
+                  */}
+                  {today.health ? (
+                    <BlockStack gap="100">
+                      <InlineStack align="space-between" blockAlign="center" gap="200" wrap>
+                        <Text as="p" variant="bodySm">
+                          {today.health.label}
+                        </Text>
+                        <Badge
+                          tone={
+                            today.health.status === "breach"
+                              ? "critical"
+                              : today.health.status === "watch"
+                                ? "warning"
+                                : "success"
+                          }
+                        >
+                          {`${(today.health.ratio * 100).toFixed(2)}% of ${(today.health.ratioThreshold * 100).toFixed(2)}%`}
+                        </Badge>
+                      </InlineStack>
+
+                      {/*
+                        The number nobody else in the category ships. Only shown
+                        when disputes are genuinely outrunning sales - a date
+                        that never arrives teaches people to ignore the ones
+                        that do.
+                      */}
+                      {today.health.daysUntilBreach !== null ? (
+                        <Text as="p" variant="bodySm" tone="critical" fontWeight="medium">
+                          {`At the current rate you cross this in ${today.health.daysUntilBreach} day${
+                            today.health.daysUntilBreach === 1 ? "" : "s"
+                          }.`}
+                        </Text>
+                      ) : null}
+
+                      <Text as="p" variant="bodyXs" tone="subdued">
+                        {today.health.consequence}
+                      </Text>
+                    </BlockStack>
+                  ) : null}
+
+                  {/*
                     Only shown when it is non-zero. Zero is the normal reading,
                     and for a merchant outside the US it is the permanent one -
                     Shopify Protect is US-only, so a standing "0 lost" line would

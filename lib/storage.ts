@@ -34,17 +34,49 @@ async function persistObjectToS3(key: string, body: Uint8Array | string, content
     })
   );
 
-  if (storagePublicBaseUrl) {
-    return publicUrl(key);
+  // Return a durable reference, NOT a signed URL.
+  //
+  // The previous version returned a signed URL with a 12 hour expiry and that
+  // value was written straight into EvidenceItem.fileUrl. Every evidence link
+  // in the database would have died overnight, silently, and the merchant would
+  // have found out while assembling a response against a deadline.
+  //
+  // `s3://key` is stored instead and resolved to a fresh signed URL at read
+  // time. Using a scheme prefix rather than a new column means no migration and
+  // no ambiguity: a value either starts with s3:// or it is a local path.
+  return storagePublicBaseUrl ? publicUrl(key) : `${S3_REF_PREFIX}${key}`;
+}
+
+export const S3_REF_PREFIX = "s3://";
+
+export function isS3Reference(value: string | null | undefined): value is string {
+  return typeof value === "string" && value.startsWith(S3_REF_PREFIX);
+}
+
+/**
+ * Turns a stored reference into something a browser can fetch.
+ *
+ * Local paths pass straight through. S3 references become a signed URL valid
+ * for fifteen minutes - long enough to click, short enough that a link copied
+ * into a chat message stops working before it becomes a leak.
+ */
+export async function resolveFileUrl(reference: string | null | undefined): Promise<string | null> {
+  if (!reference) {
+    return null;
+  }
+
+  if (!isS3Reference(reference)) {
+    return reference;
+  }
+
+  if (!s3Client || !s3Bucket) {
+    return null;
   }
 
   return await getSignedUrl(
     s3Client,
-    new GetObjectCommand({
-      Bucket: s3Bucket,
-      Key: key
-    }),
-    { expiresIn: 60 * 60 * 12 }
+    new GetObjectCommand({ Bucket: s3Bucket, Key: reference.slice(S3_REF_PREFIX.length) }),
+    { expiresIn: 60 * 15 }
   );
 }
 

@@ -734,7 +734,7 @@ export function EvidenceFileSlots({
                           Download this, then attach it in Shopify under
                           {` "${slot.label}"`}.
                         </Text>
-                        <EvidenceFileActions fileUrl={selectedItem.fileUrl} title={selectedItem.title} />
+                        <EvidenceFileActions fileUrl={`/api/evidence/${selectedItem.id}/file`} title={selectedItem.title} />
                       </BlockStack>
                     ) : null}
                   </BlockStack>

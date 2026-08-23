@@ -10,6 +10,8 @@ import {
 } from "@/lib/disputes/lifecycle";
 import { getReasonProfile } from "@/lib/disputes/reason-codes";
 import { isLostCoverage, readProtectFromOrderJson } from "@/lib/disputes/shopify-protect";
+import { peekAccountHealth } from "@/lib/economics/health-cache";
+import type { RatioAssessment } from "@/lib/economics/ratios";
 import { recommendStrategy, summarisePortfolio, type StrategyRecommendation } from "@/lib/economics/strategy";
 import type { WinFactors } from "@/lib/economics/win-probability";
 
@@ -108,6 +110,14 @@ export type TodayView = {
    * normal reading, and the surface stays silent on zero.
    */
   lostCoverageCount: number;
+  /**
+   * The nearest real consequence to the merchant's card processing, or null.
+   *
+   * Read from cache and never computed here: it needs order counts only Shopify
+   * can give, and Today's job is to be the fast answer. A cold cache shows the
+   * dispute count instead, which is honest and still useful.
+   */
+  health: RatioAssessment | null;
   nextAction: TodayNextAction | null;
   stages: StageCount[];
   portfolio: PortfolioTotals[];
@@ -125,6 +135,7 @@ function emptyView(shopDomain: string | null): TodayView {
     awaitingYou: 0,
     disputesThisMonth: 0,
     lostCoverageCount: 0,
+    health: null,
     nextAction: null,
     stages: countByStage([]),
     portfolio: [],
@@ -372,6 +383,7 @@ export async function getTodayView(shopDomain?: string | null): Promise<TodayVie
     awaitingYou,
     disputesThisMonth,
     lostCoverageCount,
+    health: peekAccountHealth(shopDomain)?.urgent ?? null,
     nextAction: best?.action ?? null,
     stages: countByStage(stages),
     portfolio: summarisePortfolio(openForPortfolio),
