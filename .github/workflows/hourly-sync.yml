@@ -1,0 +1,45 @@
+# Hourly sweep: sync disputes, send deadline alerts, refresh account health.
+#
+# App Runner has no built-in scheduler, and EventBridge Scheduler cannot call an
+# external HTTPS endpoint - it only invokes AWS service APIs. The AWS-native
+# route is EventBridge Rules with an API destination and a connection, which is
+# three resources and an IAM role to hit one URL.
+#
+# This does the same job in fifteen lines, in the repo, in version control, for
+# free. Swap it for EventBridge later if the ops story needs to live in AWS.
+#
+# SETUP - two repository secrets, at
+# Settings > Secrets and variables > Actions > New repository secret:
+#   CRON_SECRET  - the same value set in App Runner
+#   APP_URL      - https://x7wttmvp3i.us-east-1.awsapprunner.com
+#
+# Worth knowing: GitHub can delay a scheduled run by up to ~15 minutes under
+# load, which is irrelevant against 72 and 24 hour alert thresholds. It also
+# disables scheduled workflows after 60 days with no commits to the repo - so if
+# this app ever goes quiet for two months, re-enable it in the Actions tab.
+
+name: Hourly dispute sync
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  # Lets you run it by hand from the Actions tab, which is how you test it
+  # without waiting for the top of the hour.
+  workflow_dispatch:
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call the sweep endpoint
+        run: |
+          echo "Calling ${{ secrets.APP_URL }}/api/cron/sync"
+
+          # -sS keeps curl quiet but still prints errors. --fail-with-body makes
+          # a 4xx or 5xx fail the job AND show the response, so a failure is
+          # visible in the Actions tab rather than a silent green tick.
+          curl -sS --fail-with-body \
+            --max-time 300 \
+            -X POST "${{ secrets.APP_URL }}/api/cron/sync" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json"
