@@ -22,17 +22,25 @@ function publicUrl(relativePath: string) {
 
 async function persistObjectToS3(key: string, body: Uint8Array | string, contentType: string) {
   if (!s3Client || !s3Bucket) {
-    throw new Error("S3 storage is not configured.");
+    throw new StorageError(
+      "File storage is set to S3 but S3_BUCKET or S3_REGION is missing. Both are required, plus FILE_STORAGE_MODE=s3.",
+      "not-configured"
+    );
   }
 
-  await s3Client.send(
-    new PutObjectCommand({
-      Bucket: s3Bucket,
-      Key: key,
-      Body: body,
-      ContentType: contentType
-    })
-  );
+  try {
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: s3Bucket,
+        Key: key,
+        Body: body,
+        ContentType: contentType
+      })
+    );
+  } catch (error) {
+    console.error("[storage] S3 put failed", error);
+    throw describeStorageFailure(error);
+  }
 
   // Return a durable reference, NOT a signed URL.
   //
@@ -45,6 +53,65 @@ async function persistObjectToS3(key: string, body: Uint8Array | string, content
   // time. Using a scheme prefix rather than a new column means no migration and
   // no ambiguity: a value either starts with s3:// or it is a local path.
   return storagePublicBaseUrl ? publicUrl(key) : `${S3_REF_PREFIX}${key}`;
+}
+
+
+/**
+ * A storage failure the merchant can act on.
+ *
+ * The upload route used to return a bare "Upload failed." and log the real
+ * cause where only the operator could see it. For a self-hosted app whose
+ * operator IS the person staring at the failed upload, that is the wrong trade:
+ * every likely cause here is a configuration mistake with a specific fix, and
+ * naming it turns a support ticket into a two-minute change.
+ *
+ * Nothing sensitive is exposed - AWS error names are not secrets, and the
+ * bucket name is already in the merchant's own console.
+ */
+export class StorageError extends Error {
+  readonly cause: string;
+
+  constructor(message: string, cause: string) {
+    super(message);
+    this.name = "StorageError";
+    this.cause = cause;
+  }
+}
+
+/** Turns an AWS SDK error into something worth reading. */
+export function describeStorageFailure(error: unknown): StorageError {
+  const name = (error as { name?: string })?.name ?? "";
+  const raw = error instanceof Error ? error.message : String(error);
+
+  if (/AccessDenied|Forbidden|not authorized/i.test(name + raw)) {
+    return new StorageError(
+      `The app is not allowed to write to the ${s3Bucket ?? "storage"} bucket. Attach the S3 policy to the App Runner INSTANCE role - not the access role, which is a different setting.`,
+      "access-denied"
+    );
+  }
+
+  if (/NoSuchBucket/i.test(name + raw)) {
+    return new StorageError(
+      `No bucket named "${s3Bucket}" exists. Check S3_BUCKET for a typo.`,
+      "no-bucket"
+    );
+  }
+
+  if (/PermanentRedirect|region/i.test(name + raw)) {
+    return new StorageError(
+      `The bucket is not in ${s3Region}. Set S3_REGION to the region the bucket was actually created in.`,
+      "wrong-region"
+    );
+  }
+
+  if (/Credentials|CredentialsProviderError|security token/i.test(name + raw)) {
+    return new StorageError(
+      "The app has no AWS credentials. On App Runner that means no instance role is attached.",
+      "no-credentials"
+    );
+  }
+
+  return new StorageError(`Storage rejected the upload: ${raw.slice(0, 200)}`, "unknown");
 }
 
 export const S3_REF_PREFIX = "s3://";

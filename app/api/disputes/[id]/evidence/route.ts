@@ -8,7 +8,7 @@ import {
   ALLOWED_EVIDENCE_MIME_TYPES,
   MAX_TOTAL_EVIDENCE_BYTES
 } from "@/lib/disputes/evidence-fields";
-import { persistUploadedFile } from "@/lib/storage";
+import { persistUploadedFile, StorageError } from "@/lib/storage";
 
 /**
  * Shopify accepts .pdf, .png and .jpeg only, and 4 MB TOTAL across every
@@ -167,6 +167,12 @@ export async function POST(
 
     return NextResponse.json({ message: "Evidence uploaded.", fileUrl });
   } catch (error) {
+    // A storage misconfiguration is the merchant's to fix, so it gets named
+    // rather than swallowed into a generic failure they cannot act on.
+    if (error instanceof StorageError) {
+      return NextResponse.json({ ok: false, message: error.message }, { status: 503 });
+    }
+
     return toErrorResponse(error, "Upload failed.");
   }
 }
