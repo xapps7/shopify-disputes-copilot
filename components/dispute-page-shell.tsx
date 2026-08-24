@@ -17,6 +17,7 @@ import {
 } from "@shopify/polaris";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { Ce30Card } from "@/components/ce30-card";
 import { DeadlineBadge, useNow } from "@/components/deadline-badge";
 import { DisputeResponseDraft } from "@/components/dispute-response-draft";
 import { DisputeStrategyCard } from "@/components/dispute-strategy-card";
@@ -443,6 +444,15 @@ export function DisputePageShell({
           <BlockStack gap="400">
             {/* Decide -> write -> send. Three sections, in the order the work happens. */}
             <DisputeStrategyCard strategy={dispute.strategy} />
+
+            {/*
+              Directly under the strategy card, because it qualifies it: the
+              strategy card weighs the money, and this is the one case where a
+              win is worth more than the money - CE 3.0 also takes the dispute
+              off the fraud ratio. Null for anything that is not a Visa 10.4
+              claim, so a duplicate-charge dispute never sees a Visa verdict.
+            */}
+            {dispute.ce30 ? <Ce30Card ce30={dispute.ce30} /> : null}
 
             {/*
               Shopify Protect, only when it says something. Silent for every

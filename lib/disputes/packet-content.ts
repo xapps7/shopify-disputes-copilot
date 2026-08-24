@@ -1,5 +1,8 @@
 import { defaultMerchantSettings, type MerchantSettings } from "@/lib/settings";
 
+// Re-exported so callers keep one import for packet text.
+export { resolvePacketText } from "@/lib/disputes/packet-text";
+
 /** Kept local so packet text does not pull the S3 client into its import graph. */
 const S3_REFERENCE = /^s3:\/\//;
 

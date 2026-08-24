@@ -80,6 +80,35 @@ export function AppShell({ children, release, commit }: AppShellProps) {
 
   return (
     <div className="app-shell">
+      {/*
+        Shopify's admin sidebar menu.
+        
+        Without this the app has no links in the admin's left sidebar at all -
+        a merchant could only move between screens once already inside the
+        iframe, and the app looked like a single page from the outside. It is
+        also reviewer-visible, and Shopify's own app design guidance treats the
+        sidebar as the primary navigation for an embedded app.
+        
+        `ui-nav-menu` is an App Bridge web component, not React, so it is
+        written as plain markup and takes no props from us. App Bridge reads the
+        anchors on mount. The FIRST anchor must be href="/" and is used as the
+        home link rather than rendered as an item - that is App Bridge's
+        contract, not a quirk of ours, and putting anything else first drops a
+        destination.
+        
+        The Polaris Tabs strip below stays. It carries the embedded query string
+        through client navigation, which the sidebar links cannot do, and it is
+        what keeps the app usable if App Bridge has not loaded.
+      */}
+      <ui-nav-menu>
+        <a href="/" rel="home">
+          Today
+        </a>
+        <a href="/disputes">Disputes</a>
+        <a href="/account-health">Account health</a>
+        <a href="/evidence">Evidence library</a>
+        <a href="/settings">Settings</a>
+      </ui-nav-menu>
       <div className="app-shell__masthead">
         <Tabs
           tabs={NAV_ITEMS.map((item) => ({

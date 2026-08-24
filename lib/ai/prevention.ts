@@ -1,3 +1,4 @@
+import { isFraudReason, isNonDeliveryReason } from "@/lib/disputes/root-cause";
 import type { DisputeDetailView, PreventionRecommendationView } from "@/lib/types";
 
 type OutcomeReviewInput = {
@@ -24,7 +25,12 @@ export function buildPreventionRecommendations(
 ): PreventionRecommendationView[] {
   const recommendations: PreventionRecommendationView[] = [];
 
-  if (review.rootCause === "FRAUD_SCREENING" || dispute.reason === "FRAUD") {
+  // `dispute.reason === "FRAUD"` here was the second copy of the same dead
+  // comparison. Shopify's value is `FRAUDULENT`, so these recommendations were
+  // reachable only via `rootCause` - which was itself never set to
+  // FRAUD_SCREENING because of the identical bug upstream. Both halves were
+  // broken, so fraud prevention advice never appeared at all.
+  if (review.rootCause === "FRAUD_SCREENING" || isFraudReason(dispute.reason)) {
     recommendations.push({
       id: `generated-fraud-${dispute.id}`,
       category: "ORDER_RISK",
@@ -43,7 +49,7 @@ export function buildPreventionRecommendations(
     });
   }
 
-  if (review.rootCause === "FULFILLMENT_GAP" || dispute.reason === "PRODUCT_NOT_RECEIVED") {
+  if (review.rootCause === "FULFILLMENT_GAP" || isNonDeliveryReason(dispute.reason)) {
     recommendations.push({
       id: `generated-tracking-${dispute.id}`,
       category: "FULFILLMENT",

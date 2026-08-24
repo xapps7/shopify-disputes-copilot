@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { db } from "@/lib/db";
-import { buildPacketSummary } from "@/lib/disputes/packet-content";
+import { buildPacketSummary, resolvePacketText } from "@/lib/disputes/packet-content";
 import { requireMerchant } from "@/lib/disputes/tenant";
 import { requireShopDomain } from "@/lib/shopify/request-context";
 import { toErrorResponse } from "@/lib/shopify/route-guard";
@@ -24,6 +24,13 @@ export async function GET(request: Request, { params }: RouteContext) {
         merchant: true,
         evidenceItems: {
           orderBy: { createdAt: "asc" }
+        },
+        // The merchant's edited narrative. Without this the download regenerated
+        // the packet from field values every time and silently discarded
+        // whatever they wrote in the editor.
+        packets: {
+          orderBy: { version: "desc" },
+          take: 1
         }
       }
     });
@@ -35,16 +42,21 @@ export async function GET(request: Request, { params }: RouteContext) {
       return NextResponse.json({ ok: false, message: "Dispute not found." }, { status: 404 });
     }
 
-    const sourceDispute = dispute;
+    const { text, source } = resolvePacketText(
+      dispute.packets[0]?.summaryText ?? null,
+      buildPacketSummary(dispute)
+    );
 
-    const content = buildPacketSummary(sourceDispute);
-    const disputeRef = sourceDispute.shopifyDisputeId.split("/").pop() ?? id;
+    const disputeRef = dispute.shopifyDisputeId.split("/").pop() ?? id;
 
-    return new NextResponse(content, {
+    return new NextResponse(text, {
       status: 200,
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
-        "Content-Disposition": `attachment; filename=\"dispute-${disputeRef}-packet.txt\"`
+        "Content-Disposition": `attachment; filename="dispute-${disputeRef}-packet.txt"`,
+        // So a merchant who reports "my edits are missing" can be answered from
+        // a response header instead of a guess.
+        "X-Packet-Source": source
       }
     });
   } catch (error) {

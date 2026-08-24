@@ -16,6 +16,7 @@ import {
 } from "@shopify/polaris";
 
 import { AdminPageLayout } from "@/components/admin-page-layout";
+import { ProtectionLadder } from "@/components/protection-ladder";
 import { formatMoney } from "@/lib/format/money";
 import type { AccountHealth } from "@/lib/economics/account-health";
 
@@ -472,6 +473,16 @@ export function AccountHealthPageShell({ health }: AccountHealthPageShellProps) 
           )}
         </BlockStack>
       </Card>
+
+      {/*
+        Between the money and the prevention actions, because it belongs to
+        both and to neither. The ladder is derived from the ratio position shown
+        above, so it has to come after it; it is about what to buy rather than
+        what to change, so it comes before the prevention list. It renders
+        nothing when no threshold is in play - there is no position to price a
+        product against, and an empty card would still be a claim.
+      */}
+      <ProtectionLadder protection={health.protection} />
 
       <Card>
         <BlockStack gap="300">

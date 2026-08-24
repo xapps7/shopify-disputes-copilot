@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { projectOrderForStorage } from "@/lib/compliance/order-projection";
 import { syncDerivedDisputeState } from "@/lib/disputes/auto-sync";
 import { decryptString } from "@/lib/crypto";
 import { createShopifyAdminClient } from "@/lib/shopify/client";
@@ -422,7 +423,11 @@ async function upsertOrderSnapshot(dispute: ShopifyDisputeNode, merchantId: stri
     orderTotal: dispute.order.currentTotalPriceSet?.shopMoney?.amount ?? undefined,
     currencyCode: dispute.order.currentTotalPriceSet?.shopMoney?.currencyCode ?? null,
     fulfillmentStatus: dispute.order.displayFulfillmentStatus ?? null,
-    orderJson: JSON.stringify(dispute.order)
+    // Not the raw payload. Only the fields a named reader needs - see
+    // lib/compliance/order-projection.ts. An order snapshot outlives every
+    // dispute attached to it, so it is the worst place to keep data we do not
+    // use.
+    orderJson: projectOrderForStorage(dispute.order)
   };
 
   return db.orderSnapshot.upsert({

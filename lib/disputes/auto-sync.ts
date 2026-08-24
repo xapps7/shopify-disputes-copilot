@@ -3,6 +3,7 @@ import { DisputeStatus, PacketStatus } from "@prisma/client";
 import { buildPreventionRecommendations } from "@/lib/ai/prevention";
 import { db } from "@/lib/db";
 import { getDisputeDetail } from "@/lib/disputes/repository";
+import { inferRootCause } from "@/lib/disputes/root-cause";
 
 type AutoSyncInput = {
   disputeId: string;
@@ -13,18 +14,6 @@ type AutoSyncInput = {
   previousEvidenceSentOn: Date | null;
   source: "shopify_webhook" | "shopify_graphql";
 };
-
-function inferRootCause(status: DisputeStatus, reason: string | null) {
-  if (reason === "FRAUD") {
-    return status === DisputeStatus.WON ? "DOCUMENTATION_GAP" : "FRAUD_SCREENING";
-  }
-
-  if (reason === "PRODUCT_NOT_RECEIVED") {
-    return "FULFILLMENT_GAP";
-  }
-
-  return "DOCUMENTATION_GAP";
-}
 
 function isFinalStatus(status: DisputeStatus) {
   return (

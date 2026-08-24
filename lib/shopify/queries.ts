@@ -535,6 +535,12 @@ export const DISPUTES_LIST_NO_CUSTOMER_QUERY = `#graphql
         order {
           id
           name
+          # The date the buyer ordered. Visa CE 3.0 measures every prior order
+          # against a 120-365 day window before the dispute, and OrderSnapshot
+          # has no column for it - only the row's own createdAt, which is when
+          # this app first synced the order. Without this field a genuine prior
+          # is silently undateable.
+          createdAt
           displayFulfillmentStatus
           currentTotalPriceSet {
             shopMoney {
@@ -583,6 +589,9 @@ export const DISPUTE_SYNC_NO_CUSTOMER_QUERY = `#graphql
       order {
         id
         name
+        # The order date. Needed to place a prior order inside Visa's 120-365
+        # day CE 3.0 window - see the note in DISPUTES_LIST_NO_CUSTOMER_QUERY.
+        createdAt
         displayFinancialStatus
         displayFulfillmentStatus
         # Whether Shopify already reimbursed this chargeback. Needs only

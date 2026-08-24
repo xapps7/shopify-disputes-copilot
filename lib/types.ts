@@ -2,6 +2,7 @@ import type { EvidenceFieldState } from "@/lib/disputes/evidence-fields";
 import type { LibraryDocument } from "@/lib/documents/library";
 import type { StrategyRecommendation } from "@/lib/economics/strategy";
 
+import type { Ce30Result } from "@/lib/disputes/ce30";
 import type { ProtectSignal } from "@/lib/disputes/shopify-protect";
 
 export type DashboardDispute = {
@@ -96,6 +97,15 @@ export type DisputeDetailView = {
   strategy: StrategyRecommendation;
   /** Shopify Protect signal, or null when there is nothing worth saying. */
   protect: ProtectSignal | null;
+  /**
+   * Visa Compelling Evidence 3.0 - the one remedy that takes the dispute off the
+   * fraud ratio as well as returning the money.
+   *
+   * Null when the dispute is not a Visa 10.4 fraud claim, and the card renders
+   * nothing at all in that case. A "not eligible" verdict on a duplicate-charge
+   * dispute is noise about a rule that was never in play.
+   */
+  ce30: Ce30Result | null;
   /** Set once nothing can reach Shopify any more; the record becomes read-only. */
   lock: { locked: boolean; reason: string | null; cause: "decided" | "submitted" | "auto-submitted" | null };
   timeline: Array<{

@@ -1,6 +1,16 @@
 import { db } from "@/lib/db";
+import { ce30ElementsFromOrder } from "@/lib/compliance/order-projection";
 import { decryptString } from "@/lib/crypto";
 import { createShopifyAdminClient } from "@/lib/shopify/client";
+import {
+  CE30_MAX_AGE_DAYS,
+  CE30_MIN_AGE_DAYS,
+  assessCe30,
+  isCondition104,
+  type Ce30Candidate,
+  type Ce30Elements,
+  type Ce30Result
+} from "@/lib/disputes/ce30";
 import {
   buildEvidenceFieldStates,
   draftEvidenceFields,
@@ -293,6 +303,41 @@ function reasonAwareCompleteness(reason: string | null, categories: Set<string>)
   return Math.round((ready / checklist.length) * 100);
 }
 
+/**
+ * How many disputes the queue loads at once.
+ *
+ * The queue filters and sorts on the client, over whatever this returns. At the
+ * old value of 100 that was silent: dispute 101 simply did not exist as far as
+ * search, filters and sorting were concerned, and nothing on screen said so.
+ * A merchant looking for an old case would have concluded the app had lost it.
+ *
+ * Raised, and the count is now reported so the UI can say when it is showing a
+ * slice. A real fix is server-side pagination; this makes the limit honest in
+ * the meantime, which is the part that was actually harmful.
+ */
+export const DISPUTE_QUEUE_LIMIT = 500;
+
+/**
+ * The true number of disputes on record, so the queue can say when it is only
+ * showing part of them. Counting is cheap; being silently wrong is not.
+ */
+export async function countDashboardDisputes(shopDomain?: string | null): Promise<number> {
+  if (!shopDomain) {
+    return 0;
+  }
+
+  const merchant = await db.merchant.findUnique({
+    where: { shopDomain },
+    select: { id: true }
+  });
+
+  if (!merchant) {
+    return 0;
+  }
+
+  return await db.dispute.count({ where: { merchantId: merchant.id } });
+}
+
 export async function listDashboardDisputes(shopDomain?: string | null): Promise<DashboardDispute[]> {
   if (!shopDomain) {
     return [];
@@ -307,7 +352,7 @@ export async function listDashboardDisputes(shopDomain?: string | null): Promise
         include: {
           evidenceItems: true
         },
-        take: 100
+        take: DISPUTE_QUEUE_LIMIT
       }
     }
   });
@@ -475,6 +520,191 @@ export async function listDisputeOptions(shopDomain?: string | null): Promise<Di
     id: dispute.id,
     label: `${dispute.shopifyDisputeId.split("/").pop()} · ${dispute.currencyCode ?? "USD"} ${dispute.amount}`
   }));
+}
+
+/**
+ * How many of one buyer's orders to load when assessing CE 3.0.
+ *
+ * Visa needs two priors, so this is not about finding more of them - it is a
+ * ceiling on a query keyed by a single email address. A wholesale buyer with
+ * hundreds of orders should not turn one dispute page into an unbounded read.
+ */
+const CE30_HISTORY_LIMIT = 200;
+
+function parseOrderJson(raw: string | null | undefined): unknown {
+  if (!raw) {
+    return null;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+/** First non-null wins, element by element. */
+function mergeCe30Elements(preferred: Ce30Elements, fallback: Ce30Elements): Ce30Elements {
+  return {
+    customerEmail: preferred.customerEmail ?? fallback.customerEmail,
+    ip: preferred.ip ?? fallback.ip,
+    deviceId: preferred.deviceId ?? fallback.deviceId,
+    shippingAddressHash: preferred.shippingAddressHash ?? fallback.shippingAddressHash,
+    userId: preferred.userId ?? fallback.userId
+  };
+}
+
+/**
+ * Visa Compelling Evidence 3.0 for one dispute, or null when the rule does not
+ * apply to it.
+ *
+ * WHY THE GATE IS `isCondition104` AND NOTHING ELSE: CE 3.0 is a Visa-only
+ * remedy for one condition code. `Dispute.reasonDetails` holds
+ * `reasonDetails.networkReasonCode` when Shopify sends one and falls back to the
+ * dispute type otherwise, so it can legitimately read "CHARGEBACK" - and the
+ * reason enum cannot rescue that, because Shopify's `FRAUDULENT` covers Visa
+ * 10.4 and Mastercard 4837 alike. Deriving 10.4 from the enum would put a Visa
+ * checklist on Mastercard disputes it can never apply to. So the card appears
+ * only where the network itself told us the condition code, and nowhere else.
+ *
+ * The consequence is worth stating: on a shop where Shopify sends no network
+ * code, this returns null and the merchant is never offered CE 3.0. That is the
+ * right way round. `assessCe30` writes a careful blocker for a missing code, but
+ * showing it would mean putting a Visa-specific verdict on disputes we cannot
+ * confirm are Visa's.
+ */
+async function assessCe30ForDispute(input: {
+  merchantId: string;
+  conditionCode: string | null;
+  initiatedAt: Date | null;
+  shopifyOrderId: string | null;
+  /** The full dispute payload's order, which still carries the shipping address. */
+  disputedOrderNode: unknown;
+  /** The projected snapshot for the disputed order, which carries the hashes. */
+  storedOrderJson: string | null;
+  /** The best email the detail view resolved, used when the payloads have none. */
+  customerEmail: string | null;
+}): Promise<Ce30Result | null> {
+  if (!isCondition104(input.conditionCode)) {
+    return null;
+  }
+
+  const fromPayload = ce30ElementsFromOrder(input.disputedOrderNode);
+  const fromSnapshot = ce30ElementsFromOrder(parseOrderJson(input.storedOrderJson));
+  const disputedElements = mergeCe30Elements(fromPayload, fromSnapshot);
+  const customerEmail = disputedElements.customerEmail ?? input.customerEmail;
+
+  const disputedTransaction = {
+    ...disputedElements,
+    customerEmail,
+    orderId: input.shopifyOrderId,
+    merchantId: input.merchantId
+  };
+
+  const history: Ce30Candidate[] = [];
+  let undatedPriors = 0;
+
+  if (customerEmail) {
+    // Matched in SQL on the buyer, bounded by a row limit, and NOT bounded by
+    // date. There is no order-date column to filter on: `OrderSnapshot.createdAt`
+    // is when this app first synced the order, which for a backfilled shop is
+    // "last Tuesday" for every order it has. Filtering on it would drop every
+    // genuine prior. The real order date lives inside the projected orderJson,
+    // so the 120-365 day window is applied by `assessCe30` below.
+    //
+    // Case-insensitive because the same buyer reaches Shopify as Buyer@x.com and
+    // buyer@x.com, and `assessCe30` lowercases both sides anyway - matching
+    // case-sensitively here would lose the prior before the rules ever saw it.
+    const rows = await db.orderSnapshot.findMany({
+      where: {
+        merchantId: input.merchantId,
+        customerEmail: { equals: customerEmail, mode: "insensitive" }
+      },
+      select: {
+        shopifyOrderId: true,
+        orderName: true,
+        customerEmail: true,
+        orderJson: true
+      },
+      orderBy: { createdAt: "desc" },
+      take: CE30_HISTORY_LIMIT
+    });
+
+    // Visa disqualifies a prior that was itself disputed. The app's own dispute
+    // rows are the only fraud history it has - an issuer fraud report that never
+    // became a chargeback is invisible to us, which `assessCe30` says out loud
+    // as a caveat rather than us pretending the check is complete.
+    const disputedOrderIds =
+      rows.length > 0
+        ? new Set(
+            (
+              await db.dispute.findMany({
+                where: {
+                  merchantId: input.merchantId,
+                  shopifyOrderId: { in: rows.map((row) => row.shopifyOrderId) }
+                },
+                select: { shopifyOrderId: true }
+              })
+            )
+              .map((row) => row.shopifyOrderId)
+              .filter((orderId): orderId is string => Boolean(orderId))
+          )
+        : new Set<string>();
+
+    for (const row of rows) {
+      const stored = parseOrderJson(row.orderJson);
+      const orderDate = ((): string | null => {
+        const record = stored && typeof stored === "object" ? (stored as Record<string, unknown>) : null;
+        const value = record?.createdAt;
+        return typeof value === "string" && value.trim().length > 0 ? value : null;
+      })();
+
+      // No order date, no candidate. The row's own createdAt is NOT a substitute:
+      // it would date a two-year-old order to the day we synced it and file a
+      // real prior under "too recent", which reads to the merchant as a fact
+      // about their order instead of a gap in ours. Counted so the card can say
+      // how many were skipped.
+      if (!orderDate) {
+        undatedPriors += 1;
+        continue;
+      }
+
+      history.push({
+        ...ce30ElementsFromOrder(stored),
+        // The column, not the payload: it is what the query matched on, and the
+        // projection drops customer email for orders synced without protected
+        // customer data approval while the column still holds it.
+        customerEmail: row.customerEmail ?? null,
+        orderId: row.shopifyOrderId,
+        orderName: row.orderName ?? row.shopifyOrderId.split("/").pop() ?? row.shopifyOrderId,
+        processedAt: orderDate,
+        hadDispute: disputedOrderIds.has(row.shopifyOrderId),
+        merchantId: input.merchantId
+      });
+    }
+  }
+
+  const result = assessCe30(
+    {
+      conditionCode: input.conditionCode,
+      // Empty string rather than a substituted date. `assessCe30` reports an
+      // unreadable dispute date as a blocker; guessing one from createdAt would
+      // silently shift the whole 120-365 day window.
+      disputeDate: input.initiatedAt?.toISOString() ?? "",
+      disputedTransaction
+    },
+    history
+  );
+
+  if (undatedPriors > 0) {
+    // Appended here rather than inside the rules module: this is a limit of what
+    // this app stored, not of Visa's criteria, and it is exactly what a caveat
+    // is for. Without it the orders simply vanish from the count.
+    result.caveats.push(
+      `${undatedPriors} earlier ${undatedPriors === 1 ? "order was" : "orders were"} skipped because no order date was stored for ${undatedPriors === 1 ? "it" : "them"}, so ${undatedPriors === 1 ? "it" : "they"} could not be placed in Visa's ${CE30_MIN_AGE_DAYS}-${CE30_MAX_AGE_DAYS} day window. Re-syncing the shop stores the order date.`
+    );
+  }
+
+  return result;
 }
 
 export async function getDisputeDetail(id: string, merchantId?: string): Promise<DisputeDetailView> {
@@ -662,6 +892,19 @@ export async function getDisputeDetail(id: string, merchantId?: string): Promise
 
   const protectSignal = describeProtect(protect);
 
+  // The only remedy that removes the dispute from the fraud ratio as well as
+  // returning the money, so it is worth a database read on every Visa 10.4 case.
+  // Null - and no query at all - for every other dispute.
+  const ce30 = await assessCe30ForDispute({
+    merchantId: dispute.merchantId,
+    conditionCode: dispute.reasonDetails ?? null,
+    initiatedAt: dispute.initiatedAt ?? null,
+    shopifyOrderId: dispute.shopifyOrderId ?? null,
+    disputedOrderNode: orderNode,
+    storedOrderJson: orderSnapshot?.orderJson ?? null,
+    customerEmail: mergedOrderSummary.customerEmail
+  });
+
   const strategy = recommendStrategy({
     disputeType: dispute.disputeType?.toUpperCase() === "INQUIRY" ? "INQUIRY" : "CHARGEBACK",
     status: dispute.status,
@@ -708,6 +951,7 @@ export async function getDisputeDetail(id: string, merchantId?: string): Promise
     // Null rather than a "nothing to report" object: the caller renders nothing,
     // and Protect is silent for every merchant outside the US.
     protect: protectSignal.show ? protectSignal : null,
+    ce30,
     lock: evaluateLock({
       status: dispute.status,
       evidenceSentOn: dispute.evidenceSentOn,

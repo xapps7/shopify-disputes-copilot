@@ -55,6 +55,15 @@ type QueueDispute = DashboardDispute & { orderName?: string | null };
 
 type DisputesIndexPageShellProps = {
   disputes: QueueDispute[];
+  /**
+   * How many rows the server was willing to load, and how many exist. Search,
+   * filters and sorting all run on the client over `disputes`, so anything
+   * beyond the limit is invisible to them. Passing both means the page can say
+   * so out loud - previously it just quietly stopped at 100 and a merchant
+   * hunting an old case would have concluded the app had lost it.
+   */
+  loadedLimit?: number;
+  totalCount?: number;
 };
 
 type BandKey = "urgent" | "week" | "later" | "closed";
@@ -166,7 +175,14 @@ const AMOUNT_COLUMN = 4;
 /** Polaris does not re-export `IndexTableSortDirection`, so mirror it here. */
 type SortDirection = "ascending" | "descending";
 
-export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps) {
+export function DisputesIndexPageShell({
+  disputes,
+  loadedLimit,
+  totalCount
+}: DisputesIndexPageShellProps) {
+  const truncated = Boolean(
+    loadedLimit && totalCount && totalCount > loadedLimit && disputes.length >= loadedLimit
+  );
   const { mode, setMode } = useSetIndexFiltersMode();
   const searchParams = useSearchParams();
   const now = useNow();
@@ -498,6 +514,17 @@ export function DisputesIndexPageShell({ disputes }: DisputesIndexPageShellProps
       primaryAction={{ content: "Sync disputes", onAction: runSync, loading: isSyncing }}
       secondaryActions={[{ content: "Open evidence library", url: "/evidence" }]}
       gap="300"
+      subduedNote={
+        /*
+          The one-banner rule holds: this is a quiet line, not a second banner,
+          because a truncated list is a caveat and not an emergency. But it does
+          have to be said - search and filters below run only over what was
+          loaded, so silence here would be the app lying about its own results.
+        */
+        truncated
+          ? `Showing the ${loadedLimit} disputes closest to their deadline, of ${totalCount} on record. Search and filters below cover these ${loadedLimit} only.`
+          : undefined
+      }
       banner={
         urgentRows.length > 0 ? (
           <Box

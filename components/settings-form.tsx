@@ -5,6 +5,7 @@ import { Banner, BlockStack, Button, Checkbox, InlineGrid, Text, TextField } fro
 
 import type { MerchantSettings } from "@/lib/settings";
 import { authenticatedFetch } from "@/components/authenticated-fetch";
+import { describeRetentionPolicy, parseRetentionDays } from "@/lib/compliance/retention";
 
 type SettingsFormProps = {
   initialSettings: MerchantSettings;
@@ -177,14 +178,22 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
             />
             <TextField
               autoComplete="off"
-              disabled
-              // Genuinely still inactive: nothing expires evidence on a
-              // schedule yet. Saying so is the point of the disabled state.
-              helpText="Not active yet — files are never deleted automatically."
-              label="Evidence retention days"
+              /*
+                Live now. This field was saved to the database and read by
+                nothing for the whole life of the app - a setting that promised
+                a behaviour the code did not have. The hourly sweep gives it
+                one, so it is editable, and the help text is GENERATED from the
+                value in force rather than written by hand, so what a merchant
+                reads here and what the compliance answer says can never drift
+                apart.
+              */
+              helpText={describeRetentionPolicy(parseRetentionDays(evidenceRetentionDays))}
+              label="Keep customer data for"
               name="evidenceRetentionDays"
               onChange={setEvidenceRetentionDays}
               placeholder="365"
+              suffix="days"
+              type="number"
               value={evidenceRetentionDays}
             />
           </InlineGrid>

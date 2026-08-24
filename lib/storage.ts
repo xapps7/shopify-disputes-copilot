@@ -1,6 +1,6 @@
 import path from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const publicRoot = path.join(process.cwd(), "public");
@@ -145,6 +145,51 @@ export async function resolveFileUrl(reference: string | null | undefined): Prom
     new GetObjectCommand({ Bucket: s3Bucket, Key: reference.slice(S3_REF_PREFIX.length) }),
     { expiresIn: 60 * 15 }
   );
+}
+
+/**
+ * Deletes a stored object.
+ *
+ * This did not exist, and its absence was load-bearing: both the privacy
+ * webhooks and the retention sweep could only clear the database POINTER to a
+ * file, leaving the bytes in the bucket forever. "Deleted" then meant "you can
+ * no longer find it", which is not what an erasure request asks for.
+ *
+ * Returns what actually happened rather than throwing, because a sweep over
+ * many files must not abort on the one object that has already gone. A missing
+ * object counts as success - the desired end state is that it is not there.
+ *
+ * Local-mode paths are reported as skipped rather than unlinked. Local storage
+ * only exists on a developer machine (App Runner wipes the disk on every
+ * deploy), and a delete helper that can remove arbitrary paths under `public/`
+ * is a bigger risk than the stale dev file it would clean up.
+ */
+export async function deleteStoredFile(
+  reference: string | null | undefined
+): Promise<{ deleted: boolean; reason: "deleted" | "not-found" | "not-configured" | "not-remote" | "failed" }> {
+  if (!reference) {
+    return { deleted: false, reason: "not-found" };
+  }
+
+  if (!isS3Reference(reference)) {
+    return { deleted: false, reason: "not-remote" };
+  }
+
+  if (!s3Client || !s3Bucket) {
+    return { deleted: false, reason: "not-configured" };
+  }
+
+  try {
+    await s3Client.send(
+      new DeleteObjectCommand({ Bucket: s3Bucket, Key: reference.slice(S3_REF_PREFIX.length) })
+    );
+    return { deleted: true, reason: "deleted" };
+  } catch (error) {
+    // S3 returns success for a key that was never there, so reaching here
+    // means a real failure - permissions, most likely. Say so and carry on.
+    console.error("[storage] delete failed", error);
+    return { deleted: false, reason: "failed" };
+  }
 }
 
 export async function persistUploadedFile(

@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
-import { BlockStack, Page } from "@shopify/polaris";
+import { BlockStack, Page, Text } from "@shopify/polaris";
 
 type PageAction = {
   content: string;
@@ -24,6 +24,14 @@ type AdminPageLayoutProps = {
    */
   backAction?: { content: string; url: string };
   banner?: React.ReactNode;
+  /**
+   * A quiet caveat about the page's own data - a truncated list, a stale
+   * figure. Deliberately NOT a banner: the one-banner rule exists because a
+   * screen full of warnings gets none of them read, and "this list is a slice"
+   * is a caveat rather than an emergency. It still has to be said out loud,
+   * because a page that silently shows part of the data is lying.
+   */
+  subduedNote?: string;
   mode?: "resource" | "form";
   gap?: "200" | "300" | "400" | "500" | "600";
   children: React.ReactNode;
@@ -36,6 +44,7 @@ export function AdminPageLayout({
   secondaryActions,
   backAction,
   banner,
+  subduedNote,
   mode = "resource",
   gap = "500",
   children
@@ -78,6 +87,11 @@ export function AdminPageLayout({
     >
       <BlockStack gap={gap}>
         {banner}
+        {subduedNote ? (
+          <Text as="p" variant="bodySm" tone="subdued">
+            {subduedNote}
+          </Text>
+        ) : null}
         {children}
       </BlockStack>
     </Page>
