@@ -3,7 +3,12 @@ import { projectOrderForStorage } from "@/lib/compliance/order-projection";
 import { syncDerivedDisputeState } from "@/lib/disputes/auto-sync";
 import { decryptString } from "@/lib/crypto";
 import { createShopifyAdminClient } from "@/lib/shopify/client";
-import { extractGraphqlErrors, graphqlErrorMessages, isAccessDeniedError } from "@/lib/shopify/errors";
+import {
+  extractGraphqlErrors,
+  graphqlErrorMessages,
+  hasOnlyUnauthorizedErrors,
+  isAccessDeniedError
+} from "@/lib/shopify/errors";
 import {
   DISPUTE_SYNC_NO_CUSTOMER_QUERY,
   DISPUTES_LIST_NO_CUSTOMER_QUERY,
@@ -78,8 +83,25 @@ type ShopifyDisputeNode = {
  */
 class SyncDiagnostics {
   private readonly messages: string[] = [];
+  /**
+   * Whether Shopify rejected the credentials during this run.
+   *
+   * Tracked separately because a 401 is not one warning among several - it is
+   * the reason every other warning happened. A merchant was shown a dozen
+   * identical "Unauthorized" lines plus a note about Bogus Gateway, and the one
+   * thing they needed to know (open the app again) was in none of them.
+   */
+  private unauthorized = false;
 
   add(context: string, response: unknown) {
+    if (hasOnlyUnauthorizedErrors(response)) {
+      // Deliberately does NOT record the per-query error. Twelve queries with a
+      // dead token produce twelve copies of the same sentence, and the context
+      // prefix makes each one look like a distinct problem.
+      this.unauthorized = true;
+      return;
+    }
+
     const messages = graphqlErrorMessages(response);
     if (messages.length > 0) {
       this.messages.push(`${context}: ${messages.join(" | ")}`);
@@ -90,8 +112,26 @@ class SyncDiagnostics {
     this.messages.push(message);
   }
 
+  /** True when the credentials were rejected, so callers can drop misleading advice. */
+  credentialsRejected() {
+    return this.unauthorized;
+  }
+
   list() {
-    return [...new Set(this.messages)];
+    const messages = [...new Set(this.messages)];
+
+    if (!this.unauthorized) {
+      return messages;
+    }
+
+    // First, and once. The stored token has already been cleared by the client,
+    // so this really is the whole instruction.
+    return [
+      "Shopify rejected this app's saved credentials, so no data could be read. " +
+        "This happens after the app is reinstalled or ENCRYPTION_KEY changes. " +
+        "The saved token has been cleared - open the app again from your Shopify admin and it will reconnect by itself.",
+      ...messages
+    ];
   }
 }
 
@@ -634,7 +674,10 @@ export async function syncRecentDisputesForMerchant(shopDomain: string) {
 
   await backfillExistingDisputeOrderData(client, merchant.id, diagnostics);
 
-  if (enriched.length === 0) {
+  // Only when Shopify actually answered. With rejected credentials nothing was
+  // read at all, and telling the merchant to go and check their payment gateway
+  // sends them after a problem they do not have.
+  if (enriched.length === 0 && !diagnostics.credentialsRejected()) {
     diagnostics.note(
       "No disputes returned by any Shopify source. If the store shows a chargeback in Admin, confirm it is " +
         "on Shopify Payments test mode (not Bogus Gateway) - Bogus Gateway creates no dispute records."

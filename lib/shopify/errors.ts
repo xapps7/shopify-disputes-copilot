@@ -119,3 +119,31 @@ export function hasOnlyAccessDeniedErrors(response: unknown): boolean {
   const errors = extractGraphqlErrors(response);
   return errors.length > 0 && errors.every(isAccessDeniedError);
 }
+
+/**
+ * Shopify rejected the credentials.
+ *
+ * This is a DIFFERENT failure from `ACCESS_DENIED`. Access denied means the
+ * token is valid and the scope is missing - nothing to retry, the merchant has
+ * to approve something. HTTP 401 means the token itself is no longer accepted:
+ * revoked by a reinstall, or decrypting to rubbish because `ENCRYPTION_KEY`
+ * changed. That IS recoverable, by throwing the stored token away and doing a
+ * fresh token exchange.
+ *
+ * Nothing in this app used to tell the two apart, so a rejected token was
+ * treated as an ordinary sync warning and reused on every subsequent request.
+ * The app stayed 401 forever and the only way out was reinstalling by hand.
+ */
+export function isUnauthorizedError(error: NormalizedGraphqlError): boolean {
+  return error.code === "HTTP_401" || /unauthorized|invalid api key or access token/i.test(error.message);
+}
+
+export function isUnauthorizedResponse(response: unknown): boolean {
+  return extractGraphqlErrors(response).some(isUnauthorizedError);
+}
+
+/** True when EVERY error is a 401, i.e. the credentials are the whole problem. */
+export function hasOnlyUnauthorizedErrors(response: unknown): boolean {
+  const errors = extractGraphqlErrors(response);
+  return errors.length > 0 && errors.every(isUnauthorizedError);
+}
