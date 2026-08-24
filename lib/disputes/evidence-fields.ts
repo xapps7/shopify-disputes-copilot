@@ -165,10 +165,31 @@ export const EVIDENCE_FIELDS: EvidenceFieldDefinition[] = [
 
 export type EvidenceFileSlotDefinition = {
   key: EvidenceFileSlotKey;
+  /**
+   * Shopify's own wording, character for character, taken from a live
+   * Chargeback response page.
+   *
+   * This is a hand-off screen: the merchant prepares here and attaches in
+   * Shopify's admin. Every word we invent is a word they have to translate
+   * while a deadline runs. "Shipping and delivery proof" is a nicer label than
+   * "Shipping documentation" and it is the wrong one, because it is not on
+   * their screen.
+   */
   label: string;
   prompt: string;
   /** EvidenceItem categories that belong in this Shopify slot. */
   categories: string[];
+  /**
+   * Whether Shopify's form shows this slot before a reason is chosen.
+   *
+   * The admin shows FOUR upload rows on load. The API has six file fields, so
+   * the refund and cancellation policy slots exist but are not on screen -
+   * almost certainly revealed by the reason dropdown, which is a claim we
+   * cannot make until someone opens it. Marked rather than hidden: a merchant
+   * with a refund policy to attach still needs somewhere to put it, and being
+   * told it may not appear yet beats hunting for a row that is not there.
+   */
+  onFormByDefault: boolean;
 };
 
 /**
@@ -176,42 +197,60 @@ export type EvidenceFileSlotDefinition = {
  * one-to-many, so several uploads can compete for the same slot - the UI has to
  * make the merchant choose rather than silently dropping the rest.
  */
+/**
+ * In Shopify's order, with Shopify's labels.
+ *
+ * Verified against a live Chargeback response page on 24 Aug 2026. The admin
+ * lists them: Customer communication, Shipping documentation, Proof of service,
+ * Any other evidence that supports your case. We had shipping first and used
+ * our own names for three of the four, so a merchant working top-to-bottom in
+ * two windows was matching nothing.
+ *
+ * The refund and cancellation policy slots come last because they are not on
+ * the form until a reason is chosen.
+ */
 export const EVIDENCE_FILE_SLOTS: EvidenceFileSlotDefinition[] = [
-  {
-    key: "shippingDocumentationFile",
-    label: "Shipping and delivery proof",
-    prompt: "Carrier label, tracking history, or proof-of-delivery scan. One file - combine pages into a single PDF.",
-    categories: ["SHIPPING_DOCUMENTATION", "DELIVERY_CONFIRMATION"]
-  },
   {
     key: "customerCommunicationFile",
     label: "Customer communication",
     prompt: "Emails, chat transcripts, or support tickets with this customer about this order.",
-    categories: ["CUSTOMER_COMMUNICATION"]
+    categories: ["CUSTOMER_COMMUNICATION"],
+    onFormByDefault: true
+  },
+  {
+    key: "shippingDocumentationFile",
+    label: "Shipping documentation",
+    prompt: "Carrier label, tracking history, or proof-of-delivery scan. One file - combine pages into a single PDF.",
+    categories: ["SHIPPING_DOCUMENTATION", "DELIVERY_CONFIRMATION"],
+    onFormByDefault: true
+  },
+  {
+    key: "serviceDocumentationFile",
+    label: "Proof of service",
+    prompt: "For services or digital goods: proof the service was provided or accessed.",
+    categories: ["SERVICE_DOCUMENTATION"],
+    onFormByDefault: true
+  },
+  {
+    key: "uncategorizedFile",
+    label: "Any other evidence that supports your case",
+    prompt: "Product photos, order records, or anything that does not fit the slots above.",
+    categories: ["PRODUCT_PROOF", "ACCOUNT_ACTIVITY", "OTHER"],
+    onFormByDefault: true
   },
   {
     key: "refundPolicyFile",
     label: "Refund policy",
     prompt: "A screenshot or PDF of the refund policy as the customer saw it.",
-    categories: ["POLICY_DISCLOSURE", "REFUND_PROOF"]
+    categories: ["POLICY_DISCLOSURE", "REFUND_PROOF"],
+    onFormByDefault: false
   },
   {
     key: "cancellationPolicyFile",
     label: "Cancellation policy",
     prompt: "The cancellation terms as presented at sign-up or checkout.",
-    categories: ["POLICY_DISCLOSURE"]
-  },
-  {
-    key: "serviceDocumentationFile",
-    label: "Service documentation",
-    prompt: "For services or digital goods: proof the service was provided or accessed.",
-    categories: ["SERVICE_DOCUMENTATION"]
-  },
-  {
-    key: "uncategorizedFile",
-    label: "Anything else",
-    prompt: "Product photos, order records, or anything that does not fit the slots above.",
-    categories: ["PRODUCT_PROOF", "ACCOUNT_ACTIVITY", "OTHER"]
+    categories: ["POLICY_DISCLOSURE"],
+    onFormByDefault: false
   }
 ];
 

@@ -2,38 +2,57 @@
 
 import { Badge, BlockStack, Box, Card, InlineStack, Text } from "@shopify/polaris";
 
-import { SHOPIFY_FILE_RULES } from "@/lib/disputes/evidence-fields";
+import { EVIDENCE_FILE_SLOTS, SHOPIFY_FILE_RULES } from "@/lib/disputes/evidence-fields";
 
 /**
- * Shopify's own chargeback response page, described so a merchant knows what is
+ * Shopify's own Chargeback response page, described so a merchant knows what is
  * already handled and what is genuinely theirs to do.
  *
- * Shopify attaches a set of order facts to every response without being asked.
- * A merchant who does not know that spends an evening screenshotting an IP
- * address Shopify already sent - and worse, an app that presents "add your IP
- * evidence" as an outstanding task is the thing that sent them there.
+ * Shopify attaches things to every response without being asked. A merchant who
+ * does not know that spends an evening screenshotting an IP address Shopify
+ * already sent - and worse, an app that lists "add your IP evidence" as an
+ * outstanding task is what sent them there. So this panel exists to REMOVE
+ * work, which is an unusual thing for a product surface to do and the reason it
+ * earns its place.
  *
- * So this panel exists to REMOVE work, which is an unusual thing for a product
- * surface to do and the reason it earns its place.
- *
- * The list below is Shopify's own, from "Resolving a chargeback or inquiry".
- * A previous version of this file listed four items - Customer Activity, AVS
- * match, CVV pass, IP address - which were partly invented. Shopify's published
- * list is longer and does not mention AVS or CVV at all.
- * https://help.shopify.com/en/manual/payments/chargebacks/resolve-chargeback
+ * A CORRECTION WORTH KEEPING: this file once listed exactly the four badges
+ * below, transcribed from a real Chargeback response page. It was then
+ * "corrected" to Shopify's help-centre list - product details, carrier and
+ * tracking, fulfilment date, both addresses, order date, IP and IP country - on
+ * the grounds that the badges were invented. They were not. Both lists are
+ * true and they answer different questions: the help centre describes what
+ * Shopify TRANSMITS to the bank, the badges are what the merchant SEES on the
+ * form. This is a hand-off screen, so what they see is what belongs here, and
+ * the transmitted list is the footnote.
  */
 
-/** What Shopify attaches on the merchant's behalf, in Shopify's own words. */
+/** The four badges under "Shopify provided evidence", verbatim. */
 const SHOPIFY_SUPPLIED = [
-  { label: "Product details", note: "Title, variants and quantity purchased." },
-  { label: "Shipping and tracking", note: "The carrier used and the tracking number." },
-  { label: "Fulfilment date", note: "The date and time the order was fulfilled." },
-  { label: "Shipping and billing address", note: "Both, taken from the order." },
-  { label: "Order date", note: "When the order was placed." },
-  { label: "Customer IP", note: "The address the order was placed from, and its country." }
+  { label: "Customer Activity", note: "Order and browsing history Shopify holds on this customer." },
+  { label: "AVS match", note: "Whether the billing address matched at authorisation." },
+  { label: "CVV pass", note: "Whether the security code checked out." },
+  { label: "Customer IP address", note: "The address the order was placed from." }
+] as const;
+
+/**
+ * What Shopify actually sends to the bank, which is more than the badges show.
+ * From "Resolving a chargeback or inquiry". Kept because it is the real reason
+ * a merchant does not need to gather these facts - the badges are only the
+ * summary of it on screen.
+ */
+const ALSO_TRANSMITTED = [
+  "Product details - title, variants and quantity",
+  "Carrier and tracking number",
+  "The date and time the order was fulfilled",
+  "Shipping and billing address",
+  "The date the order was placed",
+  "The customer's IP address and its country"
 ] as const;
 
 export function ShopifyFormGuide() {
+  const onForm = EVIDENCE_FILE_SLOTS.filter((slot) => slot.onFormByDefault);
+  const conditional = EVIDENCE_FILE_SLOTS.filter((slot) => !slot.onFormByDefault);
+
   return (
     <Card>
       <BlockStack gap="400">
@@ -42,8 +61,8 @@ export function ShopifyFormGuide() {
             What Shopify sends without being asked
           </Text>
           <Text as="p" variant="bodySm" tone="subdued">
-            These are attached to every response automatically. You do not need to gather them, screenshot them, or
-            repeat them in your text - and time spent on them is time not spent on the evidence that decides the case.
+            These four appear on the Chargeback response page under &ldquo;Shopify provided evidence&rdquo;. You do not
+            need to gather them, screenshot them, or repeat them in your text.
           </Text>
         </BlockStack>
 
@@ -66,15 +85,48 @@ export function ShopifyFormGuide() {
         <Box borderColor="border" borderBlockStartWidth="025" paddingBlockStart="400">
           <BlockStack gap="200">
             <Text as="h3" variant="headingSm">
-              What happens if you do nothing
+              And these go to the bank too, without a badge
+            </Text>
+            <BlockStack gap="050">
+              {ALSO_TRANSMITTED.map((item) => (
+                <Text as="p" key={item} tone="subdued" variant="bodyXs">
+                  {`· ${item}`}
+                </Text>
+              ))}
+            </BlockStack>
+          </BlockStack>
+        </Box>
+
+        <Box borderColor="border" borderBlockStartWidth="025" paddingBlockStart="400">
+          <BlockStack gap="200">
+            <Text as="h3" variant="headingSm">
+              The four slots you fill yourself
             </Text>
             <Text as="p" variant="bodySm" tone="subdued">
-              Shopify submits that list on its own at the deadline. It is a response, so the case is not forfeited -
-              but it contains no policy, no customer communication, and nothing arguing your side. Everything you
-              prepare above is what turns it into a case.
+              In Shopify&rsquo;s order, with Shopify&rsquo;s words, so you are matching labels rather than translating
+              while the clock runs. Prepare each one above, download it, and attach it in the admin under
+              &ldquo;Supporting evidence provided by you&rdquo;.
+            </Text>
+
+            <BlockStack gap="150">
+              {onForm.map((slot, index) => (
+                <Text as="p" variant="bodySm" key={slot.key}>
+                  {`${index + 1}. ${slot.label}`}
+                </Text>
+              ))}
+            </BlockStack>
+          </BlockStack>
+        </Box>
+
+        <Box borderColor="border" borderBlockStartWidth="025" paddingBlockStart="400">
+          <BlockStack gap="200">
+            <Text as="h3" variant="headingSm">
+              Two more the form may not show you yet
             </Text>
             <Text as="p" variant="bodySm" tone="subdued">
-              You can also submit early. Once you do, Shopify locks the evidence and no further edits are possible.
+              {`Shopify's API accepts ${conditional
+                .map((slot) => slot.label.toLowerCase())
+                .join(" and ")}, but the page opens with four upload rows and not six. They appear to depend on which reason you pick, so prepare them here and check the form after choosing a reason.`}
             </Text>
           </BlockStack>
         </Box>
