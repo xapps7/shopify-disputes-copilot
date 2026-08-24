@@ -542,7 +542,8 @@ export function EvidenceFileSlots({
   const allItems = useMemo(() => [...items, ...libraryRefs], [items, libraryRefs]);
   // Only the identity of the uploaded files matters for re-seeding the picks;
   // re-rendering for any other reason must not discard the merchant's choices.
-  const itemSignature = allItems.map((item) => item.id).join(" ");
+  // An escape, not a literal NUL byte - see the note in response-builder.tsx.
+  const itemSignature = allItems.map((item) => item.id).join("\u0000");
   const [selection, setSelection] = useState<Record<string, string | null>>(() => defaultSelection(allItems));
   const lastSignature = useRef(itemSignature);
 
