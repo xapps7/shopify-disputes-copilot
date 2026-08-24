@@ -172,6 +172,37 @@ export async function persistUploadedFile(
   return publicUrl(relativePath);
 }
 
+/**
+ * A shop-level document, not tied to any dispute.
+ *
+ * Keyed under the merchant id rather than a dispute id, because the whole point
+ * is that it outlives every individual case. Retention treats it differently
+ * too: a refund policy holds no customer data, so it is not swept when a
+ * dispute closes.
+ */
+export async function persistLibraryFile(
+  merchantId: string,
+  fileName: string,
+  bytes: Uint8Array,
+  contentType: string
+) {
+  const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const relativeDir = path.join("library", merchantId);
+  const stampedName = `${Date.now()}-${safeName}`;
+  const relativePath = path.join(relativeDir, stampedName).replaceAll("\\", "/");
+
+  if (storageMode === "s3") {
+    return await persistObjectToS3(relativePath, bytes, contentType || "application/octet-stream");
+  }
+
+  const absoluteDir = path.join(publicRoot, relativeDir);
+
+  await mkdir(absoluteDir, { recursive: true });
+  await writeFile(path.join(publicRoot, relativePath), bytes);
+
+  return publicUrl(relativePath);
+}
+
 export async function persistPacketDraft(disputeId: string, content: string) {
   const relativeDir = path.join("packets", disputeId);
   const stampedName = `${Date.now()}-evidence-packet.txt`;

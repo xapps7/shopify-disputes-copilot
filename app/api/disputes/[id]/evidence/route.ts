@@ -6,16 +6,20 @@ import { evaluateLock } from "@/lib/disputes/locking";
 import { guardDisputeRoute, toErrorResponse } from "@/lib/shopify/route-guard";
 import {
   ALLOWED_EVIDENCE_MIME_TYPES,
+  MAX_SINGLE_EVIDENCE_BYTES,
   MAX_TOTAL_EVIDENCE_BYTES
 } from "@/lib/disputes/evidence-fields";
 import { persistUploadedFile, StorageError } from "@/lib/storage";
 
 /**
- * Shopify accepts .pdf, .png and .jpeg only, and 4 MB TOTAL across every
- * evidence slot - not per file. A merchant who passes a generous per-file check
- * can still assemble a packet Shopify rejects, so both are enforced here.
+ * Shopify accepts .pdf, .png and .jpeg only, 2 MB per file, and 4 MB TOTAL
+ * across every evidence slot. Both size rules are enforced here.
+ *
+ * The per-file cap used to be set to the total, which meant a 3 MB scan passed
+ * every check this app makes and was rejected by Shopify at submission - the
+ * one moment a merchant cannot afford a surprise.
  */
-const MAX_SINGLE_UPLOAD_BYTES = MAX_TOTAL_EVIDENCE_BYTES;
+const MAX_SINGLE_UPLOAD_BYTES = MAX_SINGLE_EVIDENCE_BYTES;
 
 export async function POST(
   request: Request,
@@ -37,10 +41,16 @@ export async function POST(
 
     // Reject oversized bodies before buffering them: `file.arrayBuffer()` pulls
     // the whole upload into memory and there was previously no cap at all.
+    //
+    // The margin matters. `content-length` covers the multipart envelope as well
+    // as the file, so a file exactly at the limit arrives a few hundred bytes
+    // over it - without the slack, a legal upload is refused here with a
+    // vaguer message than the precise check further down would have given.
+    const MULTIPART_OVERHEAD_BYTES = 64 * 1024;
     const declaredLength = Number(request.headers.get("content-length") ?? "0");
-    if (Number.isFinite(declaredLength) && declaredLength > MAX_SINGLE_UPLOAD_BYTES) {
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_SINGLE_UPLOAD_BYTES + MULTIPART_OVERHEAD_BYTES) {
       return NextResponse.json(
-        { message: "Shopify accepts 4 MB of evidence in total. This file alone is over that." },
+        { message: "Shopify accepts 2 MB per evidence file. This one is over that." },
         { status: 413 }
       );
     }
@@ -57,8 +67,9 @@ export async function POST(
       return NextResponse.json({ message: "A title is required." }, { status: 400 });
     }
 
-    // A link is legitimate evidence - merchants often have a carrier tracking
-    // page rather than a PDF - and it costs nothing against Shopify's 4 MB cap.
+    // A link is saved as the merchant's own reference, NOT as something that
+    // goes to the bank. Shopify's evidence rules exclude "links to external
+    // resources", so the UI says so and this route just stores the address.
     if (!(file instanceof File)) {
       if (!linkUrl) {
         return NextResponse.json({ message: "Add a file or a link." }, { status: 400 });
@@ -102,7 +113,11 @@ export async function POST(
 
     if (file.size > MAX_SINGLE_UPLOAD_BYTES) {
       return NextResponse.json(
-        { message: "Shopify accepts 4 MB of evidence in total. This file alone is over that." },
+        {
+          message: `Shopify accepts 2 MB per evidence file. This one is ${Math.round(
+            file.size / 1024
+          )} KB. Compress it or split it - the per-file limit applies whatever room is left in the 4 MB total.`
+        },
         { status: 413 }
       );
     }

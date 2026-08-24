@@ -1,5 +1,29 @@
 import { defaultMerchantSettings, type MerchantSettings } from "@/lib/settings";
 
+/** Kept local so packet text does not pull the S3 client into its import graph. */
+const S3_REFERENCE = /^s3:\/\//;
+
+/**
+ * Files are stored as `s3://key` references, which are meaningless to a human
+ * and cannot be opened. Printing the raw value into a packet a merchant reads
+ * (and may forward to their accountant or their bank) was noise at best and a
+ * bucket-path disclosure at worst.
+ *
+ * The packet is a record of WHAT was attached, so the attached/not-attached
+ * fact is what it states. A link that a reader can act on lives in the app.
+ */
+function describeAttachment(fileUrl: string | null, mimeType?: string | null): string {
+  if (!fileUrl) {
+    return "No file attached";
+  }
+
+  if (S3_REFERENCE.test(fileUrl)) {
+    return `Attached${mimeType ? ` (${mimeType})` : ""} - download it from the dispute page in Disputes Co-Pilot`;
+  }
+
+  return fileUrl;
+}
+
 type PacketDispute = {
   shopifyDisputeId: string;
   status: string;
@@ -14,6 +38,7 @@ type PacketDispute = {
     description: string | null;
     sourceType: string;
     fileUrl: string | null;
+    fileMimeType?: string | null;
   }>;
   merchant: {
     shopDomain: string;
@@ -56,7 +81,7 @@ export function buildPacketSummary(dispute: PacketDispute) {
         `   Category: ${item.category}`,
         `   Source: ${item.sourceType}`,
         `   Description: ${item.description ?? "None"}`,
-        `   File: ${item.fileUrl ?? "None"}`
+        `   File: ${describeAttachment(item.fileUrl, item.fileMimeType)}`
       ].join("\n")
     ),
     "",

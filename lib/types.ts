@@ -1,4 +1,5 @@
 import type { EvidenceFieldState } from "@/lib/disputes/evidence-fields";
+import type { LibraryDocument } from "@/lib/documents/library";
 import type { StrategyRecommendation } from "@/lib/economics/strategy";
 
 import type { ProtectSignal } from "@/lib/disputes/shopify-protect";
@@ -85,6 +86,12 @@ export type DisputeDetailView = {
   }>;
   /** Shopify's evidence form, pre-filled: saved merchant edits merged over generated drafts. */
   evidenceFields: EvidenceFieldState[];
+  /**
+   * Shop-level documents offered against this dispute's file slots. They are
+   * not EvidenceItems and are never copied into one - the same file serves
+   * every dispute, and duplicating it per case is the problem this replaces.
+   */
+  standingDocuments: LibraryDocument[];
   /** Fight, accept, or prevent - with the money and the reasoning behind it. */
   strategy: StrategyRecommendation;
   /** Shopify Protect signal, or null when there is nothing worth saying. */

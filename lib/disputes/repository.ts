@@ -613,7 +613,12 @@ export async function getDisputeDetail(id: string, merchantId?: string): Promise
       returnPolicyUrl: settings.returnPolicyUrl,
       supportEmail: settings.supportEmail,
       statementDescriptor: settings.statementDescriptor,
-      orderPlacedAt: orderNode?.createdAt ? new Date(orderNode.createdAt).toISOString().slice(0, 10) : null
+      orderPlacedAt: orderNode?.createdAt ? new Date(orderNode.createdAt).toISOString().slice(0, 10) : null,
+      // Written once at shop level. These beat the generated sentence, because
+      // a merchant's own words about their own policy are better evidence than
+      // a template built from a URL.
+      refundPolicyStatement: settings.refundPolicyStatement,
+      cancellationPolicyStatement: settings.cancellationPolicyStatement
     })
   );
 
@@ -719,6 +724,7 @@ export async function getDisputeDetail(id: string, merchantId?: string): Promise
       fileSizeBytes: item.fileSizeBytes ?? null
     })),
     evidenceFields,
+    standingDocuments: settings.standingDocuments,
     timeline: dispute.timelineEvents.map((event) => ({
       id: event.id,
       eventType: event.eventType,

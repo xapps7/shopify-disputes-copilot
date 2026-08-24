@@ -24,8 +24,10 @@ import { EvidenceGapHint, gapsForCategories, gapsOutsideCategories } from "@/com
 import {
   ALLOWED_EVIDENCE_MIME_TYPES,
   EVIDENCE_FILE_SLOTS,
+  MAX_SINGLE_EVIDENCE_BYTES,
   MAX_TOTAL_EVIDENCE_BYTES
 } from "@/lib/disputes/evidence-fields";
+import { getKindDefinition, type LibraryDocument } from "@/lib/documents/library";
 import type { EvidenceGapInsight } from "@/lib/disputes/workflow";
 import { EvidenceFileActions } from "@/components/evidence-file-actions";
 
@@ -48,7 +50,40 @@ export type EvidenceFileRef = {
   fileUrl: string | null;
   fileMimeType: string | null;
   fileSizeBytes?: number | null;
+  /**
+   * Where this file comes from. "library" entries are shop-level documents -
+   * one refund policy serving every dispute - so they match a slot directly
+   * instead of by category, and they are never copied into this dispute.
+   */
+  origin?: "dispute" | "library";
+  /** Set on library entries: the slot they belong to, decided at upload time. */
+  slotKey?: string;
+  /** The authenticated route that serves the bytes. */
+  downloadPath?: string;
 };
+
+/** Library ids are namespaced so they can never collide with an evidence id. */
+const LIBRARY_ID_PREFIX = "library:";
+
+export function toLibraryFileRef(document: LibraryDocument): EvidenceFileRef {
+  const definition = getKindDefinition(document.kind);
+
+  return {
+    id: `${LIBRARY_ID_PREFIX}${document.id}`,
+    category: definition.category,
+    title: document.title,
+    fileUrl: document.storageRef,
+    fileMimeType: document.mimeType || null,
+    fileSizeBytes: document.sizeBytes,
+    origin: "library",
+    slotKey: definition.slot,
+    downloadPath: `/api/library/documents/${document.id}/file`
+  };
+}
+
+function downloadPathFor(item: EvidenceFileRef): string {
+  return item.downloadPath ?? `/api/evidence/${item.id}/file`;
+}
 
 const NO_FILE = "__none__";
 
@@ -96,8 +131,16 @@ export function formatBytes(bytes: number): string {
 
 export const MAX_TOTAL_EVIDENCE_LABEL = formatBytes(MAX_TOTAL_EVIDENCE_BYTES);
 
-function matchesForSlot(items: EvidenceFileRef[], categories: string[]): EvidenceFileRef[] {
-  return items.filter((item) => categories.includes(item.category));
+/**
+ * A dispute file matches by category; a library document matches by the slot it
+ * was filed under. Matching library documents by category too would put one
+ * refund policy in both the refund and the cancellation slot, and Shopify's
+ * total would then count the same bytes twice.
+ */
+function matchesForSlot(items: EvidenceFileRef[], categories: string[], slotKey?: string): EvidenceFileRef[] {
+  return items.filter((item) =>
+    item.origin === "library" ? item.slotKey === slotKey : categories.includes(item.category)
+  );
 }
 
 /**
@@ -106,7 +149,7 @@ function matchesForSlot(items: EvidenceFileRef[], categories: string[]): Evidenc
  */
 export function missingPriorityFileSlots(items: EvidenceFileRef[], prioritySlotKeys: string[]): string[] {
   return EVIDENCE_FILE_SLOTS.filter(
-    (slot) => prioritySlotKeys.includes(slot.key) && matchesForSlot(items, slot.categories).length === 0
+    (slot) => prioritySlotKeys.includes(slot.key) && matchesForSlot(items, slot.categories, slot.key).length === 0
   ).map((slot) => slot.label);
 }
 
@@ -121,7 +164,7 @@ function defaultSelection(items: EvidenceFileRef[]): Record<string, string | nul
   const selection: Record<string, string | null> = {};
 
   for (const slot of EVIDENCE_FILE_SLOTS) {
-    const matches = matchesForSlot(items, slot.categories).filter((item) => !claimed.has(item.id));
+    const matches = matchesForSlot(items, slot.categories, slot.key).filter((item) => !claimed.has(item.id));
     const chosen = matches.find(isUsable) ?? matches[0] ?? null;
 
     selection[slot.key] = chosen?.id ?? null;
@@ -161,9 +204,18 @@ type SlotUploaderProps = {
  * the same two rules again, because a client check is a courtesy, not a
  * guarantee.
  *
- * The link field exists because a carrier's tracking page is very often the
- * only "document" a merchant has, and it is worth more than nothing in the
- * slot.
+ * The link field is for the merchant's own record, and it is labelled that way.
+ * Shopify's file rules are explicit - "Don't include audio or video files,
+ * links to external resources, or requests to call or email" - so a URL cannot
+ * go to the bank in any form, not in a slot and not quoted in the response
+ * text. We used to tell merchants to paste it into the text. That was wrong
+ * advice against a documented rule.
+ *
+ * Keeping the field is still right: a carrier tracking page is very often the
+ * only record a merchant has, and saving the address is how they find it again
+ * to print. The job here is to say plainly that printing it is the step that
+ * makes it evidence.
+ * https://help.shopify.com/en/manual/payments/chargebacks/resolve-chargeback
  */
 function SlotUploader({ disputeId, slotKey, slotLabel, category, remainingBytes }: SlotUploaderProps) {
   const router = useRouter();
@@ -188,6 +240,12 @@ function SlotUploader({ disputeId, slotKey, slotLabel, category, remainingBytes 
         return `Shopify accepts ${ACCEPTED_TYPES_SENTENCE} only. "${candidate.name}" is ${describeMime(
           candidate.type || null
         )}, so it cannot be attached — convert it first.`;
+      }
+
+      if (candidate.size > MAX_SINGLE_EVIDENCE_BYTES) {
+        return `Shopify accepts 2 MB per evidence file. "${candidate.name}" is ${formatBytes(
+          candidate.size
+        )}. Compress it or split it - a file over 2 MB is rejected on its own, whatever room is left in the total.`;
       }
 
       if (candidate.size > remainingBytes) {
@@ -403,8 +461,8 @@ function SlotUploader({ disputeId, slotKey, slotLabel, category, remainingBytes 
         <BlockStack gap="200">
           <TextField
             autoComplete="off"
-            helpText="No PDF? A carrier tracking page or a hosted policy page can go in this slot instead."
-            label="Or add a link"
+            helpText="Kept for your own reference only. Shopify does not accept links as evidence - print or screenshot the page and upload that file instead."
+            label="Or save a link for later"
             name={`slot-link-${slotKey}`}
             onChange={(value) => {
               setLinkUrl(value);
@@ -444,6 +502,12 @@ export type EvidenceFileSlotsProps = {
   /** Needed to upload into a slot: POSTs go to /api/disputes/[id]/evidence. */
   disputeId: string;
   items: EvidenceFileRef[];
+  /**
+   * Shop-level documents. They appear in their slot alongside this dispute's
+   * own uploads, and are never copied into it - the merchant uploaded the
+   * refund policy once and that is the whole point.
+   */
+  standingDocuments?: LibraryDocument[];
   /** Slot keys this dispute's reason code makes decisive. */
   prioritySlotKeys?: string[];
   onSelectionChange?: (selection: Record<string, string | null>) => void;
@@ -462,24 +526,33 @@ export type EvidenceFileSlotsProps = {
 export function EvidenceFileSlots({
   disputeId,
   items,
+  standingDocuments = [],
   prioritySlotKeys = [],
   onSelectionChange,
   gaps = [],
   locked = false
 }: EvidenceFileSlotsProps) {
+  const libraryRefs = useMemo(() => standingDocuments.map(toLibraryFileRef), [standingDocuments]);
+
+  /**
+   * Dispute uploads first, so a file gathered for THIS case outranks the
+   * standing document when both match a slot. Specific evidence beats generic
+   * evidence, and `defaultSelection` takes the first usable match.
+   */
+  const allItems = useMemo(() => [...items, ...libraryRefs], [items, libraryRefs]);
   // Only the identity of the uploaded files matters for re-seeding the picks;
   // re-rendering for any other reason must not discard the merchant's choices.
-  const itemSignature = items.map((item) => item.id).join(" ");
-  const [selection, setSelection] = useState<Record<string, string | null>>(() => defaultSelection(items));
+  const itemSignature = allItems.map((item) => item.id).join(" ");
+  const [selection, setSelection] = useState<Record<string, string | null>>(() => defaultSelection(allItems));
   const lastSignature = useRef(itemSignature);
 
   useEffect(() => {
     if (lastSignature.current !== itemSignature) {
       lastSignature.current = itemSignature;
-      setSelection(defaultSelection(items));
+      setSelection(defaultSelection(allItems));
     }
-    // `items` is intentionally excluded: a new array with the same files is not
-    // a reason to throw away the merchant's selections.
+    // `allItems` is intentionally excluded: a new array with the same files
+    // is not a reason to throw away the merchant's selections.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemSignature]);
 
@@ -488,7 +561,7 @@ export function EvidenceFileSlots({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selection]);
 
-  const byId = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
+  const byId = useMemo(() => new Map(allItems.map((item) => [item.id, item])), [allItems]);
 
   const selected = EVIDENCE_FILE_SLOTS.map((slot) => selection[slot.key])
     .filter((id): id is string => Boolean(id))
@@ -574,7 +647,7 @@ export function EvidenceFileSlots({
 
       <BlockStack gap="300">
         {EVIDENCE_FILE_SLOTS.map((slot) => {
-          const matches = matchesForSlot(items, slot.categories);
+          const matches = matchesForSlot(allItems, slot.categories, slot.key);
           const selectedId = selection[slot.key] ?? null;
           const selectedItem = selectedId ? (byId.get(selectedId) ?? null) : null;
           const isPriority = prioritySlotKeys.includes(slot.key);
@@ -672,10 +745,11 @@ export function EvidenceFileSlots({
                       choices={[
                         ...matches.map((item) => ({
                           value: item.id,
-                          label: item.title,
+                          label:
+                            item.origin === "library" ? `${item.title} (from your library)` : item.title,
                           helpText: isLinkOnly(item) ? (
                             <>
-                              {`Link · ${item.fileUrl} — Shopify's file slot takes a file, so quote this link in your response text instead. It still counts as evidence, and it uses none of the ${MAX_TOTAL_EVIDENCE_LABEL}.`}
+                              {`Link · ${item.fileUrl} — Shopify does not accept links as evidence, in a slot or in the response text. Open this page, save it as a PDF, and upload that instead.`}
                             </>
                           ) : (
                             <>
@@ -710,7 +784,7 @@ export function EvidenceFileSlots({
                     {selectedItem && !selectedUsable ? (
                       isLinkOnly(selectedItem) ? (
                         <Text as="p" variant="bodySm">
-                          {`"${selectedItem.title}" is a link, so this slot goes to Shopify empty. Paste the link into your response text, or save a PDF or screenshot of the page here as well.`}
+                          {`"${selectedItem.title}" is a link, so this slot goes to Shopify empty. Shopify's evidence rules exclude links to pages held elsewhere, so open it, print it to PDF, and upload that file here.`}
                         </Text>
                       ) : (
                         <Text as="p" variant="bodySm" tone="critical">
@@ -727,14 +801,15 @@ export function EvidenceFileSlots({
                           Shopify's slot is a file picker with no URL field, so
                           the merchant needs the bytes on their own disk before
                           they can attach anything. Download leads for that
-                          reason; the link is for quoting the file in the
-                          response text, where Shopify has no slot for it.
+                          reason. Copy link is for opening the file on the
+                          machine they are actually uploading from, which is
+                          often not this one.
                         */}
                         <Text as="p" variant="bodySm" tone="subdued">
                           Download this, then attach it in Shopify under
                           {` "${slot.label}"`}.
                         </Text>
-                        <EvidenceFileActions fileUrl={`/api/evidence/${selectedItem.id}/file`} title={selectedItem.title} />
+                        <EvidenceFileActions fileUrl={downloadPathFor(selectedItem)} title={selectedItem.title} />
                       </BlockStack>
                     ) : null}
                   </BlockStack>

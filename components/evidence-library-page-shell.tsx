@@ -20,6 +20,8 @@ import { AdminPageLayout } from "@/components/admin-page-layout";
 import { EMPTY_STATE_IMAGE } from "@/components/empty-state-image";
 import { EvidenceItemEditor } from "@/components/evidence-item-editor";
 import { ResourceSection } from "@/components/resource-section";
+import { StandingDocuments } from "@/components/standing-documents";
+import type { LibraryDocument } from "@/lib/documents/library";
 import { filterEvidenceItems } from "@/lib/disputes/workflow";
 import { formatDate } from "@/lib/format/date";
 import type { DisputeOptionView, EvidenceLibraryItemView } from "@/lib/types";
@@ -27,9 +29,18 @@ import type { DisputeOptionView, EvidenceLibraryItemView } from "@/lib/types";
 type EvidenceLibraryPageShellProps = {
   items: EvidenceLibraryItemView[];
   disputeOptions: DisputeOptionView[];
+  standingDocuments: LibraryDocument[];
+  refundPolicyStatement: string;
+  cancellationPolicyStatement: string;
 };
 
-export function EvidenceLibraryPageShell({ items, disputeOptions }: EvidenceLibraryPageShellProps) {
+export function EvidenceLibraryPageShell({
+  items,
+  disputeOptions,
+  standingDocuments,
+  refundPolicyStatement,
+  cancellationPolicyStatement
+}: EvidenceLibraryPageShellProps) {
   const { mode, setMode } = useSetIndexFiltersMode();
   const searchParams = useSearchParams();
   const [selectedTab, setSelectedTab] = useState(0);
@@ -43,7 +54,7 @@ export function EvidenceLibraryPageShell({ items, disputeOptions }: EvidenceLibr
   return (
     <AdminPageLayout
       title="Evidence library"
-      subtitle="Every file attached to a dispute, searchable across all of them."
+      subtitle="The documents you keep on file for every dispute, and every file attached to an individual one."
       // "View disputes" was the primary action here: navigation dressed up as a
       // page action, in the slot reserved for the most useful thing you can DO.
       // Going back to the parent is a backAction.
@@ -56,7 +67,23 @@ export function EvidenceLibraryPageShell({ items, disputeOptions }: EvidenceLibr
         matters to the person who arrived by accident, and they can read it
         after the thing they came for.
       */}
-      <ResourceSection title="Evidence files" flush>
+      {/*
+        Standing documents come FIRST. They are the only thing on this page a
+        merchant can act on before a dispute exists, and doing so is what makes
+        the next dispute quick. The per-dispute list below is a lookup, not a
+        task.
+      */}
+      <StandingDocuments
+        cancellationPolicyStatement={cancellationPolicyStatement}
+        documents={standingDocuments}
+        refundPolicyStatement={refundPolicyStatement}
+      />
+
+      <ResourceSection
+        title="Files attached to a dispute"
+        description="Uploaded against one case. Each one stays with the dispute it belongs to."
+        flush
+      >
         <IndexFilters
           tabs={[
             { id: "all", content: "All files" },
@@ -98,8 +125,21 @@ export function EvidenceLibraryPageShell({ items, disputeOptions }: EvidenceLibr
                       {item.title}
                     </Text>
                     <InlineStack gap="200" wrap>
+                      {/*
+                        Never the stored value. Since files moved to S3 the
+                        column holds an `s3://` reference, which a browser
+                        cannot open - this link went dead the day storage was
+                        switched on. The authenticated route resolves it to a
+                        short-lived signed URL and checks the file belongs to
+                        this shop first.
+                      */}
                       {item.fileUrl ? (
-                        <Button url={item.fileUrl} target="_blank" size="micro" variant="plain">
+                        <Button
+                          url={`/api/evidence/${item.id}/file`}
+                          target="_blank"
+                          size="micro"
+                          variant="plain"
+                        >
                           Open file
                         </Button>
                       ) : null}
@@ -135,8 +175,8 @@ export function EvidenceLibraryPageShell({ items, disputeOptions }: EvidenceLibr
                   action={{ content: "View disputes", url: disputesUrl }}
                 >
                   <p>
-                    Files you upload on a dispute appear here, ready to reuse on any other dispute that needs the same
-                    proof.
+                    Files you upload on a dispute appear here. For the documents that are the same on every dispute,
+                    use the section above instead.
                   </p>
                 </EmptyState>
               ) : (
@@ -160,8 +200,7 @@ export function EvidenceLibraryPageShell({ items, disputeOptions }: EvidenceLibr
       </ResourceSection>
 
       <Text as="p" variant="bodySm" tone="subdued">
-        Use this library when the same carrier proof, support thread, policy capture, or refund record may need to
-        support more than one dispute. For work on a single case, start in <strong>Disputes</strong>.
+        Looking for one case rather than one file? Start in <strong>Disputes</strong>.
       </Text>
 
       <EvidenceItemEditor

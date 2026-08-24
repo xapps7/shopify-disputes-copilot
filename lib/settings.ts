@@ -1,6 +1,15 @@
 import { db } from "@/lib/db";
+import {
+  emptyStandingStatements,
+  parseLibraryDocuments,
+  type LibraryDocument,
+  type StandingStatements
+} from "@/lib/documents/library";
 
-export type MerchantSettings = {
+export type MerchantSettings = StandingStatements & {
+  /** Documents that are the same on every dispute. See lib/documents/library.ts. */
+  standingDocuments: LibraryDocument[];
+} & {
   returnPolicyUrl: string;
   refundPolicyUrl: string;
   supportEmail: string;
@@ -17,6 +26,8 @@ export type MerchantSettings = {
 };
 
 export const defaultMerchantSettings: MerchantSettings = {
+  ...emptyStandingStatements,
+  standingDocuments: [],
   returnPolicyUrl: "",
   refundPolicyUrl: "",
   supportEmail: "",
@@ -46,24 +57,41 @@ export async function getMerchantSettings(shopDomain: string | null): Promise<Me
   }
 
   try {
+    const parsed = JSON.parse(merchant.settingsJson) as Partial<MerchantSettings>;
+
     return {
       ...defaultMerchantSettings,
-      ...(JSON.parse(merchant.settingsJson) as Partial<MerchantSettings>)
+      ...parsed,
+      // Never trust the shape of this array: it is JSON in a text column, and a
+      // half-written entry must not be able to break the settings page.
+      standingDocuments: parseLibraryDocuments(parsed.standingDocuments)
     };
   } catch {
     return defaultMerchantSettings;
   }
 }
 
-export async function saveMerchantSettings(shopDomain: string, settings: MerchantSettings) {
+/**
+ * Writes a PARTIAL update, merged onto what is already stored.
+ *
+ * This used to replace the whole object. That was safe while one form owned
+ * every key, and became a data-loss bug the moment the document library started
+ * living here too: saving the settings form would post its own fields and
+ * silently drop the merchant's uploaded documents. Merging costs one extra read
+ * and removes a whole class of that mistake.
+ */
+export async function saveMerchantSettings(shopDomain: string, settings: Partial<MerchantSettings>) {
+  const existing = await getMerchantSettings(shopDomain);
+  const next: MerchantSettings = { ...existing, ...settings };
+
   const merchant = await db.merchant.upsert({
     where: { shopDomain },
     update: {
-      settingsJson: JSON.stringify(settings)
+      settingsJson: JSON.stringify(next)
     },
     create: {
       shopDomain,
-      settingsJson: JSON.stringify(settings)
+      settingsJson: JSON.stringify(next)
     }
   });
 

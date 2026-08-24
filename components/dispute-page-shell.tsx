@@ -509,6 +509,7 @@ export function DisputePageShell({
               reason={dispute.reason}
               shopDomain={shopDomain}
               shopifyOrderId={dispute.shopifyOrderId}
+              standingDocuments={dispute.standingDocuments ?? []}
             />
 
             {/*

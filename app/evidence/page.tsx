@@ -1,5 +1,6 @@
 import { EvidenceLibraryPageShell } from "@/components/evidence-library-page-shell";
 import { listDisputeOptions, listEvidenceLibrary } from "@/lib/disputes/repository";
+import { getMerchantSettings } from "@/lib/settings";
 import { getEmbeddedPageShop } from "@/lib/shopify/page-context";
 
 export const dynamic = "force-dynamic";
@@ -12,10 +13,19 @@ type EvidencePageProps = {
 export default async function EvidencePage({ searchParams }: EvidencePageProps) {
   const params = (await searchParams) ?? {};
   const shopDomain = await getEmbeddedPageShop(params, "/evidence");
-  const [items, disputeOptions] = await Promise.all([
+  const [items, disputeOptions, settings] = await Promise.all([
     listEvidenceLibrary(shopDomain),
-    listDisputeOptions(shopDomain)
+    listDisputeOptions(shopDomain),
+    getMerchantSettings(shopDomain)
   ]);
 
-  return <EvidenceLibraryPageShell items={items} disputeOptions={disputeOptions} />;
+  return (
+    <EvidenceLibraryPageShell
+      cancellationPolicyStatement={settings.cancellationPolicyStatement}
+      disputeOptions={disputeOptions}
+      items={items}
+      refundPolicyStatement={settings.refundPolicyStatement}
+      standingDocuments={settings.standingDocuments}
+    />
+  );
 }

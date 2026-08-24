@@ -32,7 +32,32 @@ export type EvidenceFileSlotKey =
 
 /** Shopify accepts .png, .jpeg and .pdf only, and 4 MB TOTAL across every slot. */
 export const MAX_TOTAL_EVIDENCE_BYTES = 4 * 1024 * 1024;
+
+/**
+ * And 2 MB per file, which is a separate rule and a stricter one.
+ *
+ * We used to check only the 4 MB total, so a single 3 MB scan passed every
+ * check here and was rejected by Shopify at submission - the worst possible
+ * moment to find out. Shopify's help page states both caps:
+ * "Ensure each evidence file doesn't exceed 2 MB" and "Ensure that your
+ * combined evidence files don't exceed 4 MB".
+ * https://help.shopify.com/en/manual/payments/chargebacks/resolve-chargeback
+ */
+export const MAX_SINGLE_EVIDENCE_BYTES = 2 * 1024 * 1024;
+
 export const ALLOWED_EVIDENCE_MIME_TYPES = ["application/pdf", "image/png", "image/jpeg"] as const;
+
+/**
+ * Shopify's other file rules, which no API error will ever tell you about.
+ * Stated once here so the same wording reaches the uploader, the library, and
+ * the readiness copy.
+ */
+export const SHOPIFY_FILE_RULES = [
+  "PDF, PNG or JPEG only.",
+  "2 MB per file, and 4 MB across the whole response.",
+  "PDFs must be PDF/A and under 50 pages. Merge multiple PDFs into one.",
+  "One file per slot. No audio, no video, and no links to pages held elsewhere."
+] as const;
 
 export type FieldSource = "auto" | "drafted" | "merchant";
 
@@ -213,6 +238,16 @@ export type DraftContext = {
   supportEmail: string;
   statementDescriptor: string;
   orderPlacedAt: string | null;
+  /**
+   * The merchant's standing answers, written once at shop level.
+   *
+   * When present these WIN over the generated sentence. A merchant who has
+   * taken the trouble to write what their policy says and where the customer
+   * saw it has produced better evidence than any template built from a URL, and
+   * re-deriving it per dispute would quietly throw that work away.
+   */
+  refundPolicyStatement?: string;
+  cancellationPolicyStatement?: string;
 };
 
 function joinSentences(parts: Array<string | null | undefined>) {
@@ -268,12 +303,18 @@ export function draftEvidenceFields(context: DraftContext): Partial<Record<Evide
     context.supportEmail ? `The customer did not contact ${context.supportEmail} before disputing.` : null
   ]);
 
-  if (context.refundPolicyUrl || context.returnPolicyUrl) {
+  if (context.refundPolicyStatement?.trim()) {
+    drafts.refundPolicyDisclosure = context.refundPolicyStatement.trim();
+  } else if (context.refundPolicyUrl || context.returnPolicyUrl) {
     drafts.refundPolicyDisclosure = joinSentences([
       `Our refund and return policy is published at ${context.refundPolicyUrl || context.returnPolicyUrl}`,
       "and is linked from the storefront footer and the checkout page, so it was available to the customer before payment.",
       context.orderPlacedAt ? `The customer accepted it when placing this order on ${context.orderPlacedAt}.` : null
     ]);
+  }
+
+  if (context.cancellationPolicyStatement?.trim()) {
+    drafts.cancellationPolicyDisclosure = context.cancellationPolicyStatement.trim();
   }
 
   if (context.fulfillmentStatus || context.trackingSummaries.length > 0) {

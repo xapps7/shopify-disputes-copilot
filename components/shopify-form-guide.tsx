@@ -2,44 +2,35 @@
 
 import { Badge, BlockStack, Box, Card, InlineStack, Text } from "@shopify/polaris";
 
+import { SHOPIFY_FILE_RULES } from "@/lib/disputes/evidence-fields";
+
 /**
- * Shopify's own evidence form, described so a merchant knows what is already
- * handled and what is genuinely theirs to do.
+ * Shopify's own chargeback response page, described so a merchant knows what is
+ * already handled and what is genuinely theirs to do.
  *
- * Shopify attaches four things to every chargeback response without being
- * asked: customer activity, the AVS result, the CVV result, and the customer's
- * IP address. A merchant who does not know that spends an evening screenshotting
- * an IP address Shopify already sent - and worse, an app that presents "add your
- * IP evidence" as an outstanding task is the thing that sent them there.
+ * Shopify attaches a set of order facts to every response without being asked.
+ * A merchant who does not know that spends an evening screenshotting an IP
+ * address Shopify already sent - and worse, an app that presents "add your IP
+ * evidence" as an outstanding task is the thing that sent them there.
  *
  * So this panel exists to REMOVE work, which is an unusual thing for a product
  * surface to do and the reason it earns its place.
  *
- * The four upload slots mirror what Shopify's form actually shows, in its
- * wording rather than the API's, so the merchant is matching labels rather than
- * translating between two vocabularies while a deadline runs.
+ * The list below is Shopify's own, from "Resolving a chargeback or inquiry".
+ * A previous version of this file listed four items - Customer Activity, AVS
+ * match, CVV pass, IP address - which were partly invented. Shopify's published
+ * list is longer and does not mention AVS or CVV at all.
+ * https://help.shopify.com/en/manual/payments/chargebacks/resolve-chargeback
  */
 
-/** What Shopify attaches on the merchant's behalf, per its own evidence form. */
+/** What Shopify attaches on the merchant's behalf, in Shopify's own words. */
 const SHOPIFY_SUPPLIED = [
-  { label: "Customer Activity", note: "Order and browsing history Shopify holds on this customer." },
-  { label: "AVS match", note: "Whether the billing address matched at authorisation." },
-  { label: "CVV pass", note: "Whether the security code checked out." },
-  { label: "Customer IP address", note: "The address the order was placed from." }
-] as const;
-
-/**
- * Shopify's four visible upload slots, in its own words.
- *
- * The API has six writable file fields, but the form shows four unless the
- * reason code calls for a policy document. Listing all six would send a merchant
- * hunting for slots that are not on their screen.
- */
-const SHOPIFY_SLOTS = [
-  { label: "Customer communication", note: "Emails, chat transcripts, order confirmations." },
-  { label: "Shipping documentation", note: "Carrier label, manifest, proof of delivery." },
-  { label: "Proof of service", note: "For anything delivered rather than shipped." },
-  { label: "Any other evidence that supports your case", note: "Everything with no slot of its own." }
+  { label: "Product details", note: "Title, variants and quantity purchased." },
+  { label: "Shipping and tracking", note: "The carrier used and the tracking number." },
+  { label: "Fulfilment date", note: "The date and time the order was fulfilled." },
+  { label: "Shipping and billing address", note: "Both, taken from the order." },
+  { label: "Order date", note: "When the order was placed." },
+  { label: "Customer IP", note: "The address the order was placed from, and its country." }
 ] as const;
 
 export function ShopifyFormGuide() {
@@ -51,8 +42,8 @@ export function ShopifyFormGuide() {
             What Shopify sends without being asked
           </Text>
           <Text as="p" variant="bodySm" tone="subdued">
-            These four are attached to every response automatically. You do not need to gather them, screenshot them,
-            or mention them - and time spent on them is time not spent on the evidence that decides the case.
+            These are attached to every response automatically. You do not need to gather them, screenshot them, or
+            repeat them in your text - and time spent on them is time not spent on the evidence that decides the case.
           </Text>
         </BlockStack>
 
@@ -75,23 +66,32 @@ export function ShopifyFormGuide() {
         <Box borderColor="border" borderBlockStartWidth="025" paddingBlockStart="400">
           <BlockStack gap="200">
             <Text as="h3" variant="headingSm">
-              The four slots you fill yourself
+              What happens if you do nothing
             </Text>
             <Text as="p" variant="bodySm" tone="subdued">
-              Named as Shopify names them, so you are matching labels rather than translating while the clock runs.
-              Prepare each one below, then download the file and attach it in the admin.
+              Shopify submits that list on its own at the deadline. It is a response, so the case is not forfeited -
+              but it contains no policy, no customer communication, and nothing arguing your side. Everything you
+              prepare above is what turns it into a case.
             </Text>
+            <Text as="p" variant="bodySm" tone="subdued">
+              You can also submit early. Once you do, Shopify locks the evidence and no further edits are possible.
+            </Text>
+          </BlockStack>
+        </Box>
 
-            <BlockStack gap="150">
-              {SHOPIFY_SLOTS.map((slot) => (
-                <BlockStack gap="050" key={slot.label}>
-                  <Text as="p" variant="bodySm" fontWeight="medium">
-                    {slot.label}
-                  </Text>
-                  <Text as="p" variant="bodyXs" tone="subdued">
-                    {slot.note}
-                  </Text>
-                </BlockStack>
+        <Box borderColor="border" borderBlockStartWidth="025" paddingBlockStart="400">
+          <BlockStack gap="200">
+            <Text as="h3" variant="headingSm">
+              Shopify&rsquo;s file rules
+            </Text>
+            <Text as="p" variant="bodySm" tone="subdued">
+              None of these produce an error until submission, so they are worth knowing before you scan anything.
+            </Text>
+            <BlockStack gap="050">
+              {SHOPIFY_FILE_RULES.map((rule) => (
+                <Text as="p" key={rule} tone="subdued" variant="bodyXs">
+                  {`· ${rule}`}
+                </Text>
               ))}
             </BlockStack>
           </BlockStack>

@@ -13,9 +13,10 @@ import { copyToClipboard } from "@/components/copy-to-clipboard";
  * the bytes on their own disk to select. That makes "Download" the primary
  * action on every attachment, not an afterthought.
  *
- * The link is still worth copying, for two other jobs: quoting the file inside
- * the response text where Shopify has no slot for it, and opening it on the
- * machine they are actually uploading from when that is not this one.
+ * The link is still worth copying, for one job: opening the file on the machine
+ * they are actually uploading from, when that is not this one. It is NOT for
+ * quoting in the response text - Shopify's evidence rules exclude links to
+ * pages held elsewhere, and an earlier version of this comment said otherwise.
  *
  * `download` on the anchor asks the browser to save rather than navigate.
  * Cross-origin it is only a hint - S3 without a Content-Disposition header will
