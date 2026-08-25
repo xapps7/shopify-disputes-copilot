@@ -156,8 +156,20 @@ export async function sweepMerchant(shopDomain: string, merchantId: string): Pro
 }
 
 export async function sweepAllMerchants(): Promise<SweepResult[]> {
+  // Deliberately NOT filtered on `accessTokenEncrypted`.
+  //
+  // It used to be, and that was safe until the 401 handler started clearing the
+  // stored token to force a re-exchange. From that moment a shop whose token
+  // Shopify had rejected dropped out of the sweep entirely - so it stopped
+  // getting deadline emails, silently, at exactly the moment its data had also
+  // stopped updating. Two failures, one of them invisible.
+  //
+  // The sync inside `sweepMerchant` will fail for these shops and say so, which
+  // is correct. Alerts are evaluated anyway, because deadlines are already in
+  // our database and do not need Shopify to be reachable. Going quiet is the
+  // precise failure this whole feature exists to prevent.
   const merchants = await db.merchant.findMany({
-    where: { uninstalledAt: null, accessTokenEncrypted: { not: null } },
+    where: { uninstalledAt: null },
     select: { id: true, shopDomain: true }
   });
 
