@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { isDiagnosticsAuthorized } from "@/lib/diagnostics-auth";
 import { getLatestDisputeSyncRun } from "@/lib/disputes/sync-runs";
 import { getAuthenticatedShopDomain } from "@/lib/shopify/request-context";
-import { APP_COMMIT, APP_RELEASE } from "@/lib/version";
+import { APP_BUILT_AT, APP_COMMIT, APP_RELEASE } from "@/lib/version";
 
 export async function GET(request: Request) {
   // Liveness probe stays public; anything merchant-identifying requires the
@@ -17,6 +17,7 @@ export async function GET(request: Request) {
       service: "shopify-disputes-copilot",
       release: APP_RELEASE,
       commit: APP_COMMIT,
+      builtAt: APP_BUILT_AT,
       timestamp: new Date().toISOString()
     });
   }
@@ -54,6 +55,7 @@ export async function GET(request: Request) {
       : null,
     release: APP_RELEASE,
     commit: APP_COMMIT,
+    builtAt: APP_BUILT_AT,
     aiDraftsEnabled: isOpenAIDraftEnabled(),
     latestSyncRun: latestSyncRun
       ? {
