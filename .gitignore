@@ -19,5 +19,6 @@ dist
 
 .claude-transfer/
 _to_delete/
+_claude_stage/
 .DS_Store
 HANDOFF_*.md

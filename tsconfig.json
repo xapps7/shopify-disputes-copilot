@@ -37,7 +37,17 @@
     "**/*.tsx",
     ".next/types/**/*.ts"
   ],
+  // The mount Cowork edits this repo through cannot delete files, so removals
+  // are parked in _to_delete/ and agent scratch lands in _claude_stage/ or
+  // .claude-transfer/. All three are gitignored and never reach GitHub - but
+  // tsc still walked them, so `next build` typechecked stale copies of moved
+  // modules and failed on imports that no longer resolve. App Runner never saw
+  // this, because App Runner builds from the GitHub checkout, where these
+  // directories do not exist. Keep this list in step with tsconfig.check.json.
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "_to_delete",
+    "_claude_stage",
+    ".claude-transfer"
   ]
 }

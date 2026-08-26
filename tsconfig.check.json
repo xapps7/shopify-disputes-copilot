@@ -8,5 +8,5 @@
   // without a fresh build; use `npm run typecheck` when `.next` is current.
   "extends": "./tsconfig.json",
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", ".next", "_to_delete", ".claude-transfer"]
+  "exclude": ["node_modules", ".next", "_to_delete", "_claude_stage", ".claude-transfer"]
 }
