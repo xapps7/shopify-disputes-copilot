@@ -1,75 +1,132 @@
 /**
- * Removing the duplicate dispute rows written before the GID fix.
+ * Collapsing duplicate dispute rows.
  *
- * Shopify returns the same dispute under two different GID types: the top-level
+ * Shopify returns the same dispute under more than one GID type: the top-level
  * `disputes` connection gives `gid://shopify/ShopifyPaymentsDispute/<n>`, while
  * `Order.disputes` gives `gid://shopify/OrderDisputeSummary/<n>`. Keying rows on
- * the raw GID stored each dispute twice. A third bad shape ends `/unknown`, from
- * a webhook path that read `dispute_id` when the payload field is `id`.
+ * the raw GID stored each dispute twice. The order-derived twin carries the
+ * ORDER total rather than the disputed amount and no reason or deadline, so the
+ * queue shows one dispute number on two lines - once with a real reason and
+ * deadline, once as "General / No auto-submit date".
  *
- * The order-derived twin carries the ORDER total rather than the disputed
- * amount, and no reason or deadline - so in the queue it appears as a second row
- * for the same dispute number reading "General" and "No auto-submit date".
- *
- * The sync no longer produces these. This clears what earlier versions left
+ * The sync no longer writes these. This clears what earlier versions left
  * behind, because code that stops creating bad rows does not remove the ones it
  * already wrote.
  *
- * WHAT THIS WILL NOT DO: delete a row that carries merchant work. A junk row is
- * still a row a merchant could have opened and uploaded a file against, and
- * evidence items and packets cascade on delete. Anything holding uploads or a
- * generated packet is reported back and left alone for a human to look at. The
- * cost of leaving a duplicate on screen is an untidy queue; the cost of the
- * other mistake is destroying evidence before a deadline.
+ * Duplicates are found by IDENTITY, not by a recognised-bad prefix. The first
+ * version of this matched the two GID shapes already known to be wrong, which
+ * can only ever clean up the cases somebody had already thought of - and it
+ * silently does nothing if the stored keys turn out to have a third shape. Two
+ * rows that normalise to the same dispute are duplicates whatever either key
+ * looks like.
+ *
+ * WHAT THIS WILL NOT DO: delete a row carrying merchant work. Evidence items and
+ * packets cascade on delete, and a junk row is still a row a merchant could have
+ * opened and uploaded a file against. Those are reported back and left alone.
+ * The cost of leaving a duplicate on screen is an untidy queue; the cost of the
+ * other mistake is destroying evidence before a deadline. It also never deletes
+ * a row that is the only record of its dispute, however odd the key looks.
  */
 
 import { db } from "@/lib/db";
-import { isLegacyDisputeKey } from "@/lib/disputes/dispute-keys";
+import { isLegacyDisputeKey, planDuplicateCleanup } from "@/lib/disputes/dispute-keys";
 
 export { isLegacyDisputeKey };
 
 export type LegacyCleanupResult = {
   removed: number;
-  /** Junk rows left in place because a merchant had put work into them. */
+  /** Duplicates left in place because a merchant had put work into them. */
   keptWithWork: string[];
 };
 
 /**
- * Runs immediately before a sync imports, so any dispute that had ONLY a junk
- * row is recreated from Shopify in the same run rather than disappearing.
+ * Runs immediately before a sync imports, so a dispute whose surviving row was
+ * the junk one is refreshed from Shopify in the same run.
  *
  * Failure is not allowed to take the sync down with it. A tidy-up that blocks
  * dispute ingestion is worse than the untidiness it was trying to fix.
  */
 export async function removeLegacyDuplicateDisputes(merchantId: string): Promise<LegacyCleanupResult> {
-  const candidates = await db.dispute.findMany({
-    where: {
-      merchantId,
-      OR: [{ shopifyDisputeId: { contains: "/OrderDisputeSummary/" } }, { shopifyDisputeId: { endsWith: "/unknown" } }]
-    },
+  const rows = await db.dispute.findMany({
+    where: { merchantId },
     select: {
       id: true,
       shopifyDisputeId: true,
+      reason: true,
+      evidenceDueBy: true,
+      createdAt: true,
       _count: { select: { evidenceItems: true, packets: true } }
     }
   });
 
-  const disposable: string[] = [];
-  const keptWithWork: string[] = [];
+  const plan = planDuplicateCleanup(
+    rows.map((row) => ({
+      id: row.id,
+      shopifyDisputeId: row.shopifyDisputeId,
+      reason: row.reason,
+      evidenceDueBy: row.evidenceDueBy,
+      hasMerchantWork: row._count.evidenceItems > 0 || row._count.packets > 0,
+      createdAt: row.createdAt
+    }))
+  );
 
-  for (const candidate of candidates) {
-    if (candidate._count.evidenceItems > 0 || candidate._count.packets > 0) {
-      keptWithWork.push(candidate.shopifyDisputeId);
-      continue;
-    }
-    disposable.push(candidate.id);
+  if (plan.deleteIds.length === 0) {
+    return { removed: 0, keptWithWork: plan.keptWithWork };
   }
 
-  if (disposable.length === 0) {
-    return { removed: 0, keptWithWork };
+  const result = await db.dispute.deleteMany({ where: { id: { in: plan.deleteIds } } });
+
+  return { removed: result.count, keptWithWork: plan.keptWithWork };
+}
+
+/**
+ * Read-only view of what the cleanup would do, for the debug endpoint.
+ *
+ * "It should have cleaned up" is not an answer anybody can check. This lets the
+ * stored keys be looked at directly, which is the only way to tell a duplicate
+ * row from a duplicate render.
+ */
+export async function describeDuplicateDisputes(merchantId: string) {
+  const rows = await db.dispute.findMany({
+    where: { merchantId },
+    select: {
+      id: true,
+      shopifyDisputeId: true,
+      reason: true,
+      amount: true,
+      currencyCode: true,
+      evidenceDueBy: true,
+      createdAt: true,
+      _count: { select: { evidenceItems: true, packets: true } }
+    },
+    orderBy: { createdAt: "asc" }
+  });
+
+  const byNumber = new Map<string, typeof rows>();
+  for (const row of rows) {
+    const number = row.shopifyDisputeId.split("/").pop() ?? row.shopifyDisputeId;
+    byNumber.set(number, [...(byNumber.get(number) ?? []), row]);
   }
 
-  const result = await db.dispute.deleteMany({ where: { id: { in: disposable } } });
+  const collisions = [...byNumber.entries()]
+    .filter(([, group]) => group.length > 1)
+    .map(([number, group]) => ({
+      disputeNumber: number,
+      rows: group.map((row) => ({
+        storedKey: row.shopifyDisputeId,
+        legacyShape: isLegacyDisputeKey(row.shopifyDisputeId),
+        reason: row.reason,
+        amount: row.amount?.toString() ?? null,
+        currencyCode: row.currencyCode,
+        evidenceDueBy: row.evidenceDueBy?.toISOString() ?? null,
+        evidenceItems: row._count.evidenceItems,
+        packets: row._count.packets
+      }))
+    }));
 
-  return { removed: result.count, keptWithWork };
+  return {
+    totalRows: rows.length,
+    distinctDisputeNumbers: byNumber.size,
+    collisions
+  };
 }

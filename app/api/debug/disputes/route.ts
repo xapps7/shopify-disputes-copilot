@@ -7,6 +7,7 @@ import { getAuthenticatedShopDomain } from "@/lib/shopify/request-context";
 import { createShopifyAdminClient } from "@/lib/shopify/client";
 import { extractGraphqlErrors, graphqlErrorMessages } from "@/lib/shopify/errors";
 import { APP_COMMIT, APP_RELEASE } from "@/lib/version";
+import { describeDuplicateDisputes } from "@/lib/disputes/duplicate-cleanup";
 import {
   ACCESS_SCOPES_DEBUG_QUERY,
   BASIC_ORDERS_DEBUG_QUERY,
@@ -234,6 +235,11 @@ export async function GET(request: Request) {
       findings,
       probes,
       live,
+      // The stored rows, keyed as they actually sit in the database. The queue
+      // renders only the numeric tail of a dispute GID, so two rows stored under
+      // different GID types show as one dispute number twice and look like a
+      // rendering bug. This is the only way to tell those two cases apart.
+      storedDisputes: await describeDuplicateDisputes(merchant.id),
       targetedOrder: { orderId: orderGid, orderName }
     });
   } catch (error) {
