@@ -12,6 +12,11 @@ export type MerchantSettings = StandingStatements & {
 } & {
   returnPolicyUrl: string;
   refundPolicyUrl: string;
+  /** Subscriptions and services. Kept separate from the refund policy:
+   *  a store can publish one without the other, and claiming cancellation
+   *  terms were disclosed because a refund policy exists is an inference,
+   *  not evidence. */
+  cancellationPolicyUrl: string;
   supportEmail: string;
   supportPhone: string;
   statementDescriptor: string;
@@ -30,6 +35,7 @@ export const defaultMerchantSettings: MerchantSettings = {
   standingDocuments: [],
   returnPolicyUrl: "",
   refundPolicyUrl: "",
+  cancellationPolicyUrl: "",
   supportEmail: "",
   supportPhone: "",
   statementDescriptor: "",

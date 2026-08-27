@@ -7,6 +7,9 @@ import { saveMerchantSettings } from "@/lib/settings";
 const settingsSchema = z.object({
   returnPolicyUrl: z.string(),
   refundPolicyUrl: z.string(),
+  // Defaulted, not required: a client cached before this field existed
+  // must not have its whole settings save rejected over one absent key.
+  cancellationPolicyUrl: z.string().default(""),
   supportEmail: z.string(),
   supportPhone: z.string(),
   statementDescriptor: z.string(),

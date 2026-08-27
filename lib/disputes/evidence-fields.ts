@@ -274,6 +274,8 @@ export type DraftContext = {
   lineItemSummaries: string[];
   refundPolicyUrl: string;
   returnPolicyUrl: string;
+  /** Subscriptions and services only. Empty on most stores. */
+  cancellationPolicyUrl: string;
   supportEmail: string;
   statementDescriptor: string;
   orderPlacedAt: string | null;
@@ -354,17 +356,46 @@ export function draftEvidenceFields(context: DraftContext): Partial<Record<Evide
 
   if (context.cancellationPolicyStatement?.trim()) {
     drafts.cancellationPolicyDisclosure = context.cancellationPolicyStatement.trim();
+  } else if (context.cancellationPolicyUrl) {
+    // Deliberately NOT falling back to the refund or return policy URL. A store
+    // can publish one without the other, and asserting that cancellation terms
+    // were disclosed because a refund policy exists is an inference presented to
+    // a bank as fact. No cancellation URL means no draft.
+    drafts.cancellationPolicyDisclosure = joinSentences([
+      `Our cancellation terms are published at ${context.cancellationPolicyUrl}`,
+      "and were available to the customer before purchase.",
+      context.orderPlacedAt ? `This order was placed on ${context.orderPlacedAt}.` : null
+    ]);
   }
 
-  if (context.fulfillmentStatus || context.trackingSummaries.length > 0) {
-    drafts.accessActivityLog = joinSentences([
-      context.customerEmail ? `Order placed from the account ${context.customerEmail}.` : "Order placed from the customer account on file.",
-      context.orderPlacedAt ? `Order date ${context.orderPlacedAt}.` : null,
-      context.trackingSummaries.length > 0
-        ? `Tracking was made available to the customer: ${context.trackingSummaries.join("; ")}.`
-        : null,
-      "Add sign-in timestamps, IP addresses, or tracking-page views if you have them - they carry real weight on fraud claims."
-    ]);
+  /**
+   * Always drafted, from whatever the order actually gives us.
+   *
+   * This used to be gated on a fulfilment status or a tracking number, so a
+   * digital or unfulfilled order - the orders most likely to draw a "product
+   * not received" claim - opened at a blank box.
+   *
+   * The old draft also ended with a sentence telling the merchant what else to
+   * add. That instruction is not evidence, it duplicates the field's own help
+   * text, and because the field's status is computed from whether the box is
+   * non-empty, it made an untouched field report Ready - which then fed
+   * `evidenceCompleteness` and inflated the win probability. Coaching belongs
+   * in the prompt, facts belong in the box.
+   */
+  const accessActivity = joinSentences([
+    context.customerEmail
+      ? `Order placed from the account ${context.customerEmail}.`
+      : "Order placed from the customer account on file.",
+    context.orderPlacedAt ? `Order date ${context.orderPlacedAt}.` : null,
+    context.trackingSummaries.length > 0
+      ? `Tracking was made available to the customer: ${context.trackingSummaries.join("; ")}.`
+      : context.fulfillmentStatus
+        ? `Fulfilment status at the time of this response: ${context.fulfillmentStatus}.`
+        : null
+  ]);
+
+  if (accessActivity) {
+    drafts.accessActivityLog = accessActivity;
   }
 
   return drafts;

@@ -18,6 +18,7 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [returnPolicyUrl, setReturnPolicyUrl] = useState(initialSettings.returnPolicyUrl);
   const [refundPolicyUrl, setRefundPolicyUrl] = useState(initialSettings.refundPolicyUrl);
+  const [cancellationPolicyUrl, setCancellationPolicyUrl] = useState(initialSettings.cancellationPolicyUrl);
   const [supportEmail, setSupportEmail] = useState(initialSettings.supportEmail);
   const [supportPhone, setSupportPhone] = useState(initialSettings.supportPhone);
   const [statementDescriptor, setStatementDescriptor] = useState(initialSettings.statementDescriptor);
@@ -47,6 +48,7 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
       body: JSON.stringify({
         returnPolicyUrl,
         refundPolicyUrl,
+        cancellationPolicyUrl,
         supportEmail,
         supportPhone,
         statementDescriptor,
@@ -114,6 +116,15 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
             onChange={setRefundPolicyUrl}
             placeholder="https://example.com/refunds"
             value={refundPolicyUrl}
+          />
+          <TextField
+            autoComplete="url"
+            helpText="Only if you sell subscriptions or services. Used to draft the cancellation policy disclosure."
+            label="Cancellation policy URL"
+            name="cancellationPolicyUrl"
+            onChange={setCancellationPolicyUrl}
+            placeholder="https://example.com/cancellation"
+            value={cancellationPolicyUrl}
           />
           <TextField
             autoComplete="email"

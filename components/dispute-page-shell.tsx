@@ -372,6 +372,7 @@ export function DisputePageShell({
           lineItemSummaries: [],
           refundPolicyUrl: "",
           returnPolicyUrl: "",
+          cancellationPolicyUrl: "",
           supportEmail: "",
           statementDescriptor: "",
           orderPlacedAt: null

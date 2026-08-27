@@ -841,6 +841,7 @@ export async function getDisputeDetail(id: string, merchantId?: string): Promise
       lineItemSummaries,
       refundPolicyUrl: settings.refundPolicyUrl,
       returnPolicyUrl: settings.returnPolicyUrl,
+      cancellationPolicyUrl: settings.cancellationPolicyUrl,
       supportEmail: settings.supportEmail,
       statementDescriptor: settings.statementDescriptor,
       orderPlacedAt: orderNode?.createdAt ? new Date(orderNode.createdAt).toISOString().slice(0, 10) : null,

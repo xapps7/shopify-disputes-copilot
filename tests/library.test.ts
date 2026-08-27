@@ -188,6 +188,7 @@ const baseContext = {
   lineItemSummaries: [],
   refundPolicyUrl: "https://shop.example/refunds",
   returnPolicyUrl: "",
+  cancellationPolicyUrl: "",
   supportEmail: "help@shop.example",
   statementDescriptor: "SHOP",
   orderPlacedAt: "2026-07-02"

@@ -109,6 +109,7 @@ const CONTEXT = {
   lineItemSummaries: ["Widget x2"],
   refundPolicyUrl: "https://shop.example/policies/refund",
   returnPolicyUrl: "",
+  cancellationPolicyUrl: "",
   supportEmail: "help@shop.example",
   statementDescriptor: "SHOP EXAMPLE",
   orderPlacedAt: "2026-08-10"
@@ -148,6 +149,62 @@ test("drafts nothing it cannot know", () => {
   // These need the merchant; inventing them would be worse than an empty box.
   assert.equal(drafts.refundRefusalExplanation, undefined);
   assert.equal(drafts.cancellationRebuttal, undefined);
+});
+
+test("access activity is drafted for a digital order with no fulfilment and no tracking", () => {
+  // The regression: this used to be gated on a fulfilment status or a tracking
+  // number, so exactly the orders most likely to draw a "not received" claim
+  // opened at a blank box.
+  const drafts = draftEvidenceFields({
+    ...CONTEXT,
+    fulfillmentStatus: null,
+    trackingSummaries: []
+  });
+
+  const log = drafts.accessActivityLog ?? "";
+  assert.match(log, /ada@example\.com/);
+  assert.match(log, /2026-08-10/);
+});
+
+test("access activity contains evidence only — never instructions to the merchant", () => {
+  const drafts = draftEvidenceFields(CONTEXT);
+  const log = drafts.accessActivityLog ?? "";
+
+  assert.match(log, /UPS 1Z999/);
+  // A draft that ends "add your IP addresses here" is not evidence, and because
+  // status is computed from a non-empty box it made an untouched field report
+  // Ready and inflated evidenceCompleteness.
+  assert.doesNotMatch(log, /Add sign-in timestamps|if you have them/i);
+});
+
+test("cancellation disclosure is drafted from its own URL", () => {
+  const drafts = draftEvidenceFields({
+    ...CONTEXT,
+    cancellationPolicyUrl: "https://shop.example/policies/cancellation"
+  });
+
+  const disclosure = drafts.cancellationPolicyDisclosure ?? "";
+  assert.match(disclosure, /shop\.example\/policies\/cancellation/);
+  assert.match(disclosure, /2026-08-10/);
+});
+
+test("cancellation disclosure never borrows the refund policy URL", () => {
+  // A store can publish a refund policy and no cancellation terms. Claiming the
+  // terms were disclosed because some other policy exists is an inference, and
+  // it would be presented to a bank as fact.
+  const drafts = draftEvidenceFields({ ...CONTEXT, cancellationPolicyUrl: "" });
+  assert.equal(drafts.cancellationPolicyDisclosure, undefined);
+  assert.match(drafts.refundPolicyDisclosure ?? "", /policies\/refund/);
+});
+
+test("a saved cancellation statement still beats the URL draft", () => {
+  const drafts = draftEvidenceFields({
+    ...CONTEXT,
+    cancellationPolicyUrl: "https://shop.example/policies/cancellation",
+    cancellationPolicyStatement: "  Cancellation requires 7 days notice before renewal.  "
+  });
+
+  assert.equal(drafts.cancellationPolicyDisclosure, "Cancellation requires 7 days notice before renewal.");
 });
 
 /* --- readiness --------------------------------------------------------- */
