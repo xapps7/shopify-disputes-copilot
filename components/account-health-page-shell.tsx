@@ -52,6 +52,104 @@ type AccountHealthPageShellProps = {
  */
 type RatioAssessment = NonNullable<AccountHealth["vamp"]>;
 type PortfolioEntry = AccountHealth["portfolio"][number];
+type ProfitAndLoss = AccountHealth["profitAndLossThisMonth"];
+
+/**
+ * One settled period, in cash.
+ *
+ * Everything else on this page forecasts. This reports. It is placed first
+ * because it is the question a finance owner asks before any other - what did
+ * this cost me - and because a ratio is not money until someone converts it.
+ */
+function ProfitAndLossTable({ pl }: { pl: ProfitAndLoss }) {
+  if (pl.lines.length === 0) {
+    return (
+      <BlockStack gap="100">
+        <Text as="h3" variant="headingSm">
+          {pl.label}
+        </Text>
+        <Text as="p" variant="bodySm" tone="subdued">
+          Nothing settled in this period. Open disputes appear under money at risk until they resolve.
+        </Text>
+      </BlockStack>
+    );
+  }
+
+  const feesOnWins = pl.lines.filter((line) => line.feesOnWins > 0);
+
+  return (
+    <BlockStack gap="200">
+      <Text as="h3" variant="headingSm">
+        {pl.label}
+      </Text>
+
+      <DataTable
+        columnContentTypes={["text", "numeric", "numeric", "numeric", "numeric", "numeric"]}
+        headings={["Currency", "Settled", "Kept by winning", "Lost to chargebacks", "Fees paid", "Net cost"]}
+        rows={pl.lines.map((line) => [
+          line.currencyCode,
+          `${line.settledCount} (${line.wonCount}W / ${line.lostCount}L)`,
+          formatMoney(line.recovered, line.currencyCode),
+          formatMoney(line.lost, line.currencyCode),
+          formatMoney(line.feesPaid, line.currencyCode),
+          formatMoney(line.netCost, line.currencyCode)
+        ])}
+      />
+
+      {feesOnWins.map((line) => (
+        <Text as="p" key={`won-fee-${line.currencyCode}`} variant="bodySm" tone="subdued">
+          {`You won ${line.wonCount} ${line.wonCount === 1 ? "dispute" : "disputes"} in ${line.currencyCode} and still paid ${formatMoney(
+            line.feesOnWins,
+            line.currencyCode
+          )} in fees on them. The chargeback fee is charged when the dispute is filed, and Shopify's own documentation is inconsistent about whether winning gets it back — so this figure assumes it does not.`}
+        </Text>
+      ))}
+
+      {pl.lines.some((line) => line.feeEstimated) ? (
+        <Text as="p" variant="bodySm" tone="subdued">
+          One or more currencies here has no published Shopify chargeback fee, so the US figure was used as an estimate.
+        </Text>
+      ) : null}
+    </BlockStack>
+  );
+}
+
+function ProfitAndLossCard({ health }: { health: AccountHealth }) {
+  const undated = Math.max(
+    health.profitAndLossThisMonth.undatedSettled,
+    health.profitAndLossPriorMonth.undatedSettled
+  );
+
+  return (
+    <Card>
+      <BlockStack gap="400">
+        <BlockStack gap="100">
+          <Text as="h2" variant="headingMd">
+            What disputes cost you
+          </Text>
+          <Text as="p" variant="bodySm" tone="subdued">
+            Settled cash, not a forecast. Money kept by winning is shown separately rather than netted off, because it
+            is a debit that did not happen — not income. Net cost is what was lost plus every fee.
+          </Text>
+        </BlockStack>
+
+        <ProfitAndLossTable pl={health.profitAndLossThisMonth} />
+        <Divider />
+        <ProfitAndLossTable pl={health.profitAndLossPriorMonth} />
+
+        {undated > 0 ? (
+          <Text as="p" variant="bodySm" tone="subdued">
+            {`${undated} settled ${undated === 1 ? "dispute has" : "disputes have"} no finalisation date from Shopify, so ${
+              undated === 1 ? "it is" : "they are"
+            } not counted in either period above. Excluding ${
+              undated === 1 ? "it" : "them"
+            } understates these figures; guessing a date would put an old loss in this month.`}
+          </Text>
+        ) : null}
+      </BlockStack>
+    </Card>
+  );
+}
 type PreventionAction = AccountHealth["recommendations"][number];
 
 /** Pinned so the server and client renders of these figures agree. */
@@ -436,6 +534,8 @@ export function AccountHealthPageShell({ health }: AccountHealthPageShellProps) 
         other, and that comparison is the point. Stacked they were two screens
         of scrolling with the comparison held in the merchant's head.
       */}
+      <ProfitAndLossCard health={health} />
+
       <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
         {health.vamp ? <ProgramCard assessment={health.vamp} /> : <UnmeasurableProgramCard program="VAMP_NONCOMPLIANT" health={health} />}
         {health.ecm ? <ProgramCard assessment={health.ecm} /> : <UnmeasurableProgramCard program="ECM" health={health} />}

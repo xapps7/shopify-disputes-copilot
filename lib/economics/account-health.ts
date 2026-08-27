@@ -6,6 +6,7 @@ import { assessEcm, assessVamp, protectedButStillCounted, type RatioAssessment,
   mostUrgent
 } from "@/lib/economics/ratios";
 import { recommendProtection, type ProtectionAdvice } from "@/lib/economics/protection";
+import { buildDisputeProfitAndLoss, type DisputeProfitAndLoss } from "@/lib/economics/dispute-pl";
 import { recommendStrategy } from "@/lib/economics/strategy";
 import { getReasonProfile } from "@/lib/disputes/reason-codes";
 import { createShopifyAdminClient } from "@/lib/shopify/client";
@@ -38,6 +39,13 @@ export type AccountHealth = {
   urgent: RatioAssessment | null;
   /** Which protection tool is worth buying at this position, and which is not. */
   protection: ProtectionAdvice | null;
+  /**
+   * What disputes actually cost in settled cash. Every other figure on this
+   * screen is forward-looking; these two are the only backward-looking ones,
+   * and they are the first thing a finance owner asks for.
+   */
+  profitAndLossThisMonth: DisputeProfitAndLoss;
+  profitAndLossPriorMonth: DisputeProfitAndLoss;
   caveats: string[];
   protectWarning: string | null;
   recommendations: Array<{ id: string; title: string; detail: string; priority: string; state: string }>;
@@ -157,6 +165,7 @@ export async function getAccountHealth(shopDomain: string | null): Promise<Accou
       currencyCode: true,
       evidenceDueBy: true,
       initiatedAt: true,
+      finalizedOn: true,
       createdAt: true,
       _count: { select: { evidenceItems: true } }
     }
@@ -309,6 +318,33 @@ export async function getAccountHealth(shopDomain: string | null): Promise<Accou
     select: { id: true, category: true, recommendationText: true, priority: true, state: true }
   });
 
+  // --- What the settled book actually cost ---
+  //
+  // Prisma hands back Decimal; the P&L module is deliberately Prisma-free so it
+  // can be tested without a database, so the conversion happens here.
+  const plRecords = disputes.map((dispute) => ({
+    status: dispute.status,
+    disputeType: dispute.disputeType,
+    amount: Number(dispute.amount?.toString() ?? "0"),
+    currencyCode: dispute.currencyCode,
+    finalizedOn: dispute.finalizedOn
+  }));
+
+  const monthName = (date: Date) =>
+    date.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+
+  const profitAndLossThisMonth = buildDisputeProfitAndLoss(
+    plRecords,
+    { start: startOfMonth, end: now },
+    `${monthName(startOfMonth)} so far`
+  );
+
+  const profitAndLossPriorMonth = buildDisputeProfitAndLoss(
+    plRecords,
+    { start: startOfPriorMonth, end: startOfMonth },
+    monthName(startOfPriorMonth)
+  );
+
   return {
     periodLabel: now.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" }),
     monthElapsed: elapsed,
@@ -321,6 +357,8 @@ export async function getAccountHealth(shopDomain: string | null): Promise<Accou
     matchRisk,
     urgent,
     protection,
+    profitAndLossThisMonth,
+    profitAndLossPriorMonth,
     caveats,
     // We cannot tell from the API which disputes Shopify Protect covered, so
     // this is framed as a standing warning rather than a count we do not have.
