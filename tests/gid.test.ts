@@ -1,14 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-// Mirrors toDisputeGid in lib/disputes/shopify-sync.ts. Order.disputes returns
-// OrderDisputeSummary GIDs while the top-level disputes connection returns
-// ShopifyPaymentsDispute GIDs for the SAME dispute — keying on the raw GID
-// stored every dispute twice (observed live: 5 real disputes -> syncedCount 8).
-function toDisputeGid(id: string): string {
-  const numericId = id.split("/").pop();
-  return numericId ? `gid://shopify/ShopifyPaymentsDispute/${numericId}` : id;
-}
+// The real implementation, not a copy of it. It lives in an import-free
+// module precisely so this test can reach it - a mirrored copy is a second
+// definition of the rule and free to drift from the one that ships.
+import { toDisputeGid } from "../lib/disputes/dispute-keys.ts";
+
 
 test("collapses OrderDisputeSummary and ShopifyPaymentsDispute GIDs", () => {
   const fromOrder = "gid://shopify/OrderDisputeSummary/11450876085";
@@ -41,4 +38,22 @@ test("dedupes the exact live payload that produced 8 rows for 5 disputes", () =>
 
   const fixed = new Set([...topLevel, ...orderDerived].map(toDisputeGid));
   assert.equal(fixed.size, 5, "matches the 5 disputes Shopify actually reports");
+});
+
+/* --- the webhook path, which used to bypass normalisation entirely --------- */
+
+test("a webhook admin_graphql_api_id is normalised, not trusted", () => {
+  // lib/disputes/sync.ts took payload.admin_graphql_api_id verbatim as the
+  // upsert key. Any other GID type in that field wrote a SECOND row for a
+  // dispute that already existed - the duplicate the queue then shows twice.
+  assert.equal(
+    toDisputeGid("gid://shopify/OrderDisputeSummary/11450876085"),
+    "gid://shopify/ShopifyPaymentsDispute/11450876085"
+  );
+  // Already correct values pass through untouched, so normalising is safe to
+  // apply unconditionally at the write.
+  assert.equal(
+    toDisputeGid("gid://shopify/ShopifyPaymentsDispute/11450876085"),
+    "gid://shopify/ShopifyPaymentsDispute/11450876085"
+  );
 });

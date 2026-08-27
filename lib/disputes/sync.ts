@@ -2,6 +2,7 @@ import { DisputeStatus } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import { syncDerivedDisputeState } from "@/lib/disputes/auto-sync";
+import { toDisputeGid } from "@/lib/disputes/dispute-keys";
 
 export type DisputeWebhookPayload = {
   admin_graphql_api_id?: string;
@@ -60,8 +61,22 @@ export async function upsertDisputeFromWebhook(shopDomain: string, payload: Disp
     throw new Error("Dispute webhook payload has no dispute id; refusing to write.");
   }
 
-  const shopifyDisputeId =
-    payload.admin_graphql_api_id ?? `gid://shopify/ShopifyPaymentsDispute/${numericDisputeId}`;
+  /**
+   * `admin_graphql_api_id` is taken as a hint, not as the key.
+   *
+   * The GraphQL sync normalises every id through `toDisputeGid` because Shopify
+   * returns the same dispute as an OrderDisputeSummary GID from one connection
+   * and a ShopifyPaymentsDispute GID from another. This path did not, so a
+   * payload arriving with any other GID shape wrote a SECOND row for a dispute
+   * that already existed - the duplicate the queue then shows twice, once with
+   * a real reason and deadline and once as "General / No auto-submit date".
+   *
+   * One module owns the shape. Nothing else gets to decide what a dispute key
+   * looks like.
+   */
+  const shopifyDisputeId = toDisputeGid(
+    payload.admin_graphql_api_id ?? `gid://shopify/ShopifyPaymentsDispute/${numericDisputeId}`
+  );
 
   const previousDispute = await db.dispute.findUnique({
     where: { shopifyDisputeId },

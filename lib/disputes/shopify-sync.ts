@@ -1,4 +1,10 @@
 import { db } from "@/lib/db";
+import { removeLegacyDuplicateDisputes } from "@/lib/disputes/duplicate-cleanup";
+import { toDisputeGid } from "@/lib/disputes/dispute-keys";
+
+// Re-exported so existing importers keep working; the definition lives in
+// lib/disputes/dispute-keys.ts, which has no imports and so can be tested.
+export { toDisputeGid };
 import { projectOrderForStorage } from "@/lib/compliance/order-projection";
 import { syncDerivedDisputeState } from "@/lib/disputes/auto-sync";
 import { decryptString } from "@/lib/crypto";
@@ -135,18 +141,6 @@ class SyncDiagnostics {
   }
 }
 
-/**
- * `Order.disputes` returns OrderDisputeSummary nodes whose GIDs look like
- * `gid://shopify/OrderDisputeSummary/<n>`, while the top-level `disputes`
- * connection returns `gid://shopify/ShopifyPaymentsDispute/<n>` for the SAME
- * dispute. Keying on the raw GID stored each dispute twice, and
- * `dispute(id: <OrderDisputeSummary gid>)` fails with RESOURCE_NOT_FOUND.
- * Normalise both to the ShopifyPaymentsDispute form.
- */
-export function toDisputeGid(id: string): string {
-  const numericId = id.split("/").pop();
-  return numericId ? `gid://shopify/ShopifyPaymentsDispute/${numericId}` : id;
-}
 
 function mergeDisputeNode(
   existing: ShopifyDisputeNode | undefined,
@@ -532,8 +526,19 @@ async function replaceSystemEvidence(disputeId: string, dispute: ShopifyDisputeN
 }
 
 async function importDisputeNode(dispute: ShopifyDisputeNode, merchantId: string) {
+  /**
+   * Normalised HERE, not only in the callers.
+   *
+   * Every caller in this file already passes a normalised id, so this is
+   * currently a no-op - and that is the point. This is the single function that
+   * writes a Dispute row, so it is the right place for the invariant to live.
+   * The alternative is what produced the duplicates in the first place: the
+   * rule known in three call sites and enforced in none of them.
+   */
+  const shopifyDisputeId = toDisputeGid(dispute.id);
+
   const previousDispute = await db.dispute.findUnique({
-    where: { shopifyDisputeId: dispute.id },
+    where: { shopifyDisputeId },
     select: { id: true, status: true, evidenceSentOn: true }
   });
 
@@ -554,9 +559,9 @@ async function importDisputeNode(dispute: ShopifyDisputeNode, merchantId: string
   };
 
   const dbDispute = await db.dispute.upsert({
-    where: { shopifyDisputeId: dispute.id },
+    where: { shopifyDisputeId },
     update: payload,
-    create: { ...payload, shopifyDisputeId: dispute.id }
+    create: { ...payload, shopifyDisputeId }
   });
 
   await upsertOrderSnapshot(dispute, merchantId);
@@ -644,6 +649,35 @@ export async function syncRecentDisputesForMerchant(shopDomain: string) {
   const diagnostics = new SyncDiagnostics();
   const disputesById = new Map<string, ShopifyDisputeNode>();
   const sources: Record<string, number> = {};
+
+  // Clear rows earlier versions wrote under GID shapes nothing produces any
+  // more. Deliberately BEFORE the import, so a dispute that had only a junk row
+  // is rebuilt from Shopify in this same run instead of vanishing from the
+  // queue. Fails soft - a tidy-up that stops dispute ingestion is worse than the
+  // untidiness it was fixing.
+  try {
+    const cleanup = await removeLegacyDuplicateDisputes(merchant.id);
+
+    if (cleanup.removed > 0) {
+      sources.legacyDuplicatesRemoved = cleanup.removed;
+    }
+
+    if (cleanup.keptWithWork.length > 0) {
+      diagnostics.note(
+        `${cleanup.keptWithWork.length} duplicate dispute ${
+          cleanup.keptWithWork.length === 1 ? "row was" : "rows were"
+        } left in place because ${
+          cleanup.keptWithWork.length === 1 ? "it has" : "they have"
+        } uploaded evidence or a generated packet attached. Deleting them would destroy that work, so they need a human decision.`
+      );
+    }
+  } catch (error) {
+    diagnostics.note(
+      `Could not clear legacy duplicate dispute rows: ${
+        error instanceof Error ? error.message : "unknown error"
+      }. Sync continued.`
+    );
+  }
 
   const topLevel = await collectTopLevelDisputes(client, diagnostics);
   sources.topLevelDisputes = topLevel.length;
