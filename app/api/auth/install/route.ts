@@ -32,9 +32,9 @@ export async function GET(request: Request) {
     return NextResponse.redirect(buildInstallUrl(normalizedShop, state));
   } catch (error) {
     console.error("Install route failed", error);
-    return new NextResponse(
-      error instanceof Error ? `Install route failed: ${error.message}` : "Install route failed.",
-      { status: 500 }
-    );
+    // Constant text. This route is public and skipped by middleware, so
+    // echoing error.message hands Shopify API errors and internal failure
+    // detail to an unauthenticated caller.
+    return new NextResponse("Install route failed.", { status: 500 });
   }
 }

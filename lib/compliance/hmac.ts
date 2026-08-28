@@ -29,6 +29,14 @@ export function isValidWebhookHmac(
     return false;
   }
 
+  // An empty secret makes this HMAC-SHA256(body, "") - a signature any caller
+  // can compute. `resolveWebhookSecret` returns "" when neither secret is
+  // configured, so without this check a misconfigured deploy would accept
+  // forged compliance webhooks, including shop/redact.
+  if (!secret) {
+    return false;
+  }
+
   const digestBuffer = Buffer.from(computeWebhookHmac(body, secret));
   const headerBuffer = Buffer.from(hmacHeader);
 

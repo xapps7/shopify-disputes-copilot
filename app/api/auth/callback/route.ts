@@ -65,9 +65,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(buildEmbeddedAppUrl(shop, "/", host));
   } catch (error) {
     console.error("OAuth callback failed", error);
-    return new NextResponse(
-      error instanceof Error ? `OAuth callback failed: ${error.message}` : "OAuth callback failed.",
-      { status: 500 }
-    );
+    // Constant text - this route is public and bypasses middleware.
+    return new NextResponse("OAuth callback failed.", { status: 500 });
   }
 }

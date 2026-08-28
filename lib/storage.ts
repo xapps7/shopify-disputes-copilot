@@ -9,6 +9,28 @@ const storagePublicBaseUrl = process.env.FILE_STORAGE_PUBLIC_BASE_URL?.replace(/
 const s3Bucket = process.env.S3_BUCKET;
 const s3Region = process.env.S3_REGION;
 
+/**
+ * Local storage mode is a development convenience and a production data breach.
+ *
+ * In `local` mode uploaded evidence is written under `public/`, which Next
+ * serves statically with no auth - so a delivery confirmation carrying a
+ * customer's name and address is readable by anyone holding the URL, and the
+ * `/api/evidence/[id]/file` guard is bypassed because the bytes never sit
+ * behind it. `local` is also the DEFAULT when FILE_STORAGE_MODE is unset, and
+ * nothing in the deployment guide lists that variable - so the unsafe mode is
+ * what you get by forgetting.
+ *
+ * Failing at module load is deliberate: a deploy that would serve customer data
+ * publicly should not start at all. Refusing to boot is loud, recoverable, and
+ * far cheaper than a rejected App Store review or a disclosure.
+ */
+if (process.env.NODE_ENV === "production" && storageMode !== "s3") {
+  throw new Error(
+    `FILE_STORAGE_MODE is "${storageMode}" in production. Uploaded evidence would be written to public/ ` +
+      "and served without authentication. Set FILE_STORAGE_MODE=s3 with S3_BUCKET and S3_REGION."
+  );
+}
+
 const s3Client =
   storageMode === "s3" && s3Bucket && s3Region
     ? new S3Client({

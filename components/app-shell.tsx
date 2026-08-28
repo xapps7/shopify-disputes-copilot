@@ -120,6 +120,12 @@ export function AppShell({ children, release, commit }: AppShellProps) {
           onSelect={(selectedTab) => {
             const target = NAV_ITEMS[selectedTab]?.href ?? "/";
             const params = new URLSearchParams(searchParams.toString());
+            // `dc_bounced` is a ONE-SHOT marker for the load that minted it.
+            // Re-attaching it to every tab navigation made it permanent, and
+            // both bounce guards then skip the bounce - so when the session
+            // cookie later expires the app dead-ends on an empty screen with no
+            // banner and no way back except closing and reopening it.
+            params.delete("dc_bounced");
             const query = params.toString();
             router.push(query ? `${target}?${query}` : target);
           }}

@@ -20,6 +20,19 @@ import {
  */
 
 function unsafeQueryParamAllowed() {
+  /**
+   * Cannot be switched on in production, whatever the environment says.
+   *
+   * This flag makes `?shop=` an accepted identity, which turns every
+   * merchant-scoped route cross-tenant: one curl with someone else's shop
+   * domain returns their evidence packet. Three project docs said "never set
+   * this", which made human memory the only control. `lib/diagnostics-auth.ts`
+   * already refuses to fail open in production; this now matches it.
+   */
+  if (process.env.NODE_ENV === "production") {
+    return false;
+  }
+
   return process.env.UNSAFE_ALLOW_SHOP_QUERY_PARAM === "true";
 }
 
