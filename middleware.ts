@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { BOUNCE_PATH, buildBounceUrl, hasBounced } from "@/lib/shopify/bounce";
+import { shouldBounceRequest } from "@/lib/shopify/bounce-decision";
 import {
   SESSION_COOKIE,
   createSessionCookieValue,
@@ -88,28 +89,40 @@ export async function middleware(request: NextRequest) {
     searchParams.get("id_token") ??
     (bearer?.toLowerCase().startsWith("bearer ") ? bearer.slice(7).trim() : null);
 
-  if (!token) {
-    // No token and no session: under managed install there is no OAuth
-    // redirect coming to fix this, so send the browser to App Bridge to get
-    // one. `hasBounced` makes this at most a single retry.
+  const apiKey = process.env.SHOPIFY_API_KEY ?? "";
+  const apiSecret = process.env.SHOPIFY_API_SECRET ?? "";
+
+  // A token that fails verification is worth exactly as much as no token at
+  // all, so it has to take the same recovery path. Session tokens live about 60
+  // seconds; an expired one is the ordinary case, not an exotic one. The bounce
+  // used to sit inside `if (!token)`, so an expired token fell straight through
+  // to next() with no attempt to recover. Where the fallback cookie is also
+  // unavailable - Safari blocks third-party cookies by default - that stranded
+  // the merchant on a signed-out empty screen permanently, with no way back
+  // except uninstalling.
+  const claims = token ? await verifySessionToken(token, { apiKey, apiSecret }) : null;
+
+  if (!claims) {
+    // Under managed install there is no OAuth redirect coming to fix this, so
+    // send the browser to App Bridge for a fresh token. `hasBounced` makes this
+    // at most a single retry, and the guards keep health checks and API callers
+    // out of it - App Runner treats a 302 on its health check as a failing
+    // target and would cycle the deployment.
     if (
-      !cookieShop &&
-      isDocumentRequest(request) &&
-      !hasBounced(searchParams) &&
-      !pathname.startsWith("/api/")
+      shouldBounceRequest({
+        hasVerifiedClaims: false,
+        hasSessionCookie: Boolean(cookieShop),
+        isDocumentRequest: isDocumentRequest(request),
+        alreadyBounced: hasBounced(searchParams),
+        isApiPath: pathname.startsWith("/api/")
+      })
     ) {
       const bounce = new URL(buildBounceUrl(pathname, searchParams), request.nextUrl.origin);
       return withFrameAncestors(NextResponse.redirect(bounce), null);
     }
 
-    return withFrameAncestors(NextResponse.next(), cookieShop);
-  }
-
-  const apiKey = process.env.SHOPIFY_API_KEY ?? "";
-  const apiSecret = process.env.SHOPIFY_API_SECRET ?? "";
-  const claims = await verifySessionToken(token, { apiKey, apiSecret });
-
-  if (!claims) {
+    // No new identity to add, but the CSP still has to go out on every framed
+    // response or the page falls back to being framable by anyone.
     return withFrameAncestors(NextResponse.next(), cookieShop);
   }
 

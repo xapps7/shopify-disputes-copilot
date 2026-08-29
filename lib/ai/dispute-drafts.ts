@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/format/money";
 import type { DisputeDetailView } from "@/lib/types";
 
 export type DisputeResponseDraft = {
@@ -88,7 +89,13 @@ export function generateDisputeResponseDraft(dispute: DisputeDetailView): Disput
     generatedAt: new Date().toISOString(),
     headline: `Reply draft for dispute ${dispute.shopifyDisputeId.split("/").pop()}`,
     executiveSummary: [
-      `This dispute is currently in ${dispute.status.replaceAll("_", " ").toLowerCase()} for ${dispute.currencyCode ?? "USD"} ${dispute.amount} under a ${formatReason(dispute.reason)} claim.`,
+      // The merchant reads this sentence, and it is the seed of the text sent
+      // onward. "USD 129.5" is neither: the cents are unpadded, and it calls the
+      // amount dollars even when we never learned the currency.
+      `This dispute is currently in ${dispute.status.replaceAll("_", " ").toLowerCase()} for ${formatMoney(
+        dispute.amount,
+        dispute.currencyCode
+      )} under a ${formatReason(dispute.reason)} claim.`,
       describeDeadline(dispute.evidenceDueBy),
       missingEvidence.length > 0
         ? `The current gaps are ${missingEvidence.join(", ").toLowerCase()}.`

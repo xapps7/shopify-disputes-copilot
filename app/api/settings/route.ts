@@ -1,39 +1,46 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 
 import { getAuthenticatedShopDomain } from "@/lib/shopify/request-context";
 import { saveMerchantSettings } from "@/lib/settings";
+import {
+  MALFORMED_JSON_MESSAGE,
+  describeSchemaFailure,
+  readJsonObject,
+  settingsSchema
+} from "@/lib/validation/route-inputs";
 
-const settingsSchema = z.object({
-  returnPolicyUrl: z.string(),
-  refundPolicyUrl: z.string(),
-  // Defaulted, not required: a client cached before this field existed
-  // must not have its whole settings save rejected over one absent key.
-  cancellationPolicyUrl: z.string().default(""),
-  supportEmail: z.string(),
-  supportPhone: z.string(),
-  statementDescriptor: z.string(),
-  packetFooter: z.string(),
-  alertEmail: z.string(),
-  evidenceRetentionDays: z.string(),
-  alertWebhookUrl: z.string(),
-  notifyDueSoon: z.boolean(),
-  notifyMissingEvidence: z.boolean(),
-  notifyDecided: z.boolean(),
-  allowManualSubmissionRecording: z.boolean()
-});
-
+/**
+ * Saves the shop-level settings.
+ *
+ * The schema lives in `lib/validation/route-inputs.ts` because these values are
+ * not decoration: `alertEmail` is the recipient of every alert and of the
+ * test-email button, and the policy URLs are printed into evidence a bank
+ * reads. They used to be bare `z.string()`, so "not-an-email" and "our returns
+ * page" were both accepted and both caused their damage somewhere else.
+ */
 export async function POST(request: Request) {
   try {
-    const url = new URL(request.url);
     const shopDomain = await getAuthenticatedShopDomain(request);
 
     if (!shopDomain) {
       return NextResponse.json({ message: "No active shop session found." }, { status: 400 });
     }
 
-    const payload = settingsSchema.parse(await request.json());
-    await saveMerchantSettings(shopDomain, payload);
+    const parsedBody = await readJsonObject(request);
+    if (!parsedBody.ok) {
+      return NextResponse.json({ message: MALFORMED_JSON_MESSAGE }, { status: 400 });
+    }
+
+    const result = settingsSchema.safeParse(parsedBody.body);
+
+    // A rejected value is the merchant's to fix, so it is a 400 and it names
+    // the field. This fell into the generic catch and returned 500, which says
+    // "our fault, try again" about a form that will fail identically forever.
+    if (!result.success) {
+      return NextResponse.json({ message: describeSchemaFailure(result.error) }, { status: 400 });
+    }
+
+    await saveMerchantSettings(shopDomain, result.data);
 
     return NextResponse.json({ message: "Settings saved." });
   } catch (error) {

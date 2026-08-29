@@ -121,8 +121,17 @@ export function PacketPreviewPageShell({ dispute }: PacketPreviewPageShellProps)
                       <Text as="p" variant="bodySm" tone="subdued">
                         Section {index + 1}
                       </Text>
+                      {/*
+                        The packet is line-oriented - "Shop:", "Dispute:",
+                        "Status:", one per line - and HTML collapses those
+                        single newlines. Without `white-space: pre-line` the
+                        preview ran every fact into one paragraph while the
+                        editor directly below showed the same text correctly,
+                        so the page disagreed with itself about what the
+                        merchant is about to send.
+                      */}
                       <Text as="p" variant="bodyMd">
-                        {section}
+                        <span className="packet-section">{section}</span>
                       </Text>
                       {index < sections.length - 1 ? <Divider /> : null}
                     </BlockStack>

@@ -7,6 +7,7 @@ import {
   refreshAccessToken,
   type TokenExchangeResult
 } from "@/lib/shopify/token-exchange";
+import type { TokenFailureReason } from "@/lib/shopify/bounce-decision";
 
 /**
  * The access token lifecycle.
@@ -58,10 +59,28 @@ async function persist(shopDomain: string, result: TokenExchangeResult) {
   return merchant.id;
 }
 
+/**
+ * What this shop's credentials look like right now.
+ *
+ * `hasToken` alone is not enough for the caller to act on. "We never got a
+ * session token to exchange" is fixable by bouncing the browser; "Shopify
+ * rejected our credentials" is not, and retrying it only hides the cause. So
+ * the failure travels with the result instead of dying in a log line.
+ */
+export type MerchantTokenState = {
+  /** Empty string when no merchant row exists yet - a brand-new install. */
+  merchantId: string;
+  /** True only for a token that is present AND not within the expiry skew. */
+  hasToken: boolean;
+  /** Would a fresh session token plausibly change the outcome? */
+  retryable: boolean;
+  reason: TokenFailureReason;
+};
+
 export async function ensureMerchantAccessToken(options: {
   shopDomain: string;
   sessionToken?: string | null;
-}): Promise<{ merchantId: string; hasToken: boolean }> {
+}): Promise<MerchantTokenState> {
   const { shopDomain, sessionToken } = options;
 
   const existing = await db.merchant.findUnique({
@@ -86,7 +105,7 @@ export async function ensureMerchantAccessToken(options: {
 
       if (!isTokenExchangeFailure(migrated)) {
         await persist(shopDomain, migrated);
-        return { merchantId: existing.id, hasToken: true };
+        return { merchantId: existing.id, hasToken: true, retryable: false, reason: "none" };
       }
 
       // Migration is irreversible only on SUCCESS - a failure leaves the old
@@ -94,8 +113,10 @@ export async function ensureMerchantAccessToken(options: {
       console.warn(`[token] migration to an expiring token failed for ${shopDomain}: ${migrated.error}`);
     }
 
-    return { merchantId: existing.id, hasToken: true };
+    return { merchantId: existing.id, hasToken: true, retryable: false, reason: "none" };
   }
+
+  let refreshFailed = false;
 
   // Expired, but we hold a refresh token: rotate rather than asking for a
   // session token we may not have (background sweeps have no request context).
@@ -107,14 +128,32 @@ export async function ensureMerchantAccessToken(options: {
 
     if (!isTokenExchangeFailure(refreshed)) {
       const merchantId = await persist(shopDomain, refreshed);
-      return { merchantId, hasToken: true };
+      return { merchantId, hasToken: true, retryable: false, reason: "none" };
     }
 
     console.error(`[token] refresh failed for ${shopDomain}: ${refreshed.error}`);
+    refreshFailed = true;
   }
 
+  // Everything below here is reached only because `isUsable` said no. Reporting
+  // `hasToken` from the mere PRESENCE of a stored token therefore claims an
+  // expired token is fine, which suppresses the bounce that would replace it -
+  // and then every Admin API call 401s with nothing explaining why. Ask
+  // `isUsable` again so an expired token honestly reports as no token.
+  const storedTokenUsable = isUsable(
+    existing?.accessTokenEncrypted ?? null,
+    existing?.accessTokenExpiresAt ?? null
+  );
+
   if (!sessionToken) {
-    return { merchantId: existing?.id ?? "", hasToken: Boolean(existing?.accessTokenEncrypted) };
+    return {
+      merchantId: existing?.id ?? "",
+      hasToken: storedTokenUsable,
+      // No session token in hand is the one failure a bounce definitely fixes:
+      // App Bridge mints a fresh one and the reload can exchange it.
+      retryable: !storedTokenUsable,
+      reason: storedTokenUsable ? "none" : refreshFailed ? "refresh-failed" : "no-session-token"
+    };
   }
 
   const exchanged = await exchangeSessionTokenForAccessToken({ shopDomain, sessionToken });
@@ -122,9 +161,22 @@ export async function ensureMerchantAccessToken(options: {
   if (isTokenExchangeFailure(exchanged)) {
     console.error(`[token-exchange] ${shopDomain}: ${exchanged.error}`);
     // A failed exchange must never destroy a working token.
-    return { merchantId: existing?.id ?? "", hasToken: Boolean(existing?.accessTokenEncrypted) };
+    //
+    // The retryable flag has to survive this return. A session token is valid
+    // for about 60 seconds, and on a cold render it can easily be most of the
+    // way through that by the time the exchange fires - Shopify answers 400
+    // `invalid_subject_token`. That is a timing accident a single fresh token
+    // fixes. Dropping the flag here is what left brand-new stores staring at an
+    // empty dashboard: `persist` is the only thing that creates the merchant
+    // row, so a failed exchange means no row, no data, and no explanation.
+    return {
+      merchantId: existing?.id ?? "",
+      hasToken: storedTokenUsable,
+      retryable: !storedTokenUsable && exchanged.retryable,
+      reason: storedTokenUsable ? "none" : "exchange-failed"
+    };
   }
 
   const merchantId = await persist(shopDomain, exchanged);
-  return { merchantId, hasToken: true };
+  return { merchantId, hasToken: true, retryable: false, reason: "none" };
 }

@@ -23,11 +23,32 @@ import { ORDERS_COUNT_QUERY } from "@/lib/shopify/queries";
  * scoreboard while losing the business on the other.
  */
 
+/**
+ * Why a ratio is or is not available, which is NOT the same question as what
+ * the ratio is.
+ *
+ * A brand new store and a broken Shopify query both produce a null ratio, and
+ * the app used to treat them as one case: it told a shop with no sales that we
+ * could not tell whether its card processing was at risk. That is alarming and
+ * false. Nothing is wrong with a store that has not sold anything yet.
+ */
+export type VolumeState =
+  /** Orders were read and there are some, so a ratio can be calculated. */
+  | "measurable"
+  /** Orders were read and the count is zero. Nothing to divide by, nothing wrong. */
+  | "no-volume"
+  /** Shopify did not answer, so we do not know how many orders there were. */
+  | "unreadable";
+
 export type AccountHealth = {
   periodLabel: string;
   monthElapsed: number;
   ordersThisMonth: number | null;
   ordersPriorMonth: number | null;
+  /** Whether this month's denominator exists, is zero, or could not be read. */
+  thisMonthVolume: VolumeState;
+  /** Same, for last month - the denominator Mastercard's ratio divides by. */
+  priorMonthVolume: VolumeState;
   disputesThisMonth: number;
   vamp: RatioAssessment | null;
   ecm: RatioAssessment | null;
@@ -86,6 +107,21 @@ async function countOrders(
   return { count: result.count, estimated: result.precision !== "EXACT" };
 }
 
+
+/**
+ * Zero is an answer. `null` is the absence of one.
+ *
+ * Everything downstream keys off this distinction, so it is made once, here,
+ * rather than re-derived with a truthiness check at each use - which is exactly
+ * how a zero order count started reading as a failed Shopify query.
+ */
+function describeVolume(orders: number | null): VolumeState {
+  if (orders === null) {
+    return "unreadable";
+  }
+
+  return orders > 0 ? "measurable" : "no-volume";
+}
 
 /** Disputes opened inside a rolling window, by Shopify's own initiation time when we have it. */
 function withinDays(when: Date | null | undefined, now: Date, days: number): boolean {
@@ -189,7 +225,7 @@ export async function getAccountHealth(shopDomain: string | null): Promise<Accou
   );
 
   const vamp =
-    ordersThisMonth && ordersThisMonth > 0
+    ordersThisMonth !== null && ordersThisMonth > 0
       ? assessVamp({
           fraudReports: 0,
           disputes: chargebacksThisMonth,
@@ -199,7 +235,7 @@ export async function getAccountHealth(shopDomain: string | null): Promise<Accou
       : null;
 
   const ecm =
-    ordersPriorMonth && ordersPriorMonth > 0
+    ordersPriorMonth !== null && ordersPriorMonth > 0
       ? assessEcm({
           chargebacksThisMonth,
           capturedPaymentsPriorMonth: ordersPriorMonth,
@@ -223,7 +259,7 @@ export async function getAccountHealth(shopDomain: string | null): Promise<Accou
   const transactionsPerDay = ordersLast90 !== null ? ordersLast90 / 90 : 0;
 
   const shopify =
-    ordersLast90 && ordersLast90 > 0
+    ordersLast90 !== null && ordersLast90 > 0
       ? assessShopify({
           disputesLast90Days: disputesLast90,
           eligibleTransactionsLast90Days: ordersLast90,
@@ -233,7 +269,7 @@ export async function getAccountHealth(shopDomain: string | null): Promise<Accou
       : null;
 
   const matchRisk =
-    ordersLast90 && ordersLast90 > 0
+    ordersLast90 !== null && ordersLast90 > 0
       ? assessMatchRisk({
           chargebackCount: disputesLast90,
           chargebackAmount: disputes
@@ -350,6 +386,8 @@ export async function getAccountHealth(shopDomain: string | null): Promise<Accou
     monthElapsed: elapsed,
     ordersThisMonth,
     ordersPriorMonth,
+    thisMonthVolume: describeVolume(ordersThisMonth),
+    priorMonthVolume: describeVolume(ordersPriorMonth),
     disputesThisMonth: startedThisMonth.length,
     vamp,
     ecm,

@@ -9,7 +9,9 @@ import {
   getEvidencePushCapability,
   pushEvidenceToShopify
 } from "@/lib/shopify/dispute-evidence";
+import { consumeRateLimit } from "@/lib/rate-limit";
 import { guardDisputeRoute, toErrorResponse } from "@/lib/shopify/route-guard";
+import { MAX_EVIDENCE_FIELD_LENGTH } from "@/lib/validation/route-inputs";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -25,7 +27,20 @@ type RouteContext = {
 export async function POST(request: Request, { params }: RouteContext) {
   try {
     const { id } = await params;
-    const { merchant, dispute } = await guardDisputeRoute(request, id);
+    const { shopDomain, merchant, dispute } = await guardDisputeRoute(request, id);
+
+    // Every call here makes at least three Shopify Admin API requests against
+    // the MERCHANT's own token. Unbounded, a loop burns through their Shopify
+    // rate limit and breaks the other apps on their store - a failure they
+    // would have no reason to trace back to us. Six bursts, refilling one
+    // every 20s, matching /api/sync/disputes.
+    const limit = consumeRateLimit(`push-evidence:${shopDomain}`, { capacity: 6, refillPerSecond: 1 / 20 });
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { ok: false, message: "Evidence was sent to Shopify too frequently. Try again shortly." },
+        { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
+      );
+    }
 
     const merchantRecord = await db.merchant.findUniqueOrThrow({
       where: { id: merchant.id },
@@ -85,7 +100,28 @@ export async function POST(request: Request, { params }: RouteContext) {
 
     // The request may carry unsaved edits from the open page.
     const body = (await request.json().catch(() => ({}))) as { fields?: Record<string, string> };
-    if (body.fields && typeof body.fields === "object") {
+    if (body.fields && typeof body.fields === "object" && !Array.isArray(body.fields)) {
+      // The same ceiling the field editor enforces. Without it, this route was
+      // the way around it: the editor refuses 20,000 characters and this
+      // accepted any size, stored it, and then tried to push it to Shopify -
+      // which truncates, so the merchant would have sent evidence they never
+      // saw the end of.
+      for (const [key, value] of Object.entries(body.fields)) {
+        if (typeof value !== "string") {
+          return NextResponse.json(
+            { ok: false, message: `Field "${key}" must be text.` },
+            { status: 400 }
+          );
+        }
+
+        if (value.length > MAX_EVIDENCE_FIELD_LENGTH) {
+          return NextResponse.json(
+            { ok: false, message: `Field "${key}" is limited to ${MAX_EVIDENCE_FIELD_LENGTH} characters.` },
+            { status: 413 }
+          );
+        }
+      }
+
       fields = { ...fields, ...body.fields };
     }
 

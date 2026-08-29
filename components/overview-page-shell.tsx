@@ -44,7 +44,75 @@ import type { TodayView } from "@/lib/disputes/today";
 
 type OverviewPageShellProps = {
   today: TodayView;
+  /**
+   * Set when we know which shop this is but could not get a working Shopify
+   * token for it. The page would otherwise render a perfectly empty dashboard
+   * with no explanation - which is what a Shopify reviewer saw on their very
+   * first screen if the token exchange failed.
+   */
+  connectionProblem?: boolean;
 };
+
+/**
+ * What the merchant is told when the last sync came back with warnings.
+ *
+ * `lastSyncError` is `warnings.join(" | ")` straight out of the sync run, and
+ * the warnings are two different kinds of thing:
+ *
+ *  - Sentences the sync deliberately wrote FOR the merchant: "Shopify rejected
+ *    this app's saved credentials... open the app again", "Add the
+ *    read_customers scope", "No disputes returned by any Shopify source".
+ *    These are the actual instruction and must survive.
+ *  - Raw GraphQL failures, recorded as `<query context>: <API message>`, e.g.
+ *    `disputes(first:100): Access denied for disputes field. Required access:
+ *    read_shopify_payments_disputes`. That is a support artefact. On a
+ *    merchant's first screen after install it reads as a broken app.
+ *
+ * So the rule is shape-based, not a keyword blocklist: a warning is treated as
+ * raw diagnostics when it starts with a GraphQL field path (with or without
+ * arguments) followed by a colon, or when it quotes an API-level detail no
+ * merchant can act on - a `gid://` id, an access-scope refusal, throttling.
+ * Anything else is a written-for-humans sentence and is shown as-is.
+ *
+ * Getting this wrong in the safe direction costs a merchant one vague sentence.
+ * Getting it wrong in the other direction puts a stack of API errors on the
+ * first screen of an app review.
+ *
+ * The stored text is NOT changed - /api/health still serves the full warnings
+ * for support.
+ */
+const RAW_DIAGNOSTIC_PATTERNS = [
+  /^[A-Za-z_][\w.]*\([^)]*\)[\w.]*\s*:/, // disputes(first:100): ... / orders(first:100).disputes: ...
+  /^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+\s*:/, // shopifyPaymentsAccount.disputes: ...
+  /gid:\/\//,
+  /\bAccess denied\b/i,
+  /\bRequired access\b/i,
+  /\bThrottled\b/i
+];
+
+const RAW_DIAGNOSTIC_FALLBACK =
+  "Some dispute sources could not be read on the last sync, so the queue may be incomplete. Check the app's access in your Shopify admin, then run the sync again.";
+
+function describeSyncWarnings(stored: string): string[] {
+  const parts = stored
+    .split(" | ")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length === 0) {
+    return [RAW_DIAGNOSTIC_FALLBACK];
+  }
+
+  const readable = parts.filter((part) => !RAW_DIAGNOSTIC_PATTERNS.some((pattern) => pattern.test(part)));
+
+  if (readable.length === parts.length) {
+    return readable;
+  }
+
+  // At least one part was raw. Say once, in plain words, that something could
+  // not be read - and keep any human sentences that came with it.
+  return [...readable, RAW_DIAGNOSTIC_FALLBACK];
+}
 
 function relativeTime(iso: string | null, now: number | null): string | null {
   if (!iso || now === null) {
@@ -94,7 +162,7 @@ function Measure({
   );
 }
 
-export function OverviewPageShell({ today }: OverviewPageShellProps) {
+export function OverviewPageShell({ today, connectionProblem = false }: OverviewPageShellProps) {
   const searchParams = useSearchParams();
   const now = useNow();
   const { isSyncing, result: syncResult, runSync } = useDisputeSync();
@@ -159,10 +227,28 @@ export function OverviewPageShell({ today }: OverviewPageShellProps) {
           ].join(" · ")}
         </Text>
 
-        {/* One banner maximum, per BFS 4.3.4. Sync failure outranks everything. */}
-        {today.lastSyncError && !syncResult ? (
+        {/*
+          One banner maximum, per BFS 4.3.4. A broken connection to Shopify
+          outranks a bad sync, because nothing else on this page can be true
+          while it holds - the numbers would all read zero and look like good
+          news.
+        */}
+        {connectionProblem ? (
+          <Banner tone="critical" title="We could not connect to your Shopify account">
+            <p>
+              Everything below will look empty until this is fixed, because we cannot read your
+              disputes without it.
+            </p>
+            <p>
+              Close the app and open it again from your Shopify admin. If it keeps happening,
+              uninstall and reinstall the app - that gives us a fresh connection.
+            </p>
+          </Banner>
+        ) : today.lastSyncError && !syncResult ? (
           <Banner tone="warning" title="The last sync did not complete cleanly">
-            <p>{today.lastSyncError}</p>
+            {describeSyncWarnings(today.lastSyncError).map((line) => (
+              <p key={line}>{line}</p>
+            ))}
           </Banner>
         ) : (
           <SyncStatusBanner result={syncResult} />

@@ -3,7 +3,7 @@ import { after } from "next/server";
 import { OverviewPageShell } from "@/components/overview-page-shell";
 import { syncIfStale, syncIfNeverSynced } from "@/lib/disputes/background-sync";
 import { getTodayView } from "@/lib/disputes/today";
-import { getEmbeddedPageShop } from "@/lib/shopify/page-context";
+import { getEmbeddedPageContext } from "@/lib/shopify/page-context";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -14,7 +14,14 @@ type HomePageProps = {
 
 export default async function HomePage({ searchParams }: HomePageProps) {
   const params = (await searchParams) ?? {};
-  const shopDomain = await getEmbeddedPageShop(params, "/");
+  // The three-way result matters here. "No shop" means we do not know who this
+  // is and the signed-out state is correct. "No token" means we DO know the
+  // shop but cannot reach Shopify for it - and that used to render an ordinary
+  // empty dashboard with no explanation, which is what a reviewer saw first if
+  // the token exchange failed on install.
+  const context = await getEmbeddedPageContext(params, "/");
+  const shopDomain = context.shopDomain;
+  const connectionProblem = context.status === "no-token";
 
   // Keeps data fresh without any external scheduler: runs after the response
   // has been sent, so it never delays the page.
@@ -43,5 +50,5 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   // screens indistinguishable.
   const today = await getTodayView(shopDomain);
 
-  return <OverviewPageShell today={today} />;
+  return <OverviewPageShell today={today} connectionProblem={connectionProblem} />;
 }

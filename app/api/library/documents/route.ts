@@ -15,6 +15,12 @@ import {
 import { getMerchantSettings, saveMerchantSettings } from "@/lib/settings";
 import { guardShopRoute, toErrorResponse } from "@/lib/shopify/route-guard";
 import { persistLibraryFile, StorageError } from "@/lib/storage";
+import {
+  MAX_TITLE_LENGTH,
+  MISSING_CONTENT_LENGTH_MESSAGE,
+  checkDeclaredBodySize,
+  checkTextLength
+} from "@/lib/validation/route-inputs";
 
 /**
  * Uploading a document that belongs to the shop, not to a dispute.
@@ -28,18 +34,38 @@ export async function POST(request: Request) {
     const { shopDomain } = await guardShopRoute(request);
     const merchant = await requireMerchant(shopDomain);
 
-    const declaredLength = Number(request.headers.get("content-length") ?? "0");
-    if (Number.isFinite(declaredLength) && declaredLength > MAX_SINGLE_EVIDENCE_BYTES * 2) {
-      return NextResponse.json(
-        { ok: false, message: "Shopify accepts 2 MB per evidence file. This one is over that." },
-        { status: 413 }
-      );
+    // Refuse a body that will not say how big it is. Without `content-length`
+    // - which is exactly what `Transfer-Encoding: chunked` gives you - the old
+    // check read the missing header as zero and let `formData()` buffer the
+    // whole upload into the memory of the one instance every merchant shares.
+    const bodySize = checkDeclaredBodySize(
+      request.headers.get("content-length"),
+      MAX_SINGLE_EVIDENCE_BYTES * 2
+    );
+
+    if (!bodySize.ok) {
+      // 411 for a body that never declared its size, 413 for one that declared
+      // too much. Two different mistakes deserve two different answers.
+      return bodySize.reason === "missing"
+        ? NextResponse.json({ ok: false, message: MISSING_CONTENT_LENGTH_MESSAGE }, { status: 411 })
+        : NextResponse.json(
+            { ok: false, message: "Shopify accepts 2 MB per evidence file. This one is over that." },
+            { status: 413 }
+          );
     }
 
     const formData = await request.formData();
     const file = formData.get("file");
     const kind = String(formData.get("kind") ?? "");
-    const title = String(formData.get("title") ?? "").trim();
+
+    const titleCheck = checkTextLength(formData.get("title"), MAX_TITLE_LENGTH);
+    if (!titleCheck.ok) {
+      return NextResponse.json(
+        { ok: false, message: `A title is limited to ${titleCheck.maxLength} characters.` },
+        { status: 400 }
+      );
+    }
+    const title = titleCheck.value;
 
     if (!isLibraryDocumentKind(kind)) {
       return NextResponse.json({ ok: false, message: "Pick what kind of document this is." }, { status: 400 });

@@ -286,6 +286,41 @@ function buildVerdict(health: AccountHealth): Verdict {
   );
 
   if (assessments.length === 0) {
+    /*
+      Two different reasons produce no ratio, and they need opposite words.
+
+      "Shopify would not tell us your order count" is a warning. "You have not
+      sold anything yet" is not — a new store, or a development store a reviewer
+      just installed on, has nothing to measure and nothing to worry about.
+      Telling that merchant we cannot tell whether their card processing is at
+      risk, on a card that also prints "0 orders this month, 0 last month", is
+      both alarming and self-contradicting.
+    */
+    const volumeUnreadable =
+      health.thisMonthVolume === "unreadable" || health.priorMonthVolume === "unreadable";
+
+    if (!volumeUnreadable && health.disputesThisMonth === 0) {
+      return {
+        headline: "Nothing to measure yet",
+        badge: "No activity",
+        tone: undefined,
+        meaning:
+          "You have no orders and no disputes this period, so there is no ratio to calculate. Nothing is wrong — these meters start reporting as soon as you start selling.",
+        figures
+      };
+    }
+
+    if (!volumeUnreadable) {
+      return {
+        headline: "Disputes with no orders to measure them against",
+        badge: "No activity",
+        tone: "attention",
+        meaning:
+          "Your order count for this period is zero, so neither network ratio has a denominator — but disputes have still been recorded. Both programmes divide by volume you do not have, which is the worst shape a ratio can be in. Treat every open case as worth the work.",
+        figures
+      };
+    }
+
     return {
       headline: "We cannot tell whether your card processing is at risk",
       badge: "Not measurable",
@@ -333,12 +368,20 @@ function buildVerdict(health: AccountHealth): Verdict {
 /** Why a ratio could not be produced, in terms of the volume that was missing. */
 function missingRatioReason(program: RatioAssessment["program"], health: AccountHealth): string {
   if (program === "VAMP_NONCOMPLIANT") {
-    return health.ordersThisMonth === null
+    if (health.thisMonthVolume === "no-volume") {
+      return `Visa divides this month's disputes and fraud reports by this month's settled card-not-present transactions. You have no orders in ${health.periodLabel}, so there is nothing to divide — not a failure, just an empty month.`;
+    }
+
+    return health.thisMonthVolume === "unreadable"
       ? `Visa divides this month's disputes and fraud reports by this month's settled card-not-present transactions. We could not read your order volume for ${health.periodLabel}, so there is no denominator and no honest ratio to show.`
       : `Visa's ratio could not be calculated for ${health.periodLabel}. Rather than show you a number we cannot stand behind, this meter stays empty.`;
   }
 
-  return health.ordersPriorMonth === null
+  if (health.priorMonthVolume === "no-volume") {
+    return `Mastercard divides this month's chargebacks by LAST month's captured payments. You had no orders last month, so there is nothing to divide — not a failure, just an empty month.`;
+  }
+
+  return health.priorMonthVolume === "unreadable"
     ? `Mastercard divides this month's chargebacks by LAST month's captured payments. We could not read your prior-month order volume, so there is no denominator and no honest ratio to show.`
     : `Mastercard's ratio could not be calculated for ${health.periodLabel}. Rather than show you a number we cannot stand behind, this meter stays empty.`;
 }
@@ -427,6 +470,9 @@ function UnmeasurableProgramCard({
   program: RatioAssessment["program"];
   health: AccountHealth;
 }) {
+  // Each programme divides by a different month, so each reads its own state.
+  const volumeState = program === "VAMP_NONCOMPLIANT" ? health.thisMonthVolume : health.priorMonthVolume;
+
   return (
     <Card>
       <BlockStack gap="300">
@@ -434,7 +480,12 @@ function UnmeasurableProgramCard({
           <Text as="h2" variant="headingMd">
             {PROGRAM_TITLE[program]}
           </Text>
-          <Badge>Not measurable</Badge>
+          {/*
+            "Not measurable" is a warning word. It is only honest when the
+            volume could not be read - an empty month is measured perfectly
+            well, there is simply nothing in it.
+          */}
+          <Badge>{volumeState === "no-volume" ? "No activity" : "Not measurable"}</Badge>
         </InlineStack>
 
         <Text as="p" variant="bodyMd">
@@ -442,7 +493,9 @@ function UnmeasurableProgramCard({
         </Text>
 
         <Text as="p" variant="bodySm" tone="subdued">
-          {`${health.disputesThisMonth === 1 ? "1 dispute has" : `${formatCount(health.disputesThisMonth)} disputes have`} been recorded in ${health.periodLabel}. That count is real; it is the volume to divide it by that is missing.`}
+          {health.disputesThisMonth === 0
+            ? `No disputes have been recorded in ${health.periodLabel} either, so there is nothing on either side of the ratio yet.`
+            : `${health.disputesThisMonth === 1 ? "1 dispute has" : `${formatCount(health.disputesThisMonth)} disputes have`} been recorded in ${health.periodLabel}. That count is real; it is the volume to divide it by that is missing.`}
         </Text>
       </BlockStack>
     </Card>

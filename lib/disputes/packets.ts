@@ -24,6 +24,16 @@ export async function generatePacketForDispute(disputeId: string) {
   }
 
   const summary = buildPacketSummary(dispute);
+
+  // What this actually writes is a PLAIN TEXT file: `persistPacketDraft` stores
+  // it as `text/plain; charset=utf-8` under a `.txt` key, and
+  // `/api/disputes/[id]/packet/download` serves it the same way.
+  //
+  // There is no PDF library in this app and none can be added at the moment, so
+  // the honest move is to call it text everywhere the merchant sees it rather
+  // than promise a PDF we do not produce. Shopify accepts PDF, PNG and JPEG
+  // only - a merchant who trusts a "PDF" label here downloads this, uploads it
+  // to Shopify, and is rejected with a deadline running.
   const packetPath = await persistPacketDraft(disputeId, summary);
   const nextVersion = (dispute.packets[0]?.version ?? 0) + 1;
 
@@ -33,6 +43,11 @@ export async function generatePacketForDispute(disputeId: string) {
       version: nextVersion,
       status: PacketStatus.READY,
       summaryText: summary,
+      // `pdfUrl` is a misnomer kept on purpose: the Prisma schema is frozen, so
+      // renaming the column would need a migration this change cannot make.
+      // It holds a reference to a plain text file today. Anything reading it -
+      // the retention sweep, the redaction job, the dispute page - is reading a
+      // .txt reference, not a PDF. Rename it the next time the schema moves.
       pdfUrl: packetPath,
       generatedAt: new Date()
     }

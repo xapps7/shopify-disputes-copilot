@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { postWebhook, resolveRecipient } from "@/lib/disputes/alerts";
 import { buildAlertEmail } from "@/lib/notifications/alert-email";
 import { readEmailConfig, sendEmail } from "@/lib/notifications/email";
+import { consumeRateLimit } from "@/lib/rate-limit";
 import { getMerchantSettings } from "@/lib/settings";
 import { guardShopRoute, toErrorResponse } from "@/lib/shopify/route-guard";
 
@@ -23,6 +24,21 @@ import { guardShopRoute, toErrorResponse } from "@/lib/shopify/route-guard";
 export async function POST(request: Request) {
   try {
     const { shopDomain } = await guardShopRoute(request);
+
+    // This route sends mail from our verified sending domain to an address the
+    // merchant chose. Without a limiter, an authenticated merchant can point
+    // `alertEmail` at a stranger and loop this endpoint - which is a relay, and
+    // a relay is how a sending domain gets blacklisted for every merchant on
+    // it. Three sends, refilling one every two minutes: enough to retry after
+    // fixing a typo, far too slow to abuse.
+    const limit = consumeRateLimit(`test-email:${shopDomain}`, { capacity: 3, refillPerSecond: 1 / 120 });
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { ok: false, message: "Test messages were requested too frequently. Try again in a few minutes." },
+        { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
+      );
+    }
+
     const settings = await getMerchantSettings(shopDomain);
 
     const config = readEmailConfig();

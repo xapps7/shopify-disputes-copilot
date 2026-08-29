@@ -32,10 +32,19 @@ export async function guardShopRoute(request: Request) {
     throw new UnauthorizedError("No verified Shopify session for this request.");
   }
 
-  await ensureMerchantAccessToken({
+  const token = await ensureMerchantAccessToken({
     shopDomain: context.shopDomain,
     sessionToken: context.sessionToken
   });
+
+  // The result used to be discarded. A route whose token exchange had just
+  // failed carried on as though it were signed in, and then 401'd somewhere
+  // deep inside an Admin API call - so the merchant got "Upload failed"
+  // instead of "we lost the connection to Shopify". Fail here, where we still
+  // know what actually went wrong.
+  if (!token.hasToken) {
+    throw new UnauthorizedError("This shop has no usable Shopify access token.");
+  }
 
   return { shopDomain: context.shopDomain, sessionToken: context.sessionToken };
 }

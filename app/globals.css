@@ -224,3 +224,16 @@ textarea {
     overflow: visible;
   }
 }
+
+/*
+ * The packet preview.
+ *
+ * The packet body is plain text with one fact per line. HTML collapses those
+ * newlines, so the preview used to render the whole block as a single run-on
+ * paragraph while the editor beneath it showed the same text laid out properly.
+ * `pre-line` keeps the authored line breaks and still wraps long lines, which
+ * `pre` would not.
+ */
+.packet-section {
+  white-space: pre-line;
+}

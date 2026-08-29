@@ -41,14 +41,62 @@ export function GET(request: Request) {
     return NextResponse.redirect(safe);
   }
 
+  // App Bridge is fetched from Shopify's CDN, and that fetch is not guaranteed:
+  // a corporate proxy, a script blocker or an offline moment all stop it dead.
+  // This page has no UI of its own, so when that happens the merchant is left
+  // staring at a blank white iframe with nothing to read and nothing to click -
+  // and because this is the ONLY route from "no token" back to signed in, they
+  // have no way to work out that the app is not simply broken. A line of text
+  // and a five second timeout cost nothing and turn a dead end into an
+  // instruction. Plain HTML and inline CSS on purpose: this page must not
+  // depend on the app shell, the database, or anything else that can fail.
   const html = `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Connecting to Shopify</title>
     <meta name="shopify-api-key" content="${escapeHtmlAttribute(shopifyConfig.apiKey)}" />
     <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f6f6f7;
+        color: #303030;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 14px;
+        line-height: 20px;
+      }
+      .panel {
+        max-width: 320px;
+        padding: 24px;
+        text-align: center;
+      }
+    </style>
   </head>
-  <body></body>
+  <body>
+    <div class="panel">
+      <p id="dc-bounce-message">Connecting to Shopify&hellip;</p>
+      <noscript>
+        <p>This app needs JavaScript to connect to Shopify. Turn it on, then reopen the app from your Shopify admin.</p>
+      </noscript>
+    </div>
+    <script>
+      // If App Bridge had loaded and worked, it would have navigated away long
+      // before this fires. Still being here means the redirect is not coming.
+      setTimeout(function () {
+        var message = document.getElementById("dc-bounce-message");
+        if (message) {
+          message.textContent =
+            "Could not reach Shopify. Close this and reopen the app from your Shopify admin.";
+        }
+      }, 5000);
+    </script>
+  </body>
 </html>`;
 
   return new NextResponse(html, {

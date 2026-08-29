@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { EvidenceCategory } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import { evaluateLock } from "@/lib/disputes/locking";
@@ -10,6 +9,15 @@ import {
   MAX_TOTAL_EVIDENCE_BYTES
 } from "@/lib/disputes/evidence-fields";
 import { persistUploadedFile, StorageError } from "@/lib/storage";
+import {
+  MAX_DESCRIPTION_LENGTH,
+  MAX_TITLE_LENGTH,
+  MISSING_CONTENT_LENGTH_MESSAGE,
+  checkDeclaredBodySize,
+  checkTextLength,
+  evidenceCategoryErrorMessage,
+  parseEvidenceCategory
+} from "@/lib/validation/route-inputs";
 
 /**
  * Shopify accepts .pdf, .png and .jpeg only, 2 MB per file, and 4 MB TOTAL
@@ -46,20 +54,61 @@ export async function POST(
     // as the file, so a file exactly at the limit arrives a few hundred bytes
     // over it - without the slack, a legal upload is refused here with a
     // vaguer message than the precise check further down would have given.
+    //
+    // A request that does not declare its size is refused outright. With
+    // `Transfer-Encoding: chunked` there is no `content-length`, the old
+    // `Number(null ?? "0")` made that a zero, zero passed the check, and
+    // `formData()` then buffered the whole body. One authenticated merchant
+    // could exhaust the single App Runner instance and take every other
+    // merchant offline with them.
     const MULTIPART_OVERHEAD_BYTES = 64 * 1024;
-    const declaredLength = Number(request.headers.get("content-length") ?? "0");
-    if (Number.isFinite(declaredLength) && declaredLength > MAX_SINGLE_UPLOAD_BYTES + MULTIPART_OVERHEAD_BYTES) {
-      return NextResponse.json(
-        { message: "Shopify accepts 2 MB per evidence file. This one is over that." },
-        { status: 413 }
-      );
+    const bodySize = checkDeclaredBodySize(
+      request.headers.get("content-length"),
+      MAX_SINGLE_UPLOAD_BYTES + MULTIPART_OVERHEAD_BYTES
+    );
+
+    if (!bodySize.ok) {
+      // 411 for a body that never declared its size, 413 for one that declared
+      // too much. Two different mistakes deserve two different answers.
+      return bodySize.reason === "missing"
+        ? NextResponse.json({ message: MISSING_CONTENT_LENGTH_MESSAGE }, { status: 411 })
+        : NextResponse.json(
+            { message: "Shopify accepts 2 MB per evidence file. This one is over that." },
+            { status: 413 }
+          );
     }
 
     const formData = await request.formData();
     const file = formData.get("file");
-    const title = String(formData.get("title") ?? "").trim();
-    const description = String(formData.get("description") ?? "").trim();
-    const category = String(formData.get("category") ?? "OTHER") as EvidenceCategory;
+
+    const titleCheck = checkTextLength(formData.get("title"), MAX_TITLE_LENGTH);
+    if (!titleCheck.ok) {
+      return NextResponse.json(
+        { message: `A title is limited to ${titleCheck.maxLength} characters.` },
+        { status: 400 }
+      );
+    }
+    const title = titleCheck.value;
+
+    const descriptionCheck = checkTextLength(formData.get("description"), MAX_DESCRIPTION_LENGTH);
+    if (!descriptionCheck.ok) {
+      return NextResponse.json(
+        { message: `A description is limited to ${descriptionCheck.maxLength} characters.` },
+        { status: 400 }
+      );
+    }
+    const description = descriptionCheck.value;
+
+    // Checked, not cast. The old `as EvidenceCategory` was a compile-time
+    // claim, so an unknown value reached Prisma and came back to the merchant
+    // as a 500 "Upload failed." - which reads as our fault and gives them
+    // nothing to correct.
+    const rawCategory = formData.get("category") ?? "OTHER";
+    const category = parseEvidenceCategory(rawCategory);
+
+    if (!category) {
+      return NextResponse.json({ message: evidenceCategoryErrorMessage(rawCategory) }, { status: 400 });
+    }
 
     const linkUrl = String(formData.get("url") ?? "").trim();
 
