@@ -4,6 +4,21 @@ import { resolveStage } from "@/lib/disputes/lifecycle";
 import { refreshAccountHealth } from "@/lib/economics/health-cache";
 import { buildChecklist } from "@/lib/disputes/repository";
 import { runDisputeSyncWithRetry } from "@/lib/disputes/sync-runs";
+import {
+  ALERT_PHASE_BUDGET_MS,
+  ALERT_START_RESERVE_MS,
+  MERCHANT_ALERT_DEADLINE_MS,
+  MERCHANT_SYNC_DEADLINE_MS,
+  SWEEP_CONCURRENCY,
+  SYNC_PHASE_BUDGET_MS,
+  SYNC_START_RESERVE_MS,
+  canStartWithin,
+  orderByStaleness,
+  runWithConcurrency,
+  withDeadline,
+  type SweepCandidate,
+  type SweepResult
+} from "@/lib/disputes/sweep-plan";
 
 /**
  * Unattended sync.
@@ -11,17 +26,19 @@ import { runDisputeSyncWithRetry } from "@/lib/disputes/sync-runs";
  * Ingestion used to happen only when a human pressed a button, which is the
  * whole problem: the merchant who most needs this app is the one who is not
  * looking. This sweeps every installed merchant, then evaluates deadline alerts.
+ *
+ * The database and Shopify live here. Which merchants get swept, in what order,
+ * and when the sweep has to stop lives in `lib/disputes/sweep-plan.ts`, which is
+ * pure so those decisions can be tested without either.
  */
 
 /** How stale a merchant's data may get before an opportunistic sync fires. */
 export const STALE_AFTER_MS = 30 * 60 * 1000;
 
-export type SweepResult = {
-  shopDomain: string;
-  synced: number | null;
-  alerts: number;
-  error: string | null;
-};
+// Re-exported so callers keep importing the sweep's result shape from the sweep.
+// It is declared in sweep-plan.ts because that module has to count outcomes and
+// must not reach into anything that touches the database.
+export type { SweepResult } from "@/lib/disputes/sweep-plan";
 
 /** The same reason-aware coverage the queue badge and Today use. */
 function reasonAwareScore(reason: string | null, categories: Set<string>) {
@@ -128,34 +145,94 @@ async function evaluateAlertsForMerchant(merchantId: string, shopDomain: string)
   return recorded;
 }
 
+/**
+ * Evaluates one merchant's alerts and never throws.
+ *
+ * A single merchant's alert failure must not take the sweep down with it, and
+ * the deadline is here because this phase is the last line of defence: if the
+ * database is wedged, twenty seconds of waiting on one shop is twenty seconds
+ * the shops behind it do not get.
+ */
+async function evaluateAlertsSafely(
+  merchantId: string,
+  shopDomain: string
+): Promise<{ alerts: number; error: string | null }> {
+  try {
+    const alerts = await withDeadline(
+      evaluateAlertsForMerchant(merchantId, shopDomain),
+      MERCHANT_ALERT_DEADLINE_MS,
+      "Alert evaluation exceeded its deadline and was abandoned."
+    );
+    return { alerts, error: null };
+  } catch (alertError) {
+    return { alerts: 0, error: alertError instanceof Error ? alertError.message : "Alert evaluation failed." };
+  }
+}
+
+/** Pulls fresh data from Shopify, then evaluates deadline alerts. */
 export async function sweepMerchant(shopDomain: string, merchantId: string): Promise<SweepResult> {
   let synced: number | null = null;
   let error: string | null = null;
 
   try {
-    const result = await runDisputeSyncWithRetry(shopDomain);
+    // The deadline covers the health refresh too, because that is another
+    // Shopify round trip and it is the total time on the network that has to be
+    // bounded, not the sync call on its own.
+    synced = await withDeadline(
+      (async () => {
+        const result = await runDisputeSyncWithRetry(shopDomain);
 
-    // Recompute account health while we are already talking to Shopify. This is
-    // what lets Today lead with a ratio without waiting on a network call.
-    await refreshAccountHealth(shopDomain);
-    synced = result.synced;
+        // Recompute account health while we are already talking to Shopify. This
+        // is what lets Today lead with a ratio without waiting on a network call.
+        await refreshAccountHealth(shopDomain);
+        return result.synced;
+      })(),
+      MERCHANT_SYNC_DEADLINE_MS,
+      `Sync exceeded ${Math.round(MERCHANT_SYNC_DEADLINE_MS / 1000)}s and was abandoned.`
+    );
   } catch (syncError) {
     error = syncError instanceof Error ? syncError.message : "Sync failed.";
   }
 
   // Alerts are evaluated even when the sync failed - stale data still has real
   // deadlines, and going quiet is the exact failure this feature exists to stop.
-  let alerts = 0;
-  try {
-    alerts = await evaluateAlertsForMerchant(merchantId, shopDomain);
-  } catch (alertError) {
-    error = error ?? (alertError instanceof Error ? alertError.message : "Alert evaluation failed.");
-  }
+  const alerts = await evaluateAlertsSafely(merchantId, shopDomain);
 
-  return { shopDomain, synced, alerts, error };
+  return {
+    shopDomain,
+    outcome: "SYNCED",
+    synced,
+    alerts: alerts.alerts,
+    error: error ?? alerts.error
+  };
 }
 
-export async function sweepAllMerchants(): Promise<SweepResult[]> {
+/**
+ * The half of a sweep that does not need Shopify.
+ *
+ * Used when the clock has run out. A merchant handled this way keeps a stale
+ * dispute list for another hour, which they will barely notice, but still gets
+ * told that evidence is due in 24 hours, which is the thing they would have
+ * lost money over. Splitting the sweep this way is the whole point of the
+ * two-phase design in `sweepAllMerchants`.
+ *
+ * It also leaves the rotation alone on purpose: this writes no SyncRun row, so
+ * a merchant who only got alerts is still the least-recently-synced shop in the
+ * fleet and is first in line for a real sync next hour.
+ */
+export async function sweepMerchantAlertsOnly(shopDomain: string, merchantId: string): Promise<SweepResult> {
+  const alerts = await evaluateAlertsSafely(merchantId, shopDomain);
+
+  return {
+    shopDomain,
+    outcome: "ALERTS_ONLY",
+    synced: null,
+    alerts: alerts.alerts,
+    error: alerts.error
+  };
+}
+
+async function loadSweepCandidates(): Promise<SweepCandidate[]> {
   // Deliberately NOT filtered on `accessTokenEncrypted`.
   //
   // It used to be, and that was safe until the 401 handler started clearing the
@@ -173,12 +250,93 @@ export async function sweepAllMerchants(): Promise<SweepResult[]> {
     select: { id: true, shopDomain: true }
   });
 
-  const results: SweepResult[] = [];
-  for (const merchant of merchants) {
-    results.push(await sweepMerchant(merchant.shopDomain, merchant.id));
+  // Two flat queries rather than a relation with `take: 1` per merchant. That
+  // form makes Prisma run a window function over every SyncRun row belonging to
+  // the whole fleet - the entire sync history, to read one timestamp each. This
+  // aggregate reads one row per merchant and is the shape the
+  // [merchantId, type, startedAt] index already serves.
+  const lastRuns = await db.syncRun.groupBy({
+    by: ["merchantId"],
+    _max: { startedAt: true }
+  });
+
+  const lastSyncByMerchant = new Map(lastRuns.map((run) => [run.merchantId, run._max.startedAt]));
+
+  return merchants.map((merchant) => ({
+    merchantId: merchant.id,
+    shopDomain: merchant.shopDomain,
+    lastSyncStartedAt: lastSyncByMerchant.get(merchant.id) ?? null
+  }));
+}
+
+export type SweepOptions = {
+  /**
+   * When the invocation started, not when the sweep did. The caller shares this
+   * clock with everything else it runs, so a slow start is spent out of the
+   * sweep's budget instead of pushing the whole request past `maxDuration`.
+   */
+  startedAt?: number;
+  syncBudgetMs?: number;
+  alertBudgetMs?: number;
+  concurrency?: number;
+};
+
+/**
+ * Sweeps the whole fleet in two phases, both bounded by the clock.
+ *
+ * Phase one syncs merchants from Shopify, least-recently-synced first, a few at
+ * a time, and stops starting new ones once the budget is nearly spent. Phase
+ * two takes everyone phase one did not reach and evaluates their alerts only,
+ * which costs queries instead of network calls. Anyone left after that is
+ * returned as SKIPPED rather than quietly missing.
+ *
+ * Every merchant appears in the result exactly once, whatever happened to them.
+ * That is the contract the cron route's reporting depends on: a merchant who
+ * fell off the end of the run has to be countable, because the previous version
+ * of this function returned a short list and a 200 and nothing downstream could
+ * tell a truncated hour from a healthy one.
+ *
+ * The scheduling itself lives in `lib/disputes/sweep-plan.ts`, pure and tested;
+ * this function is only the wiring between it and the database.
+ */
+export async function sweepAllMerchants(options: SweepOptions = {}): Promise<SweepResult[]> {
+  const startedAt = options.startedAt ?? Date.now();
+  const syncBudgetMs = options.syncBudgetMs ?? SYNC_PHASE_BUDGET_MS;
+  const alertBudgetMs = options.alertBudgetMs ?? ALERT_PHASE_BUDGET_MS;
+  const concurrency = options.concurrency ?? SWEEP_CONCURRENCY;
+
+  const queue = orderByStaleness(await loadSweepCandidates());
+
+  const syncPhase = await runWithConcurrency(
+    queue,
+    concurrency,
+    (candidate) => sweepMerchant(candidate.shopDomain, candidate.merchantId),
+    () => canStartWithin(Date.now() - startedAt, syncBudgetMs, SYNC_START_RESERVE_MS)
+  );
+
+  const alertPhase = await runWithConcurrency(
+    syncPhase.remaining,
+    concurrency,
+    (candidate) => sweepMerchantAlertsOnly(candidate.shopDomain, candidate.merchantId),
+    () => canStartWithin(Date.now() - startedAt, alertBudgetMs, ALERT_START_RESERVE_MS)
+  );
+
+  const skipped: SweepResult[] = alertPhase.remaining.map((candidate) => ({
+    shopDomain: candidate.shopDomain,
+    outcome: "SKIPPED",
+    synced: null,
+    alerts: 0,
+    error: null
+  }));
+
+  if (skipped.length > 0) {
+    // Worth a log line even though the route reports it: this is the state where
+    // a merchant went a whole hour without their deadlines being checked, and it
+    // should be findable in the logs without correlating a cron response.
+    console.warn(`[sweep] ${skipped.length} merchants got neither a sync nor an alert check this run`);
   }
 
-  return results;
+  return [...syncPhase.results, ...alertPhase.results, ...skipped];
 }
 
 /** Fires a sync when a merchant opens the app and their data has gone stale. */
