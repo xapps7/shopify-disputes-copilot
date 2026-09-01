@@ -20,15 +20,28 @@ const s3Region = process.env.S3_REGION;
  * nothing in the deployment guide lists that variable - so the unsafe mode is
  * what you get by forgetting.
  *
- * Failing at module load is deliberate: a deploy that would serve customer data
- * publicly should not start at all. Refusing to boot is loud, recoverable, and
- * far cheaper than a rejected App Store review or a disclosure.
+ * CHECKED AT THE POINT OF USE, NOT AT MODULE LOAD.
+ *
+ * The first version of this threw at import time. That was wrong in a way worth
+ * remembering: `next build` runs with NODE_ENV=production, and it imports every
+ * route module to collect its metadata. So the guard fired during the BUILD, on
+ * a developer machine that has no S3 configured, and the build died with
+ * "Failed to collect page data for /api/cron/sync" - a message that says
+ * nothing about storage. A build-time environment is not a running deployment,
+ * and a guard that cannot tell the difference blocks the wrong thing.
+ *
+ * Calling it from each function that actually touches storage fires it in a
+ * real request, in a real deployment, which is the only moment the unsafe mode
+ * can leak anything.
  */
-if (process.env.NODE_ENV === "production" && storageMode !== "s3") {
-  throw new Error(
-    `FILE_STORAGE_MODE is "${storageMode}" in production. Uploaded evidence would be written to public/ ` +
-      "and served without authentication. Set FILE_STORAGE_MODE=s3 with S3_BUCKET and S3_REGION."
-  );
+function assertStorageIsSafe() {
+  if (process.env.NODE_ENV === "production" && storageMode !== "s3") {
+    throw new StorageError(
+      `FILE_STORAGE_MODE is "${storageMode}" in production. Uploaded evidence would be written to public/ ` +
+        "and served without authentication. Set FILE_STORAGE_MODE=s3 with S3_BUCKET and S3_REGION.",
+      "unsafe-storage-mode"
+    );
+  }
 }
 
 const s3Client =
@@ -150,6 +163,7 @@ export function isS3Reference(value: string | null | undefined): value is string
  * into a chat message stops working before it becomes a leak.
  */
 export async function resolveFileUrl(reference: string | null | undefined): Promise<string | null> {
+  assertStorageIsSafe();
   if (!reference) {
     return null;
   }
@@ -219,6 +233,7 @@ export async function persistUploadedFile(
   fileName: string,
   bytes: Uint8Array
 ) {
+  assertStorageIsSafe();
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
   const relativeDir = path.join("uploads", disputeId);
   const stampedName = `${Date.now()}-${safeName}`;
@@ -253,6 +268,7 @@ export async function persistLibraryFile(
   bytes: Uint8Array,
   contentType: string
 ) {
+  assertStorageIsSafe();
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
   const relativeDir = path.join("library", merchantId);
   const stampedName = `${Date.now()}-${safeName}`;
@@ -271,6 +287,7 @@ export async function persistLibraryFile(
 }
 
 export async function persistPacketDraft(disputeId: string, content: string) {
+  assertStorageIsSafe();
   const relativeDir = path.join("packets", disputeId);
   const stampedName = `${Date.now()}-evidence-packet.txt`;
   const relativePath = path.join(relativeDir, stampedName).replaceAll("\\", "/");
