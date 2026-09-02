@@ -286,14 +286,24 @@ export async function persistLibraryFile(
   return publicUrl(relativePath);
 }
 
-export async function persistPacketDraft(disputeId: string, content: string) {
+/**
+ * Stores the finished evidence packet.
+ *
+ * Takes bytes, not a string, because the packet is a real PDF now. It used
+ * to take text and write `text/plain` under a `.txt` key while the column
+ * holding the reference was called `pdfUrl` - so the app promised a PDF,
+ * stored a text file, and a merchant who uploaded it to Shopify was rejected
+ * with a deadline running. Rendering happens in lib/documents/pdf.ts; this
+ * layer only stores what it is handed.
+ */
+export async function persistPacketDraft(disputeId: string, bytes: Uint8Array) {
   assertStorageIsSafe();
   const relativeDir = path.join("packets", disputeId);
-  const stampedName = `${Date.now()}-evidence-packet.txt`;
+  const stampedName = `${Date.now()}-evidence-packet.pdf`;
   const relativePath = path.join(relativeDir, stampedName).replaceAll("\\", "/");
 
   if (storageMode === "s3") {
-    return await persistObjectToS3(relativePath, content, "text/plain; charset=utf-8");
+    return await persistObjectToS3(relativePath, bytes, "application/pdf");
   }
 
   const absoluteDir = path.join(publicRoot, relativeDir);
@@ -302,7 +312,7 @@ export async function persistPacketDraft(disputeId: string, content: string) {
 
   const absolutePath = path.join(publicRoot, relativePath);
 
-  await writeFile(absolutePath, content, "utf8");
+  await writeFile(absolutePath, bytes);
 
   return publicUrl(relativePath);
 }

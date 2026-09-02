@@ -25,7 +25,7 @@ export async function POST(
       // a merchant to Shopify's upload box with a file it will reject, at the
       // one moment a deadline is running.
       message:
-        "Packet generated as a plain text file for your own records. Shopify accepts PDF, PNG and JPEG only, so this file cannot be attached as evidence - use it to fill in Shopify's evidence form.",
+        "Packet generated as a PDF. Shopify accepts PDF, PNG and JPEG, so you can attach this file to your response as well as use it to fill in Shopify's evidence form.",
       packetUrl: packet.pdfUrl
     });
   } catch (error) {

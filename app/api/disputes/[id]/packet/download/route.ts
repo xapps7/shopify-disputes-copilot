@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { capabilityRefusalResponse, requireCapability } from "@/lib/billing/gate";
 import { db } from "@/lib/db";
+import { renderTextToPdf } from "@/lib/documents/pdf";
 import { buildPacketSummary, resolvePacketText } from "@/lib/disputes/packet-content";
 import { requireMerchant } from "@/lib/disputes/tenant";
 import { requireShopDomain } from "@/lib/shopify/request-context";
@@ -59,11 +60,26 @@ export async function GET(request: Request, { params }: RouteContext) {
 
     const disputeRef = dispute.shopifyDisputeId.split("/").pop() ?? id;
 
-    return new NextResponse(text, {
+    // Rendered on demand rather than served from storage, so the download
+    // always reflects the merchant's latest saved edits. `resolvePacketText`
+    // above is what makes that true - it prefers what they wrote over anything
+    // regenerated, which was the bug behind "my edits are missing".
+    const rendered = renderTextToPdf(text, {
+      title: `Evidence packet - dispute ${disputeRef}`,
+      maxPages: 50
+    });
+
+    // Copied into its own ArrayBuffer: NextResponse's body type does not accept
+    // a Uint8Array view directly, and slicing guarantees the buffer we hand over
+    // is exactly the packet and nothing else that shares the allocation.
+    const body = rendered.bytes.slice().buffer;
+
+    return new NextResponse(body, {
       status: 200,
       headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Content-Disposition": `attachment; filename="dispute-${disputeRef}-packet.txt"`,
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="dispute-${disputeRef}-packet.pdf"`,
+        "Content-Length": String(rendered.bytes.length),
         // So a merchant who reports "my edits are missing" can be answered from
         // a response header instead of a guess.
         "X-Packet-Source": source

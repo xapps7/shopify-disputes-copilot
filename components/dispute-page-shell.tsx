@@ -614,8 +614,7 @@ export function DisputePageShell({
                 */}
                 <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    A plain text copy for your own records. Shopify never reads it, and it cannot be
-                    attached as evidence - Shopify accepts PDF, PNG and JPEG only.
+                    A PDF copy for your own records, and one you can attach to your Shopify response.
                   </Text>
                   <InlineStack gap="300" wrap>
                     <Link className="table-link" href={packetUrl as never}>
