@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { capabilityRefusalResponse, requireCapability } from "@/lib/billing/gate";
 import { db } from "@/lib/db";
 import { requireMerchant } from "@/lib/disputes/tenant";
 import { buildDisputeProfitAndLoss, type DisputeProfitAndLoss } from "@/lib/economics/dispute-pl";
@@ -93,6 +94,17 @@ export async function GET(request: Request) {
   try {
     const { shopDomain } = await guardShopRoute(request);
     const merchant = await requireMerchant(shopDomain);
+
+    // The figures themselves are free and stay on the account-health screen,
+    // where this merchant can read every number in this file. What Pro covers
+    // is the file: the thing that can be sent to a bank or attached to a
+    // month-end pack. Gating the numbers instead of the export would be gating
+    // the merchant's view of their own money, which this app does not do.
+    const gate = await requireCapability(merchant.id, "PL_EXPORT");
+    if (!gate.allowed) {
+      return capabilityRefusalResponse(gate);
+    }
+
     const months = parseMonths(new URL(request.url).searchParams.get("months"));
 
     const disputes = await db.dispute.findMany({

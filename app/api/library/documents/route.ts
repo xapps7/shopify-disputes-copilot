@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 
+import { capabilityRefusalResponse, requireCapability } from "@/lib/billing/gate";
 import { requireMerchant } from "@/lib/disputes/tenant";
 import {
   ALLOWED_EVIDENCE_MIME_TYPES,
@@ -33,6 +34,15 @@ export async function POST(request: Request) {
   try {
     const { shopDomain } = await guardShopRoute(request);
     const merchant = await requireMerchant(shopDomain);
+
+    // The library is paid: saving a policy document once and having it offered
+    // on every future dispute is work the app does instead of the merchant.
+    // Refused here, before the body is read, so a rejected upload never buffers
+    // two megabytes into the memory every shop on this instance shares.
+    const gate = await requireCapability(merchant.id, "DOCUMENT_LIBRARY");
+    if (!gate.allowed) {
+      return capabilityRefusalResponse(gate);
+    }
 
     // Refuse a body that will not say how big it is. Without `content-length`
     // - which is exactly what `Transfer-Encoding: chunked` gives you - the old

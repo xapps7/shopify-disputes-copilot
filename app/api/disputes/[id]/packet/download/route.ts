@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { capabilityRefusalResponse, requireCapability } from "@/lib/billing/gate";
 import { db } from "@/lib/db";
 import { buildPacketSummary, resolvePacketText } from "@/lib/disputes/packet-content";
 import { requireMerchant } from "@/lib/disputes/tenant";
@@ -15,6 +16,15 @@ export async function GET(request: Request, { params }: RouteContext) {
     const { id } = await params;
     const shopDomain = await requireShopDomain(request);
     const merchant = await requireMerchant(shopDomain);
+
+    // Producing the file is paid labour. Nothing about the dispute is hidden
+    // from a free merchant - the case, the deadline, the evidence and the
+    // packet text are all still on screen - it is only the assembled download
+    // that belongs to Pro.
+    const gate = await requireCapability(merchant.id, "PACKET_EXPORT");
+    if (!gate.allowed) {
+      return capabilityRefusalResponse(gate);
+    }
 
     // This packet contains customer PII. It was previously readable by anyone
     // holding a dispute id, with no authentication and no tenant check.

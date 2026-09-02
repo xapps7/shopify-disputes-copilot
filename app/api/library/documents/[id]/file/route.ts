@@ -21,6 +21,14 @@ export async function GET(request: Request, { params }: RouteContext) {
     const { id } = await params;
     const { shopDomain } = await guardShopRoute(request);
 
+    // NOT gated, deliberately.
+    //
+    // Adding a document to the library is a paid feature. Getting your own
+    // document back is not. A merchant who lapses to free must still be able to
+    // open what they already stored - holding their files hostage to a
+    // subscription is the one thing this pricing model is explicitly not doing.
+    // The paywall is on the work the app does, never on the merchant's own data.
+
     const settings = await getMerchantSettings(shopDomain);
     const document = findDocument(settings.standingDocuments, id);
 

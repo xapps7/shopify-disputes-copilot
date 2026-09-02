@@ -1,6 +1,8 @@
 import { db } from "@/lib/db";
 import { ce30ElementsFromOrder } from "@/lib/compliance/order-projection";
 import { decryptString } from "@/lib/crypto";
+import { getMerchantPlan } from "@/lib/billing/gate";
+import { planAllows } from "@/lib/billing/plans";
 import { createShopifyAdminClient } from "@/lib/shopify/client";
 import {
   CE30_MAX_AGE_DAYS,
@@ -824,34 +826,53 @@ export async function getDisputeDetail(id: string, merchantId?: string): Promise
     .filter(Boolean);
 
   const reasonProfile = getReasonProfile(dispute.reason);
-  const evidenceFields = buildEvidenceFieldStates(
-    reasonProfile.priorityFields,
-    savedFields,
-    draftEvidenceFields({
-      reasonLabel: reasonProfile.label,
-      reasonQuestion: reasonProfile.theQuestion,
-      orderName: mergedOrderSummary?.orderName ?? null,
-      orderTotal: mergedOrderSummary?.orderTotal ?? null,
-      currencyCode: mergedOrderSummary?.currencyCode ?? dispute.currencyCode ?? null,
-      customerName: mergedOrderSummary?.customerName ?? null,
-      customerEmail: mergedOrderSummary?.customerEmail ?? null,
-      shippingAddress: addressParts.length > 0 ? addressParts.join(", ") : null,
-      fulfillmentStatus: mergedOrderSummary?.fulfillmentStatus ?? null,
-      trackingSummaries,
-      lineItemSummaries,
-      refundPolicyUrl: settings.refundPolicyUrl,
-      returnPolicyUrl: settings.returnPolicyUrl,
-      cancellationPolicyUrl: settings.cancellationPolicyUrl,
-      supportEmail: settings.supportEmail,
-      statementDescriptor: settings.statementDescriptor,
-      orderPlacedAt: orderNode?.createdAt ? new Date(orderNode.createdAt).toISOString().slice(0, 10) : null,
-      // Written once at shop level. These beat the generated sentence, because
-      // a merchant's own words about their own policy are better evidence than
-      // a template built from a URL.
-      refundPolicyStatement: settings.refundPolicyStatement,
-      cancellationPolicyStatement: settings.cancellationPolicyStatement
-    })
-  );
+
+  // THIS is where the app writes the evidence for the merchant, and therefore
+  // this is where the paid line has to be drawn. The drafts are produced on
+  // READ, not when anyone presses a button, so gating only
+  // /api/disputes/[id]/draft would refuse the button and then hand the same
+  // drafted sentences to the page anyway - a paywall the merchant walks past
+  // without noticing, which is worse than no paywall at all.
+  //
+  // Read once, here, for the whole dispute. Asking per field would be one
+  // database round trip per row of Shopify's form.
+  const plan = await getMerchantPlan(dispute.merchantId);
+  const canAutoDraft = planAllows(plan.key, "AUTO_DRAFT");
+
+  // On the free plan we pass NO drafts - not a trimmed set, not placeholders.
+  // buildEvidenceFieldStates resolves each field as `saved ?? drafts ?? ""`, so
+  // an empty drafts object empties only the sentences WE wrote and leaves every
+  // word the merchant typed exactly where they left it. That order is the whole
+  // safety property here: blanking a merchant's own writing to sell them a plan
+  // would be indefensible, and they would be right to say so in public.
+  const drafts = canAutoDraft
+    ? draftEvidenceFields({
+        reasonLabel: reasonProfile.label,
+        reasonQuestion: reasonProfile.theQuestion,
+        orderName: mergedOrderSummary?.orderName ?? null,
+        orderTotal: mergedOrderSummary?.orderTotal ?? null,
+        currencyCode: mergedOrderSummary?.currencyCode ?? dispute.currencyCode ?? null,
+        customerName: mergedOrderSummary?.customerName ?? null,
+        customerEmail: mergedOrderSummary?.customerEmail ?? null,
+        shippingAddress: addressParts.length > 0 ? addressParts.join(", ") : null,
+        fulfillmentStatus: mergedOrderSummary?.fulfillmentStatus ?? null,
+        trackingSummaries,
+        lineItemSummaries,
+        refundPolicyUrl: settings.refundPolicyUrl,
+        returnPolicyUrl: settings.returnPolicyUrl,
+        cancellationPolicyUrl: settings.cancellationPolicyUrl,
+        supportEmail: settings.supportEmail,
+        statementDescriptor: settings.statementDescriptor,
+        orderPlacedAt: orderNode?.createdAt ? new Date(orderNode.createdAt).toISOString().slice(0, 10) : null,
+        // Written once at shop level. These beat the generated sentence, because
+        // a merchant's own words about their own policy are better evidence than
+        // a template built from a URL.
+        refundPolicyStatement: settings.refundPolicyStatement,
+        cancellationPolicyStatement: settings.cancellationPolicyStatement
+      })
+    : {};
+
+  const evidenceFields = buildEvidenceFieldStates(reasonProfile.priorityFields, savedFields, drafts);
 
   // What to actually do about this dispute: the money, the odds, and - crucially
   // - whether fighting even helps, given that a win never improves the ratio.
@@ -859,6 +880,12 @@ export async function getDisputeDetail(id: string, merchantId?: string): Promise
   const priorityStates = evidenceFields.filter((field) => field.priority);
   const readyStates = priorityStates.filter((field) => field.status === "ready");
 
+  // Note what `evidenceCompleteness` now means on the free plan: nothing is
+  // written, so it is zero, and the strategy card will be less confident about
+  // fighting. That is the truth and it has to stay the truth. Scoring the
+  // drafts a free merchant cannot see would tell them their response was ready
+  // when Shopify's form is empty, and they would let the clock run out on a
+  // dispute they were told they were winning.
   const winFactors: WinFactors = {
     band: reasonProfile.winnability,
     hasDeliveryConfirmation: evidenceCategorySet.has("DELIVERY_CONFIRMATION"),
@@ -969,6 +996,10 @@ export async function getDisputeDetail(id: string, merchantId?: string): Promise
       fileSizeBytes: item.fileSizeBytes ?? null
     })),
     evidenceFields,
+    // So the page can say "Pro writes these for you" over an empty form instead
+    // of looking broken. The server decides this, never the client: the client
+    // can only be trusted to render the answer, not to reach it.
+    canAutoDraft,
     standingDocuments: settings.standingDocuments,
     timeline: dispute.timelineEvents.map((event) => ({
       id: event.id,

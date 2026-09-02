@@ -88,6 +88,16 @@ export type DisputeDetailView = {
   /** Shopify's evidence form, pre-filled: saved merchant edits merged over generated drafts. */
   evidenceFields: EvidenceFieldState[];
   /**
+   * Whether this merchant's plan includes AUTO_DRAFT.
+   *
+   * False means the drafted sentences were never put in `evidenceFields` - only
+   * the merchant's own saved text is there. The page needs to know, because an
+   * empty form with no explanation reads as a broken app rather than as a paid
+   * feature, and that is the difference between a merchant who subscribes and a
+   * merchant who writes a one-star review about a blank screen.
+   */
+  canAutoDraft: boolean;
+  /**
    * Shop-level documents offered against this dispute's file slots. They are
    * not EvidenceItems and are never copied into one - the same file serves
    * every dispute, and duplicating it per case is the problem this replaces.

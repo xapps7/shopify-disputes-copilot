@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { capabilityRefusalResponse, requireCapability } from "@/lib/billing/gate";
 import { db } from "@/lib/db";
 import { decryptString } from "@/lib/crypto";
 import { createShopifyAdminClient } from "@/lib/shopify/client";
@@ -28,6 +29,15 @@ export async function POST(request: Request, { params }: RouteContext) {
   try {
     const { id } = await params;
     const { shopDomain, merchant, dispute } = await guardDisputeRoute(request, id);
+
+    // Typing the response into Shopify's form for them is paid labour. The
+    // check sits above the rate limiter on purpose: a refusal must not spend a
+    // token out of this shop's burst budget, or a free merchant who pressed the
+    // button six times would then be rate limited on the sync that is free.
+    const gate = await requireCapability(merchant.id, "PUSH_TO_SHOPIFY");
+    if (!gate.allowed) {
+      return capabilityRefusalResponse(gate);
+    }
 
     // Every call here makes at least three Shopify Admin API requests against
     // the MERCHANT's own token. Unbounded, a loop burns through their Shopify

@@ -35,11 +35,9 @@ import { getReasonProfile } from "@/lib/disputes/reason-codes";
 import { formatDate } from "@/lib/format/date";
 import { formatMoney } from "@/lib/format/money";
 import { shopifyAdminOrderUrl, shopifyAdminOrdersUrl } from "@/lib/format/shopify-admin";
-import {
-  buildEvidenceFieldStates,
-  draftEvidenceFields,
-  type EvidenceFieldState
-} from "@/lib/disputes/evidence-fields";
+// Only the type. The drafting functions are deliberately NOT imported here any
+// more - see the note where the client-side fallback used to be.
+import type { EvidenceFieldState } from "@/lib/disputes/evidence-fields";
 import { buildEvidenceGapInsights } from "@/lib/disputes/workflow";
 import type { AIPackageAssessmentView, DisputeDetailView, DisputeResponseDraftView } from "@/lib/types";
 
@@ -79,6 +77,18 @@ type DisputePageShellProps = {
    * states already on the detail view, then draft from the order snapshot.
    */
   evidenceFields?: EvidenceFieldState[];
+  /**
+   * Whether the app writes the evidence text for this shop - the AUTO_DRAFT
+   * capability in lib/billing/plans.ts, which the free plan does not include.
+   *
+   * OPTIONAL, AND DEFAULTED TO TRUE. The flag is being added to the dispute
+   * detail object in a parallel change and is not on the view type yet; reading
+   * it optionally means this file typechecks and renders correctly either way.
+   * True is the safe default because the note it controls explains empty boxes:
+   * showing it to a merchant whose boxes are full would be wrong, while not
+   * showing it yet costs nothing.
+   */
+  canAutoDraft?: boolean;
 };
 
 /**
@@ -315,7 +325,8 @@ export function DisputePageShell({
   dispute,
   responseDraft,
   packageAssessment,
-  evidenceFields
+  evidenceFields,
+  canAutoDraft = true
 }: DisputePageShellProps) {
   const searchParams = useSearchParams();
   const shopDomain = useShopDomain();
@@ -327,6 +338,7 @@ export function DisputePageShell({
   const embeddedQuery = searchParams.toString();
   const disputesUrl = `/disputes${embeddedQuery ? `?${embeddedQuery}` : ""}`;
   const packetUrl = `/packets/${dispute.id}${embeddedQuery ? `?${embeddedQuery}` : ""}`;
+  const settingsUrl = `/settings${embeddedQuery ? `?${embeddedQuery}` : ""}`;
   const adminOrderUrl = shopifyAdminOrderUrl(shopDomain, dispute.shopifyOrderId);
   const adminDisputeUrl = adminOrderUrl ?? shopifyAdminOrdersUrl(shopDomain);
   const recordedSubmissionAt = dispute.latestPacket?.submittedAt ?? dispute.evidenceSentOn ?? null;
@@ -353,36 +365,20 @@ export function DisputePageShell({
     setPendingSubmissionFocus(true);
   }
 
-  const fallbackFields = useMemo(
-    () =>
-      buildEvidenceFieldStates(
-        getReasonProfile(dispute.reason).priorityFields,
-        {},
-        draftEvidenceFields({
-          reasonLabel: getReasonProfile(dispute.reason).label,
-          reasonQuestion: getReasonProfile(dispute.reason).theQuestion,
-          orderName: dispute.orderSummary?.orderName ?? null,
-          orderTotal: dispute.orderSummary?.orderTotal ?? null,
-          currencyCode: dispute.orderSummary?.currencyCode ?? dispute.currencyCode,
-          customerName: dispute.orderSummary?.customerName ?? null,
-          customerEmail: dispute.orderSummary?.customerEmail ?? null,
-          shippingAddress: null,
-          fulfillmentStatus: dispute.orderSummary?.fulfillmentStatus ?? null,
-          trackingSummaries: [],
-          lineItemSummaries: [],
-          refundPolicyUrl: "",
-          returnPolicyUrl: "",
-          cancellationPolicyUrl: "",
-          supportEmail: "",
-          statementDescriptor: "",
-          orderPlacedAt: null
-        })
-      ),
-    [dispute.reason, dispute.currencyCode, dispute.orderSummary]
-  );
-
-  const fields =
-    evidenceFields ?? (dispute.evidenceFields?.length ? dispute.evidenceFields : fallbackFields);
+  /**
+   * There is no client-side fallback any more, and that is the point.
+   *
+   * This used to rebuild the drafts in the browser whenever
+   * `dispute.evidenceFields` looked empty - a second copy of the drafting logic,
+   * shipped to every visitor, with no plan check on it. It never actually fired,
+   * because the server always sends all ten fields. But drafting is a paid
+   * feature now, and a paywall that depends on an array never being empty is one
+   * truthiness change away from being decorative.
+   *
+   * The server decides what these fields contain, including whether the merchant
+   * is entitled to a draft at all. The browser renders what it is given.
+   */
+  const fields = evidenceFields ?? dispute.evidenceFields ?? [];
 
   const evidenceFileRefs: EvidenceFileRef[] = useMemo(
     () =>
@@ -507,6 +503,38 @@ export function DisputePageShell({
                 </BlockStack>
               </Card>
             ) : null}
+
+            {/*
+              Why the evidence boxes below are empty, said once, next to them.
+
+              A merchant on the free plan opens this page, sees blank fields
+              where the app clearly intends to put text, and concludes the app
+              is broken - which is a support ticket and a one-star review, not a
+              sale. So this is stated calmly and factually, and it is a card
+              rather than a Banner: banners on this page are for things that
+              have gone wrong, and a plan is not an incident. It also says what
+              is NOT affected, because nothing here is withheld except the
+              typing.
+            */}
+            {canAutoDraft ? null : (
+              <Card>
+                <BlockStack gap="200">
+                  <Text as="h2" variant="headingSm">
+                    These boxes start empty on the free plan
+                  </Text>
+                  <Text as="p" variant="bodyMd">
+                    Pro writes a first draft of these for you from your order data. On the free plan you write
+                    them yourself; everything else here is unchanged - the deadline, the eligibility check, the
+                    files you upload, and the money on this case.
+                  </Text>
+                  <Text as="p" variant="bodyMd">
+                    <Link className="table-link" href={settingsUrl as never}>
+                      See plans in Settings
+                    </Link>
+                  </Text>
+                </BlockStack>
+              </Card>
+            )}
 
             <ResponseBuilder
               amount={dispute.amount}

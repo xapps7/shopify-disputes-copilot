@@ -59,6 +59,7 @@ export default async function DisputeDetailPage({ params, searchParams }: Disput
       dispute={dispute}
       responseDraft={responseDraft}
       packageAssessment={packageAssessment}
+      canAutoDraft={dispute.canAutoDraft}
     />
   );
 }

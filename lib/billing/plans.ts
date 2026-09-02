@@ -39,10 +39,21 @@
  * Changing a live app's price does NOT change what existing subscribers pay.
  * Shopify subscriptions are immutable once approved: to move a merchant to a
  * new price you create a new subscription and they must approve it again, which
- * is a churn event. So the number below is worth getting right once rather than
- * adjusting twice.
+ * is a churn event.
+ *
+ * $9 is a deliberate land-grab number, chosen against a category where the
+ * incumbent takes 25% of every recovered chargeback. "Nine dollars flat, keep
+ * everything you win" is a position, not just a price. It is not chosen because
+ * it reflects what the app is worth: one prevented loss on a typical dispute is
+ * worth more than five years of it.
+ *
+ * What that costs, stated so nobody has to rediscover it: everyone who
+ * subscribes at $9 stays at $9 for as long as they keep the subscription. The
+ * way up is a SECOND, richer plan sold to new merchants - not a price change on
+ * this one. So this plan is named for what it does ("Pro"), never for its
+ * price, and the capability list below is the thing to grow.
  */
-export const PAID_PLAN_PRICE_USD = 29;
+export const PAID_PLAN_PRICE_USD = 9;
 
 /** Currency is fixed to USD: Shopify bills app charges in the app's currency. */
 export const PAID_PLAN_CURRENCY = "USD" as const;
@@ -54,6 +65,11 @@ export const PAID_PLAN_CURRENCY = "USD" as const;
  * 14 days is chosen to cover at least one real dispute cycle: a merchant who
  * never gets a chargeback during the trial has no way to judge the paid half of
  * the product, and cancels for the wrong reason.
+ *
+ * Worth revisiting once there is real data. A low-volume store may see no
+ * chargeback at all in fourteen days, and then judges the paid features on
+ * nothing. Thirty days matches a dispute cycle better; it also delays every
+ * first payment by two weeks.
  */
 export const PAID_PLAN_TRIAL_DAYS = 14;
 
