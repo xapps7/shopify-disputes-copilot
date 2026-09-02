@@ -1,8 +1,4 @@
-import { Card } from "@shopify/polaris";
-
-import { AdminPageLayout } from "@/components/admin-page-layout";
-import { PlanCard } from "@/components/plan-card";
-import { SettingsForm } from "@/components/settings-form";
+import { SettingsPageShell } from "@/components/settings-page-shell";
 import { getPlanSummary } from "@/lib/billing/gate";
 import { getMerchantSettings } from "@/lib/settings";
 import { getEmbeddedPageShop } from "@/lib/shopify/page-context";
@@ -17,15 +13,21 @@ type SettingsPageProps = {
 /**
  * Settings, with the plan on top.
  *
- * The plan is read HERE, on the server, through `getPlanSummary` - the same
- * gate the API routes use, which fails closed to free. The card below is a
- * client component and is handed the answer; it never asks the database, and it
- * is never the thing that decides what the merchant is entitled to.
+ * NOTHING FROM POLARIS IS IMPORTED HERE, and that is not a style preference.
+ * This is a server component. Polaris builds its components on React context,
+ * and `createContext` does not exist on the server - importing even a single
+ * Polaris component here fails the BUILD, with
+ * "Failed to collect configuration for /settings", which names the page and
+ * says nothing about the cause. An earlier version of this file composed the
+ * layout itself and imported `Card` directly for exactly that reason.
  *
- * The layout is composed here rather than through `components/settings-page-shell.tsx`
- * because that shell renders the settings form and takes no slot above it, so
- * there was nowhere to put the plan card. Everything else about the page -
- * title, subtitle, form mode, spacing, and the form itself - is unchanged.
+ * So the split is: this file reads data, `SettingsPageShell` renders it. Every
+ * Polaris component on this page lives behind that one "use client" boundary.
+ *
+ * The plan is read HERE, through `getPlanSummary` - the same gate the API
+ * routes use, which fails closed to free. The card is handed the answer; it
+ * never asks the database, and it is never the thing that decides what a
+ * merchant is entitled to.
  */
 export default async function SettingsPage({ searchParams }: SettingsPageProps) {
   const params = (await searchParams) ?? {};
@@ -42,23 +44,5 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
     getPlanSummary(shopDomain ?? "")
   ]);
 
-  return (
-    <AdminPageLayout
-      title="Settings"
-      subtitle="Configure merchant context used in evidence packets and dispute workflows."
-      mode="form"
-      gap="400"
-    >
-      {/*
-        First on the page, and in its own card. A merchant who opens Settings to
-        ask "what am I paying for?" should not have to scroll past a form to
-        find out, and nesting it inside the form card would read as a setting.
-      */}
-      <PlanCard plan={planSummary} />
-
-      <Card>
-        <SettingsForm initialSettings={settings} />
-      </Card>
-    </AdminPageLayout>
-  );
+  return <SettingsPageShell settings={settings} plan={planSummary} />;
 }
